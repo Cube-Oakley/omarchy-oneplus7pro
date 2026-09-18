@@ -11,8 +11,17 @@ PipeWire output has a fixed -36 dB cap pending speaker protection; themed volume
 OSD installed. Opt-in automatic startup hook is installed and the live supervisor passes;
 automatic reboot/startup and post-boot playback now pass. Audio suspend and
 microphone remain untested. Latest boot `dcca1845-3070-43d3-9e21-85fe257b5c64`.
-README/privacy/screenshots/local Git review follow audio; **no public push until
-user approval**. Local private recovery bundle is in ignored `out/private/`.
+README, six screenshots and the clean source snapshot are pushed to the local
+review branch `review/audio-and-readme-20260918`; **no public push until user
+approval**. Local private recovery bundle is in ignored `out/private/`.
+
+**Latest user report:** YouTube playback is inaudible and video streaming is
+choppy. Application sound is not yet acoustically verified. At the first follow-up
+inspection Chromium was closed; PipeWire was healthy, unmuted at 70%, with no
+stream and the PCM closed. Capture a playing browser stream next to distinguish
+connection/routing failures from the fixed -36 dB attenuation. Do not assume the
+volume limit is the cause. Investigate video decoding/acceleration separately;
+choppiness alone does not identify a hardware-acceleration defect.
 
 **Latest (Sep 18):** [Keyboard and browser work](keyboard-browser-20260918.md).
 Installed explicit-tap popup input and swipe-down keyboard handle; 52 UI tests

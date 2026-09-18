@@ -68,7 +68,8 @@ both outputs is still pending**. PipeWire application playback and the themed vo
 a fixed conservative output cap while DSP speaker protection is unfinished.
 Audio, the volume-key device and the floating panel now start automatically
 after reboot. Physical button confirmation, microphone recording and audio
-suspend validation remain unfinished. See the [audio bring-up notes](docs/audio-bringup-20260918.md).
+suspend validation remain unfinished. YouTube playback has been reported inaudible;
+browser audio and choppy video playback need further diagnosis. See the [audio bring-up notes](docs/audio-bringup-20260918.md).
 
 ## Touch controls
 

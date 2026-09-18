@@ -60,6 +60,13 @@ Public GitHub publication explicitly waits for the user's later approval.
 
 ## Application audio and shell integration
 
+User subsequently reported inaudible YouTube playback and choppy streaming.
+This leaves audible browser playback unverified despite successful audio-client
+connections and silent PCM tests. Follow-up inspection found Chromium closed,
+the sink unmuted at 70%, no application streams and the hardware PCM closed.
+Next capture a live browser stream; the fixed attenuation is a possible
+contributor, not an established cause. Video decoding needs separate diagnosis.
+
 PipeWire 1.6.8, WirePlumber and PipeWire-Pulse expose `Internal speakers`.
 Board ALSA `route` applies fixed **-36 dB** attenuation to signed integer PCM;
 this cap remains after any application/software-volume change and is not a

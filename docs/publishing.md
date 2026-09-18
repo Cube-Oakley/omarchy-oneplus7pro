@@ -18,5 +18,9 @@ contents before capture, and avoids browser sessions or personal files.
 Keep upstream source attribution. The audio notes distinguish electrical tests
 from user-confirmed sound and list the remaining protection/persistence checks.
 
-The review snapshot is for the local Git server. Public GitHub publication waits
-for explicit user approval after review.
+The user approved merging the reviewed snapshot into local `main` and publishing
+to `Cube-Oakley/omarchy-oneplus7pro` on September 18. Local `main` retains private
+development ancestry; GitHub `main` starts from the clean review snapshot. These
+branches have the same published file content but intentionally different history.
+Future public updates must descend from the clean public branch. Never merge the
+private development ancestry into it or mirror the private repository.
