@@ -1,0 +1,35 @@
+/dts-v1/;
+/plugin/;
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+&pm8150_gpios {
+    status = "okay";
+    volume_keys_default: volume-keys-state {
+        pins = "gpio6", "gpio7";
+        function = "normal";
+        input-enable;
+        bias-pull-up;
+        power-source = <1>;
+    };
+};
+&{/} {
+    mobile-volume-keys {
+        compatible = "gpio-keys";
+        label = "OnePlus 7 Pro volume keys";
+        autorepeat;
+        pinctrl-names = "default";
+        pinctrl-0 = <&volume_keys_default>;
+        volume-up {
+            label = "Volume Up";
+            gpios = <&pm8150_gpios 6 GPIO_ACTIVE_LOW>;
+            linux,code = <KEY_VOLUMEUP>;
+            debounce-interval = <15>;
+        };
+        volume-down {
+            label = "Volume Down";
+            gpios = <&pm8150_gpios 7 GPIO_ACTIVE_LOW>;
+            linux,code = <KEY_VOLUMEDOWN>;
+            debounce-interval = <15>;
+        };
+    };
+};

@@ -1,0 +1,32 @@
+/dts-v1/;
+/plugin/;
+#include <dt-bindings/sound/qcom,q6afe.h>
+&tlmm {
+    quat_mi2s_active: quat-mi2s-active-state {
+        pins = "gpio137", "gpio138";
+        function = "qua_mi2s";
+        drive-strength = <8>;
+        bias-disable;
+        output-high;
+    };
+    quat_mi2s_sd1_active: quat-mi2s-sd1-active-state {
+        pins = "gpio140";
+        function = "qua_mi2s";
+        drive-strength = <8>;
+        bias-disable;
+    };
+};
+&q6afedai {
+    #address-cells = <1>; #size-cells = <0>;
+    dai@22 { reg = <QUATERNARY_MI2S_RX>; qcom,sd-lines = <1>; };
+};
+&sound {
+    pinctrl-names = "default";
+    pinctrl-0 = <&quat_mi2s_active &quat_mi2s_sd1_active>;
+    speaker-dai-link {
+        link-name = "Speaker Playback";
+        cpu { sound-dai = <&q6afedai QUATERNARY_MI2S_RX>; };
+        platform { sound-dai = <&q6routing>; };
+        codec { sound-dai = <&speaker_top>, <&speaker_bottom>; };
+    };
+};

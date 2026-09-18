@@ -1,0 +1,3 @@
+# Unified-diff context deliberately contains a leading space before tabs and
+# otherwise blank context lines. Do not treat that patch syntax as whitespace bugs.
+*.patch -whitespace

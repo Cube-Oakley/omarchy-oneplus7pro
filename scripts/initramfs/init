@@ -1,0 +1,173 @@
+#!/bin/busybox sh
+# Bind gadget with Apps SMMU SID 0x140 restored (pullup DMA without it 900e'd).
+
+export PATH=/bin:/sbin:/usr/bin:/usr/sbin
+
+busybox mkdir -p /proc /sys /dev /tmp /run /sys/kernel/config
+busybox mount -t proc proc /proc
+busybox mount -t sysfs sysfs /sys
+busybox mount -t devtmpfs devtmpfs /dev
+busybox mkdir -p /dev/pts
+busybox mount -t devpts devpts /dev/pts
+busybox mount -t configfs configfs /sys/kernel/config 2>/dev/null
+
+klog() { echo "guacamole-init: $*" > /dev/kmsg 2>/dev/null; echo "guacamole-init: $*"; }
+
+klog "ramdisk up uname=$(busybox uname -r)"
+UDC="$(busybox ls /sys/class/udc 2>/dev/null | busybox head -n 1)"
+# Driver probing can complete later when all CPU cores start during boot.
+udc_wait=0
+while [ -z "$UDC" ] && [ "$udc_wait" -lt 30 ]; do
+	busybox sleep 1
+	udc_wait=$((udc_wait + 1))
+	UDC="$(busybox ls /sys/class/udc 2>/dev/null | busybox head -n 1)"
+done
+klog "UDC='$UDC'"
+
+setup_gadget() {
+	G=/sys/kernel/config/usb_gadget/g1
+	busybox mkdir -p "$G/strings/0x409" "$G/configs/c.1/strings/0x409"
+	echo 0x1d6b > "$G/idVendor"
+	echo 0x0104 > "$G/idProduct"
+	echo 0x0200 > "$G/bcdUSB"
+	echo 0x0100 > "$G/bcdDevice"
+	echo "omarchy-oneplus7pro" > "$G/strings/0x409/manufacturer"
+	echo "guacamole-bringup" > "$G/strings/0x409/product"
+	echo "guacamole-bringup" > "$G/strings/0x409/serialnumber"
+	echo "bringup" > "$G/configs/c.1/strings/0x409/configuration"
+	echo 120 > "$G/configs/c.1/MaxPower"
+	busybox mkdir -p "$G/functions/ncm.usb0" "$G/functions/acm.gs0"
+	busybox ln -s "$G/functions/ncm.usb0" "$G/configs/c.1/"
+	busybox ln -s "$G/functions/acm.gs0" "$G/configs/c.1/"
+	klog "sleep 2 then write UDC=$UDC"
+	busybox sleep 2
+	klog "writing UDC=$UDC"
+	echo "$UDC" > "$G/UDC"
+}
+
+if [ -n "$UDC" ]; then
+	if setup_gadget; then
+		klog "gadget bound to $UDC"
+	else
+		klog "gadget setup failed rc=$?"
+	fi
+else
+	klog "no UDC (smmu may have deferred dwc3)"
+fi
+
+# USB enum on CPU0 first, then online the little cluster only (cpu1-3).
+# cpu4-7 are gold/prime: 32-bit EL1 mismatch / RCU stall if forced.
+busybox sleep 3
+for c in /sys/devices/system/cpu/cpu[1-3]/online; do
+	[ -w "$c" ] && echo 1 > "$c"
+done
+klog "cpus=$(busybox cat /sys/devices/system/cpu/online)"
+
+busybox sleep 1
+if busybox ip link show usb0 >/dev/null 2>&1; then
+	busybox ip link set usb0 up
+	busybox ip addr add 172.16.42.1/24 dev usb0
+	klog "usb0 172.16.42.1/24"
+else
+	klog "no usb0 yet"
+fi
+busybox nc -lk -p 23 -e /bin/sh &
+klog "nc -lk -p 23"
+
+busybox mkdir -p /newroot
+i=0
+while [ "$i" -lt 30 ] && [ ! -b /dev/sda19 ]; do
+	i=$((i + 1))
+	busybox sleep 1
+done
+if [ -b /dev/sda19 ] && busybox mount -t ext4 /dev/sda19 /newroot; then
+	klog "mounted LABEL=archroot /dev/sda19 on /newroot"
+	if [ -f /hypr/save-boot-diagnostics.sh ]; then
+		busybox sh /hypr/save-boot-diagnostics.sh &
+	fi
+	busybox mkdir -p /lib/firmware
+	if [ -d /newroot/lib/firmware ]; then
+		busybox mount -o bind /newroot/lib/firmware /lib/firmware
+		klog "firmware bind-mounted"
+	fi
+else
+	klog "archroot mount failed sda19=$(ls /dev/sda19 2>/dev/null)"
+fi
+
+# Wait for delayed simpledrm (kernel schedules it ~25s after late_init).
+w=0
+while [ "$w" -lt 40 ] && [ ! -e /dev/dri/card0 ]; do
+	w=$((w + 1))
+	busybox sleep 1
+done
+
+echo 1 4 1 7 > /proc/sys/kernel/printk
+for vt in /sys/class/vtconsole/vtcon*; do
+	[ -w "$vt/bind" ] && echo 0 > "$vt/bind"
+done
+
+if [ -e /dev/dri/card0 ] && [ -x /newroot/usr/bin/Hyprland ]; then
+	# Start Hyprland on leftover simpledrm BEFORE the delayed GPU DRM appears.
+	# A real renderD128 from msm has no CRTC and makes EGL skip kms_swrast.
+	if [ ! -e /dev/dri/renderD128 ]; then
+		busybox ln -sf card0 /dev/dri/renderD128
+	fi
+	# Replace the startup alias once the real Adreno render device registers.
+	if [ -f /hypr/fix-render-node.sh ]; then
+		busybox sh /hypr/fix-render-node.sh &
+	fi
+	busybox mkdir -p /newroot/root /newroot/etc/hypr /newroot/root/.config/hypr
+	if [ -f /hypr/run-hypr.sh ]; then
+		busybox cp /hypr/run-hypr.sh /newroot/root/run-hypr.sh
+		busybox chmod 755 /newroot/root/run-hypr.sh
+		klog "installed /root/run-hypr.sh (AQ pin card0)"
+	fi
+	if [ -f /hypr/hyprland.lua ]; then
+		busybox cp /hypr/hyprland.lua /newroot/etc/hypr/hyprland.lua
+		busybox cp /hypr/hyprland.lua /newroot/root/.config/hypr/hyprland.lua
+		klog "installed hyprland.lua"
+	fi
+	busybox mkdir -p /dev/shm /newroot/tmp /newroot/dev/shm
+	busybox mount -t tmpfs tmpfs /dev/shm
+	busybox mount -t tmpfs tmpfs /newroot/tmp
+	busybox mount -t proc proc /newroot/proc
+	busybox mount -t sysfs sysfs /newroot/sys
+	busybox mount -o bind /dev /newroot/dev
+	busybox mkdir -p /newroot/run /newroot/dev/pts
+	busybox mount -t tmpfs tmpfs /newroot/run
+	busybox mount -t devpts devpts /newroot/dev/pts
+	busybox chmod 666 /dev/dri/card0 /dev/dri/renderD128 2>/dev/null
+	busybox chroot /newroot /usr/bin/seatd -u root -g root >/newroot/root/seatd.log 2>&1 &
+	busybox sleep 1
+	busybox chroot /newroot /bin/bash /root/run-hypr.sh >/newroot/root/hypr.log 2>&1 &
+	# swaybg uses POSIX shm; hyprpaper asserts on simpledrm GBM/PRIME.
+	if [ -x /newroot/usr/bin/swaybg ] && [ -f /newroot/usr/share/hypr/wall0.png ]; then
+		busybox sleep 2
+		busybox chroot /newroot /bin/sh -c 'export HOME=/root XDG_RUNTIME_DIR=/run/user/0 WAYLAND_DISPLAY=wayland-1 TMPDIR=/tmp; exec /usr/bin/swaybg -i /usr/share/hypr/wall0.png -m fill' >/newroot/root/swaybg.log 2>&1 &
+		klog "started swaybg wall0.png"
+	fi
+	# DPU card2 appears ~120s after late_init. Fill DSI-1 magenta to prove scanout
+	# before handing the device to Hyprland (EGL still unmatched on msm-kms).
+	(
+		n=0
+		while [ "$n" -lt 180 ]; do
+			if [ -e /dev/dri/card2 ]; then
+				busybox chmod 666 /dev/dri/card2 /dev/dri/card1 2>/dev/null
+				klog "card2 up, filling DSI-1"
+				busybox killall Hyprland 2>/dev/null
+				busybox sleep 1
+				if [ -x /hypr/dsi-fill ]; then
+					/hypr/dsi-fill /dev/dri/card2 >/newroot/root/dsi-fill.log 2>&1 &
+					klog "started dsi-fill"
+				fi
+				break
+			fi
+			n=$((n + 1))
+			busybox sleep 1
+		done
+	) &
+fi
+
+while :; do
+	busybox sleep 3600
+done

@@ -1,0 +1,20 @@
+/dts-v1/;
+/plugin/;
+/* Stock guacamole SE4 bus; preserve both amplifier reset lines. */
+&qupv3_id_0 { status = "okay"; };
+&i2c4 {
+    #address-cells = <1>;
+    #size-cells = <0>;
+    clock-frequency = <100000>;
+    status = "okay";
+    speaker_top: audio-codec@34 {
+        compatible = "nxp,tfa9874";
+        reg = <0x34>;
+        #sound-dai-cells = <0>;
+    };
+    speaker_bottom: audio-codec@35 {
+        compatible = "nxp,tfa9874";
+        reg = <0x35>;
+        #sound-dai-cells = <0>;
+    };
+};

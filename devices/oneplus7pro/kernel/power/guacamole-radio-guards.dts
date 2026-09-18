@@ -1,0 +1,32 @@
+/dts-v1/;
+/plugin/;
+
+/* Reserve guard pages at boot; they cannot be safely added as a live overlay.
+ * Keep the guacamole RMTFS address/size unchanged (not hotdog's address).
+ */
+&{/reserved-memory} {
+    #address-cells = <2>;
+    #size-cells = <2>;
+    rmtfs-lower-guard@f2900000 {
+        reg = <0 0xf2900000 0 0x1000>;
+        no-map;
+    };
+    rmtfs-upper-guard@f2b01000 {
+        reg = <0 0xf2b01000 0 0x1000>;
+        no-map;
+    };
+    /* Preserve the remainder of the old video/sensor reservation as no-map.
+     * Those processors stay disabled. Their complete modern OEM memory map
+     * must be reconciled before either is enabled; do not move the working
+     * GPU/IPA carveouts as a side effect of this radio-only experiment.
+     */
+    radio-unused-tail@97c00000 {
+        reg = <0 0x97c00000 0 0xf00000>;
+        no-map;
+    };
+};
+
+/* sm8150-oem.dtsi and the guacamole modem ELF agree on this 160 MiB span. */
+&mpss_mem { reg = <0 0x8dc00000 0 0xa000000>; };
+&venus_mem { status = "disabled"; };
+&slpi_mem { status = "disabled"; };

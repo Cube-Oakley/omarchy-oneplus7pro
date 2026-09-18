@@ -1,0 +1,21 @@
+/dts-v1/;
+/plugin/;
+
+/* Temporary, deliberately limited PMIC bring-up on native2. Keep charger,
+ * Type-C, fuel gauge and unrelated PMIC peripherals out of this test.
+ * Apply all exclusions before making the bus available.
+ */
+&pm8150_temp { status = "disabled"; };
+&pm8150_adc { status = "disabled"; };
+&pm8150_adc_tm { status = "disabled"; };
+&pm8150_rtc { status = "disabled"; };
+&pm8150_sdam_2 { status = "disabled"; };
+&pm8150_gpios { status = "disabled"; };
+&pon_resin { status = "disabled"; };
+&{/soc@0/spmi@c440000/pmic@2} { status = "disabled"; };
+&{/soc@0/spmi@c440000/pmic@3} { status = "disabled"; };
+&{/soc@0/spmi@c440000/pmic@4} { status = "disabled"; };
+&{/soc@0/spmi@c440000/pmic@5} { status = "disabled"; };
+&pon { status = "okay"; };
+&pon_pwrkey { status = "okay"; };
+&spmi_bus { status = "okay"; };

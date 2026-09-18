@@ -1,0 +1,19 @@
+# Dedicated bring-up SSH daemon; does not alter the distribution config.
+Port 22
+ListenAddress 172.16.42.1
+HostKey /etc/ssh/ssh_host_ed25519_key
+PidFile /run/sshd-usb.pid
+AuthorizedKeysFile .ssh/authorized_keys
+AllowUsers root
+PermitRootLogin prohibit-password
+PubkeyAuthentication yes
+AuthenticationMethods publickey
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitEmptyPasswords no
+UsePAM no
+X11Forwarding no
+AllowAgentForwarding no
+AllowTcpForwarding no
+Subsystem sftp internal-sftp
+SetEnv XDG_RUNTIME_DIR=/run/user/0

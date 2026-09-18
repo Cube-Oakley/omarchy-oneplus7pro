@@ -1,0 +1,33 @@
+Subject: [PATCH] Input: s6sy761 - finish controller restart before enabling IRQ
+
+During system resume the IRQ handler can consume the boot-complete event that
+power_on() is polling for. Keep it disabled until initialization finishes, and
+restore sensing when the input device remained open across system sleep.
+Applied after the reset and guacamole probe patches.
+
+--- a/drivers/input/touchscreen/s6sy761.c
++++ b/drivers/input/touchscreen/s6sy761.c
+@@ -576,10 +576,21 @@
+ static int s6sy761_resume(struct device *dev)
+ {
+ 	struct s6sy761_data *sdata = dev_get_drvdata(dev);
++	int ret;
++
++	/* The IRQ handler must not drain the boot-complete event. */
++	ret = s6sy761_power_on(sdata);
++	if (ret)
++		return ret;
++
++	if (input_device_enabled(sdata->input)) {
++		ret = i2c_smbus_write_byte(sdata->client, S6SY761_SENSE_ON);
++		if (ret)
++			return ret;
++	}
+ 
+ 	enable_irq(sdata->client->irq);
+-
+-	return s6sy761_power_on(sdata);
++	return 0;
+ }
+ 
+ static const struct dev_pm_ops s6sy761_pm_ops = {

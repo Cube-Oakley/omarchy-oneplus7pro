@@ -1,0 +1,8 @@
+/dts-v1/;
+/plugin/;
+/* MPSS registers offline (driver auto_boot=false). rmtfs starts it explicitly. */
+&remoteproc_mpss {
+    firmware-name = "qcom/sm8150/oneplus/guacamole/modem.mdt";
+    status = "okay";
+};
+&{/smem} { status = "okay"; };

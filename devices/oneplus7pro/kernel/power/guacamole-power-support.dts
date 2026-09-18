@@ -1,0 +1,54 @@
+/dts-v1/;
+/plugin/;
+
+/* Native3: enable gauge and PMIC power key / guarded charger only.
+ * Loaded after the tested native desktop startup, never early in boot.
+ */
+&{/} {
+    mobile_battery: battery {
+        compatible = "simple-battery";
+        voltage-min-design-microvolt = <3000000>;
+        voltage-max-design-microvolt = <4200000>;
+        constant-charge-current-max-microamp = <500000>;
+        constant-charge-voltage-max-microvolt = <4200000>;
+        charge-full-design-microamp-hours = <4000000>;
+    };
+};
+&gpi_dma1 { status = "okay"; };
+&qupv3_id_1 { status = "okay"; };
+&i2c8 {
+    status = "okay";
+    clock-frequency = <100000>;
+    #address-cells = <1>;
+    #size-cells = <0>;
+    mobile_gauge: battery@55 {
+        compatible = "ti,bq27541";
+        reg = <0x55>;
+    };
+};
+&pm8150_temp { status = "disabled"; };
+&pm8150_adc { status = "disabled"; };
+&pm8150_adc_tm { status = "disabled"; };
+&pm8150_rtc { status = "disabled"; };
+&pm8150_sdam_2 { status = "disabled"; };
+&pm8150_gpios { status = "disabled"; };
+&pon_resin { status = "disabled"; };
+&pon { status = "okay"; };
+&pon_pwrkey { status = "okay"; };
+&pm8150b_temp { status = "disabled"; };
+&pm8150b_adc { status = "disabled"; };
+&pm8150b_adc_tm { status = "disabled"; };
+&pm8150b_gpios { status = "disabled"; };
+&pm8150b_fg { status = "disabled"; };
+&pm8150b_vbus { status = "disabled"; };
+&pm8150b_typec { status = "disabled"; };
+&pm8150b_charger {
+    status = "okay";
+    monitored-battery = <&mobile_battery>;
+    qcom,external-fuel-gauge = <&mobile_gauge>;
+};
+&{/soc@0/spmi@c440000/pmic@2} { status = "okay"; };
+&{/soc@0/spmi@c440000/pmic@3} { status = "disabled"; };
+&{/soc@0/spmi@c440000/pmic@4} { status = "disabled"; };
+&{/soc@0/spmi@c440000/pmic@5} { status = "disabled"; };
+&spmi_bus { status = "okay"; };

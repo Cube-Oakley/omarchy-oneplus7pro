@@ -1,0 +1,127 @@
+--- a/glfw/wl_init.c
++++ b/glfw/wl_init.c
+@@ -495,6 +495,95 @@
+     .end = holdGestureHandleEnd,
+ };
+ 
++// Opt-in touchscreen scrolling for mobile sessions. Keep this independent of
++// any board/input node. The compositor routes wl_touch only to this client.
++static struct wl_touch *mobile_touch;
++static struct {
++    GLFWid window_id;
++    int32_t primary;
++    unsigned contacts;
++    double start_x, start_y, last_y;
++    bool moved, scrolling, blocked;
++} mobile_gesture;
++
++static void mobile_touch_down(void *data UNUSED, struct wl_touch *touch UNUSED,
++        uint32_t serial, uint32_t time UNUSED, struct wl_surface *surface,
++        int32_t id, wl_fixed_t sx, wl_fixed_t sy) {
++    glfw_cancel_momentum_scroll();
++    if (mobile_gesture.contacts++) {
++        mobile_gesture.blocked = true;
++        return;
++    }
++    _GLFWwindow *window = get_window_from_surface(surface);
++    mobile_gesture.window_id = window && surface == window->wl.surface ? window->id : 0;
++    mobile_gesture.primary = id;
++    mobile_gesture.start_x = wl_fixed_to_double(sx);
++    mobile_gesture.start_y = mobile_gesture.last_y = wl_fixed_to_double(sy);
++    mobile_gesture.moved = mobile_gesture.scrolling = mobile_gesture.blocked = false;
++    _glfw.wl.serial = _glfw.wl.input_serial = serial;
++    if (mobile_gesture.window_id) {
++        window->wl.cursorPosX = mobile_gesture.start_x;
++        window->wl.cursorPosY = mobile_gesture.start_y;
++        _glfwInputCursorPos(window, window->wl.cursorPosX, window->wl.cursorPosY);
++    }
++}
++
++static void mobile_touch_motion(void *data UNUSED, struct wl_touch *touch UNUSED,
++        uint32_t time UNUSED, int32_t id, wl_fixed_t sx, wl_fixed_t sy) {
++    if (!mobile_gesture.contacts || mobile_gesture.blocked || id != mobile_gesture.primary) return;
++    _GLFWwindow *window = _glfwWindowForId(mobile_gesture.window_id);
++    if (!window) return;
++    double px = wl_fixed_to_double(sx), py = wl_fixed_to_double(sy);
++    double dx = fabs(px - mobile_gesture.start_x), dy = fabs(py - mobile_gesture.start_y);
++    if (!mobile_gesture.moved && (dx > 8.0 || dy > 8.0)) {
++        mobile_gesture.moved = true;
++        mobile_gesture.scrolling = dy > dx * 1.2;
++    }
++    if (mobile_gesture.scrolling) {
++        GLFWScrollEvent ev = {.keyboard_modifiers = _glfw.wl.xkb.states.modifiers,
++            .offset_type = GLFW_SCROLL_OFFEST_HIGHRES};
++        ev.unscaled.y = py - mobile_gesture.last_y;
++        ev.y_offset = ev.unscaled.y * _glfwWaylandWindowScale(window);
++        glfw_handle_scroll_event_for_momentum(window, &ev, false, true);
++    }
++    mobile_gesture.last_y = py;
++}
++
++static void mobile_touch_up(void *data UNUSED, struct wl_touch *touch UNUSED,
++        uint32_t serial, uint32_t time UNUSED, int32_t id) {
++    if (!mobile_gesture.contacts) return;
++    _GLFWwindow *window = _glfwWindowForId(mobile_gesture.window_id);
++    if (id == mobile_gesture.primary && window && !mobile_gesture.blocked) {
++        _glfw.wl.serial = _glfw.wl.input_serial = serial;
++        if (mobile_gesture.scrolling) {
++            GLFWScrollEvent ev = {.keyboard_modifiers = _glfw.wl.xkb.states.modifiers,
++                .offset_type = GLFW_SCROLL_OFFEST_HIGHRES};
++            glfw_handle_scroll_event_for_momentum(window, &ev, true, true);
++        } else if (!mobile_gesture.moved) {
++            _glfwInputMouseClick(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_PRESS, _glfw.wl.xkb.states.modifiers);
++            _glfwInputMouseClick(window, GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE, _glfw.wl.xkb.states.modifiers);
++        }
++        mobile_gesture.window_id = 0;
++    }
++    if (!--mobile_gesture.contacts) memset(&mobile_gesture, 0, sizeof(mobile_gesture));
++}
++
++static void mobile_touch_frame(void *data UNUSED, struct wl_touch *touch UNUSED) {}
++static void mobile_touch_cancel(void *data UNUSED, struct wl_touch *touch UNUSED) {
++    glfw_cancel_momentum_scroll();
++    memset(&mobile_gesture, 0, sizeof(mobile_gesture));
++}
++static void mobile_touch_shape(void *data UNUSED, struct wl_touch *touch UNUSED,
++        int32_t id UNUSED, wl_fixed_t major UNUSED, wl_fixed_t minor UNUSED) {}
++static void mobile_touch_orientation(void *data UNUSED, struct wl_touch *touch UNUSED,
++        int32_t id UNUSED, wl_fixed_t orientation UNUSED) {}
++static const struct wl_touch_listener mobile_touch_listener = {
++    .down = mobile_touch_down, .up = mobile_touch_up,
++    .motion = mobile_touch_motion, .frame = mobile_touch_frame,
++    .cancel = mobile_touch_cancel, .shape = mobile_touch_shape,
++    .orientation = mobile_touch_orientation,
++};
++
+ static void seatHandleCapabilities(void* data UNUSED,
+                                    struct wl_seat* seat,
+                                    enum wl_seat_capability caps)
+@@ -524,6 +613,16 @@
+         wl_pointer_destroy(_glfw.wl.pointer);
+         _glfw.wl.pointer = NULL;
+         if (_glfw.wl.cursorAnimationTimer) toggleTimer(&_glfw.wl.eventLoopData, _glfw.wl.cursorAnimationTimer, 0);
++    }
++
++    const char *mobile_enabled = getenv("KITTY_MOBILE_TOUCH");
++    if ((caps & WL_SEAT_CAPABILITY_TOUCH) && !mobile_touch && mobile_enabled && strcmp(mobile_enabled, "1") == 0) {
++        mobile_touch = wl_seat_get_touch(seat);
++        wl_touch_add_listener(mobile_touch, &mobile_touch_listener, NULL);
++    } else if (!(caps & WL_SEAT_CAPABILITY_TOUCH) && mobile_touch) {
++        mobile_touch_cancel(NULL, mobile_touch);
++        wl_touch_destroy(mobile_touch);
++        mobile_touch = NULL;
+     }
+ 
+     if ((caps & WL_SEAT_CAPABILITY_KEYBOARD) && !_glfw.wl.keyboard)
+@@ -999,6 +1098,11 @@
+         wl_pointer_destroy(_glfw.wl.pointer);
+     if (_glfw.wl.keyboard)
+         wl_keyboard_destroy(_glfw.wl.keyboard);
++    if (mobile_touch) {
++        mobile_touch_cancel(NULL, mobile_touch);
++        wl_touch_destroy(mobile_touch);
++        mobile_touch = NULL;
++    }
+     if (_glfw.wl.seat)
+         wl_seat_destroy(_glfw.wl.seat);
+     if (_glfw.wl.relativePointerManager)

@@ -1,0 +1,20 @@
+singleton MobileTheme 1.0 MobileTheme.qml
+TouchButton 1.0 TouchButton.qml
+WindowCard 1.0 WindowCard.qml
+EdgeGestures 1.0 EdgeGestures.qml
+WorkspaceOverview 1.0 WorkspaceOverview.qml
+Wallpaper 1.0 Wallpaper.qml
+DrawerMotion 1.0 DrawerMotion.qml
+PreviewGestures 1.0 PreviewGestures.qml
+HeldPreview 1.0 HeldPreview.qml
+DrawerPull 1.0 DrawerPull.qml
+BatteryStatus 1.0 BatteryStatus.qml
+WifiStatus 1.0 WifiStatus.qml
+StatusProbe 1.0 StatusProbe.qml
+singleton MobileStatus 1.0 MobileStatus.qml
+ShadeTile 1.0 ShadeTile.qml
+DetailRow 1.0 DetailRow.qml
+NotificationShade 1.0 NotificationShade.qml
+TouchTextField 1.0 TouchTextField.qml
+KeyboardDismiss 1.0 KeyboardDismiss.qml
+VolumeOsd 1.0 VolumeOsd.qml

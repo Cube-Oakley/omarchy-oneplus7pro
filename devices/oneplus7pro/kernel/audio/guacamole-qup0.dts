@@ -1,0 +1,5 @@
+/dts-v1/;
+/plugin/;
+/* Transitional helper for the initial live test, before the parent enable
+ * was folded into guacamole-amplifiers.dts. */
+&qupv3_id_0 { status = "okay"; };

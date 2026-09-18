@@ -1,0 +1,7 @@
+/dts-v1/;
+/plugin/;
+/* Stage 1: DSP only. No codec, mixer route or speaker amplifier is enabled. */
+&remoteproc_adsp {
+    firmware-name = "qcom/sm8150/oneplus/guacamole/adsp.mdt";
+    status = "okay";
+};

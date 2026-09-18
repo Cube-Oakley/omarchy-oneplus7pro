@@ -1,0 +1,13 @@
+/dts-v1/;
+/plugin/;
+
+/* Vendor 18821 wiring: battery gauge at 0x55 on QUP1 SE0 (I2C8).
+ * Bring up the bus only; identify the gauge before binding a driver.
+ * Do not instantiate or query the fast-charge MCU at 0x26.
+ */
+&gpi_dma1 { status = "okay"; };
+&qupv3_id_1 { status = "okay"; };
+&i2c8 {
+    status = "okay";
+    clock-frequency = <100000>;
+};

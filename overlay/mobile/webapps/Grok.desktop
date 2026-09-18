@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Grok
+Comment=Grok webapp
+Exec=omarchy-launch-webapp https://grok.com
+Icon=omarchy-webapp-grok
+Terminal=false
+Categories=Network;
+StartupNotify=true
+StartupWMClass=chrome-grok.com__-Default

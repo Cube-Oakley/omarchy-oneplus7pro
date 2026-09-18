@@ -1,0 +1,116 @@
+--- a/main.c
++++ b/main.c
+@@ -12,6 +12,7 @@
+ #include <sys/mman.h>
+ #include <sys/signalfd.h>
+ #include <poll.h>
++#include <time.h>
+ #include <unistd.h>
+ #include <wayland-client-protocol.h>
+ #include <wayland-client.h>
+@@ -74,6 +75,21 @@
+ static int rounding = DEFAULT_ROUNDING;
+ static bool hidden = false;
+ static bool im_auto = false;
++static bool im_pending_active;
++static bool im_visibility_changed;
++static int64_t im_hide_deadline;
++/* Keep the exclusive zone across the brief gap between text-input clients. */
++#define IM_HIDE_GRACE_MS 120
++
++static int64_t
++monotonic_ms(void)
++{
++    struct timespec now;
++    if (clock_gettime(CLOCK_MONOTONIC, &now) < 0) {
++        die("Failed to read monotonic clock: %d\n", errno);
++    }
++    return (int64_t)now.tv_sec * 1000 + now.tv_nsec / 1000000;
++}
+ 
+ /* event handler prototypes */
+ static void wl_pointer_enter(void *data, struct wl_pointer *wl_pointer,
+@@ -516,13 +532,15 @@
+ void
+ im_activate(void *data, struct zwp_input_method_v2 *zwp_input_method_v2)
+ {
+-    show();
++    im_pending_active = true;
++    im_visibility_changed = true;
+ }
+ 
+ void
+ im_deactivate(void *data, struct zwp_input_method_v2 *zwp_input_method_v2)
+ {
+-    hide();
++    im_pending_active = false;
++    im_visibility_changed = true;
+ }
+ 
+ void
+@@ -544,6 +562,15 @@
+ void
+ im_done(void *data, struct zwp_input_method_v2 *zwp_input_method_v2)
+ {
++    /* Input-method state takes effect atomically at done, not at each event. */
++    if (!im_visibility_changed)
++        return;
++    im_visibility_changed = false;
++    if (im_pending_active) {
++        show();
++    } else if (layer_surface) {
++        im_hide_deadline = monotonic_ms() + IM_HIDE_GRACE_MS;
++    }
+ }
+ 
+ void
+@@ -719,6 +746,7 @@
+ void
+ hide()
+ {
++    im_hide_deadline = 0;
+     if (!layer_surface) {
+         return;
+     }
+@@ -763,6 +791,7 @@
+ void
+ show()
+ {
++    im_hide_deadline = 0;
+     if (layer_surface) {
+         return;
+     }
+@@ -1074,6 +1103,9 @@
+         keyboard.schemes[1].bg.bgra[3] = alpha;
+         keyboard.schemes[1].fg.bgra[3] = alpha;
+         keyboard.schemes[1].high.bgra[3] = alpha;
++        /* Process activation and explicit signals before expiring auto-hide. */
++        if (im_hide_deadline && monotonic_ms() >= im_hide_deadline)
++            hide();
+     }
+ 
+     if (fc_font_pattern) {
+@@ -1182,7 +1214,12 @@
+ 
+     while (run_display) {
+         wl_display_flush(display);
+-        poll(fds, 2, -1);
++        int timeout_ms = -1;
++        if (im_hide_deadline) {
++            int64_t remaining = im_hide_deadline - monotonic_ms();
++            timeout_ms = remaining > 0 ? (int)remaining : 0;
++        }
++        poll(fds, 2, timeout_ms);
+ 
+         if (fds[WAYLAND_FD].revents & POLLIN)
+             wl_display_dispatch(display);
+@@ -1207,6 +1244,9 @@
+             else if (si.ssi_signo == SIGPIPE)
+                 pipewarn();
+         }
++        /* Process activation and explicit signals before expiring auto-hide. */
++        if (im_hide_deadline && monotonic_ms() >= im_hide_deadline)
++            hide();
+     }
+ 
+     if (fc_font_pattern) {

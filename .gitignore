@@ -1,0 +1,31 @@
+*.img
+*.img.chunk
+*.img.sha256
+__pycache__/
+*.pyc
+.work/
+build/
+out/
+firmware/blobs/
+kernel/src/
+overlay/omarchy-src/
+*.zst
+*.xz
+*.iso
+.env
+.env.*
+.ssh/
+id_ed25519
+id_rsa
+*.pem
+*.nmconnection
+hotdog.env
+pmbootstrap.cfg
+
+# Phone screenshots / chat media dropped in the project root during bring-up.
+# Local scratch only; overlay/mobile/themes/** backgrounds stay tracked.
+/IMG_*.jpg
+/IMG_*.jpeg
+/IMG_*.png
+/screenshot*.png
+/signal-*.jpg

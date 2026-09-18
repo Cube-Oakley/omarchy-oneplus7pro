@@ -1,0 +1,120 @@
+--- a/drivers/power/supply/qcom_smbx.c
++++ b/drivers/power/supply/qcom_smbx.c
+@@ -14,6 +14,7 @@
+ #include <linux/interrupt.h>
+ #include <linux/kernel.h>
+ #include <linux/minmax.h>
++#include <linux/mutex.h>
+ #include <linux/module.h>
+ #include <linux/platform_device.h>
+ #include <linux/pm_wakeirq.h>
+@@ -248,6 +249,9 @@
+ 	struct iio_channel *usb_in_v_chan;
+ 
+ 	struct power_supply *chg_psy;
++	struct power_supply *fuel_gauge;
++	struct mutex charge_lock;
++	bool stopping, charge_active, fault_latched;
+ };
+ 
+ struct smb_match_data {
+@@ -343,7 +347,7 @@
+ 		mask = SMB2_CHARGER_ERROR_STATUS_BAT_OV_BIT;
+ 		break;
+ 	case SMB5:
+-		reg = BATTERY_CHARGER_STATUS_7;
++		reg = BATTERY_CHARGER_STATUS_2;
+ 		mask = SMB5_CHARGER_ERROR_STATUS_BAT_OV_BIT;
+ 		break;
+ 	}
+@@ -352,7 +356,7 @@
+ 	if (rc)
+ 		return rc;
+ 
+-	return !!(reg & mask);
++	return !!(val & mask);
+ }
+ 
+ static int smb_get_prop_status(struct smb_chip *chip, int *val)
+@@ -386,6 +390,16 @@
+ 	}
+ 
+ 	stat = stat & BATTERY_CHARGER_STATUS_MASK;
++
++	if (chip->gen == SMB5) {
++		if (stat >= 1 && stat <= 4)
++			*val = POWER_SUPPLY_STATUS_CHARGING;
++		else if (stat == 5)
++			*val = POWER_SUPPLY_STATUS_FULL;
++		else
++			*val = POWER_SUPPLY_STATUS_NOT_CHARGING;
++		return 0;
++	}
+ 
+ 	switch (stat) {
+ 	case TRICKLE_CHARGE:
+@@ -411,10 +425,10 @@
+ static inline int smb_get_current_limit(struct smb_chip *chip,
+ 					 unsigned int *val)
+ {
+-	int rc = regmap_read(chip->regmap, chip->base + ICL_STATUS(chip), val);
++	int rc = regmap_read(chip->regmap, chip->base + (chip->gen == SMB5 ? USBIN_CURRENT_LIMIT_CFG : ICL_STATUS(chip)), val);
+ 
+ 	if (rc >= 0)
+-		*val *= CURRENT_SCALE_FACTOR;
++		*val *= chip->gen == SMB5 ? 50000 : CURRENT_SCALE_FACTOR;
+ 	return rc;
+ }
+ 
+@@ -427,7 +441,7 @@
+ 			"Can't set current limit higher than 4800000uA");
+ 		return -EINVAL;
+ 	}
+-	val_raw = val / CURRENT_SCALE_FACTOR;
++	val_raw = val / (chip->gen == SMB5 ? 50000 : CURRENT_SCALE_FACTOR);
+ 
+ 	return regmap_write(chip->regmap, chip->base + USBIN_CURRENT_LIMIT_CFG,
+ 			    val_raw);
+@@ -622,6 +636,10 @@
+ 	case POWER_SUPPLY_PROP_STATUS:
+ 		return smb_get_prop_status(chip, &val->intval);
+ 	case POWER_SUPPLY_PROP_HEALTH:
++        if (chip->gen == SMB5 && chip->fault_latched) {
++            val->intval = POWER_SUPPLY_HEALTH_UNSPEC_FAILURE;
++            return 0;
++        }
+ 		return smb_get_prop_health(chip, &val->intval);
+ 	case POWER_SUPPLY_PROP_USB_TYPE:
+ 		return smb_apsd_get_charger_type(chip, &val->intval);
+@@ -972,6 +990,8 @@
+ 	return 0;
+ }
+ 
++#include "qcom_smbx_mobile.h"
++
+ static int smb_probe(struct platform_device *pdev)
+ {
+ 	struct power_supply_config supply_config = {};
+@@ -996,6 +1016,11 @@
+ 	if (rc < 0)
+ 		return dev_err_probe(chip->dev, rc,
+ 				     "Couldn't read base address\n");
++
++	match_data = device_get_match_data(chip->dev);
++	chip->gen = match_data->gen;
++	if (chip->gen == SMB5)
++		return smb_mobile_probe(pdev, chip);
+ 
+ 	chip->usb_in_v_chan = devm_iio_channel_get(chip->dev, "usbin_v");
+ 	if (IS_ERR(chip->usb_in_v_chan))
+@@ -1118,8 +1143,10 @@
+ 
+ static struct platform_driver qcom_spmi_smb = {
+ 	.probe = smb_probe,
++    .shutdown = smb_mobile_shutdown,
+ 	.driver = {
+ 		.name = "qcom-smbx-charger",
++        .pm = pm_sleep_ptr(&smb_mobile_pm),
+ 		.of_match_table = smb_match_id_table,
+ 		},
+ };

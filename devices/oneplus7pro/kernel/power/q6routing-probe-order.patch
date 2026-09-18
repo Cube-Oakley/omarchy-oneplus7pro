@@ -1,0 +1,12 @@
+--- a/sound/soc/qcom/qdsp6/q6routing.c
++++ b/sound/soc/qcom/qdsp6/q6routing.c
+@@ -1120,6 +1120,9 @@
+ }
+ 
+ static const struct snd_soc_component_driver msm_soc_routing_component = {
++	/* Routes reference Q6ASM/Q6AFE widgets. Live DT overlays may enumerate
++	 * backend links before frontend links, so probe after their components. */
++	.probe_order = SND_SOC_COMP_ORDER_LATE,
+ 	.probe = msm_routing_probe,
+ 	.name = DRV_NAME,
+ 	.hw_params = routing_hw_params,

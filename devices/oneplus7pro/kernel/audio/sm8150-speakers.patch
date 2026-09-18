@@ -1,0 +1,51 @@
+--- a/sound/soc/qcom/sm8150.c
++++ b/sound/soc/qcom/sm8150.c
+@@ -200,6 +200,8 @@
+ 	int ret = 0;
+ 
+ 	switch (cpu_dai->id) {
++	case QUATERNARY_MI2S_RX:
++		break;
+ 	case QUATERNARY_TDM_RX_0:
+ 	case QUATERNARY_TDM_TX_0:
+ 		ret = sm8150_tdm_snd_hw_params(substream, params);
+@@ -306,6 +308,19 @@
+ 	struct snd_soc_dai *codec_dai = snd_soc_rtd_to_codec(rtd, 0);
+ 
+ 	switch (cpu_dai->id) {
++	case QUATERNARY_MI2S_RX: {
++		int ret = snd_soc_dai_set_sysclk(cpu_dai,
++			Q6AFE_LPASS_CLK_ID_QUAD_MI2S_IBIT,
++			3072000, SNDRV_PCM_STREAM_PLAYBACK);
++		if (ret < 0)
++			return ret;
++		ret = snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_BP_FP);
++		if (ret < 0)
++			snd_soc_dai_set_sysclk(cpu_dai,
++				Q6AFE_LPASS_CLK_ID_QUAD_MI2S_IBIT,
++				0, SNDRV_PCM_STREAM_PLAYBACK);
++		return ret;
++	}
+ 	case QUATERNARY_TDM_RX_0:
+ 		codec_dai_fmt |= SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_DSP_A;
+ 		if (++(data->quat_tdm_clk_count) == 1) {
+@@ -333,6 +348,11 @@
+ 	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
+ 
+ 	switch (cpu_dai->id) {
++	case QUATERNARY_MI2S_RX:
++		snd_soc_dai_set_sysclk(cpu_dai,
++			Q6AFE_LPASS_CLK_ID_QUAD_MI2S_IBIT,
++			0, SNDRV_PCM_STREAM_PLAYBACK);
++		break;
+ 	case QUATERNARY_TDM_RX_0:
+ 	case QUATERNARY_TDM_TX_0:
+ 		if (--(data->quat_tdm_clk_count) == 0) {
+@@ -342,7 +362,6 @@
+ 		}
+ 		break;
+ 	case SLIMBUS_0_RX...SLIMBUS_6_TX:
+-	case QUATERNARY_MI2S_RX:
+ 		break;
+ 	default:
+ 		pr_err("%s: invalid dai id 0x%x\n", __func__, cpu_dai->id);

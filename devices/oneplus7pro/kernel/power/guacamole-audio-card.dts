@@ -1,0 +1,48 @@
+/dts-v1/;
+/plugin/;
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/clock/qcom,rpmh.h>
+#include <dt-bindings/sound/qcom,q6afe.h>
+#include <dt-bindings/sound/qcom,q6asm.h>
+#include <dt-bindings/sound/qcom,wcd934x.h>
+#include "sm8150-wcd9340.dtsi"
+
+/* Stock guacamole reset/IRQ and five 1.8 V S4A codec supply connections.
+ * No external amplifier is described or enabled by this initial card. */
+&wcd9340 {
+    reset-gpios = <&tlmm 143 GPIO_ACTIVE_HIGH>;
+    vdd-buck-sido-supply = <&vreg_s4a_1p8>;
+    vdd-buck-supply = <&vreg_s4a_1p8>;
+    vdd-tx-supply = <&vreg_s4a_1p8>;
+    vdd-rx-supply = <&vreg_s4a_1p8>;
+    vdd-io-supply = <&vreg_s4a_1p8>;
+};
+&wcd_intr_default { /delete-property/ input-enable; };
+&slim { #address-cells = <1>; #size-cells = <0>; };
+&q6asmdai {
+    #address-cells = <1>; #size-cells = <0>;
+    dai@0 { reg = <MSM_FRONTEND_DAI_MULTIMEDIA1>; };
+};
+&sound {
+    compatible = "qcom,sm8150-sndcard";
+    model = "OnePlus 7 Pro";
+    status = "okay";
+    audio-routing = "RX_BIAS", "MCLK";
+    mm1-dai-link {
+        link-name = "MultiMedia1";
+        cpu { sound-dai = <&q6asmdai MSM_FRONTEND_DAI_MULTIMEDIA1>; };
+    };
+    slim-dai-link {
+        link-name = "SLIM Playback 1";
+        cpu { sound-dai = <&q6afedai SLIMBUS_0_RX>; };
+        platform { sound-dai = <&q6routing>; };
+        codec { sound-dai = <&wcd9340 AIF1_PB>; };
+    };
+    slimcap-dai-link {
+        link-name = "SLIM Capture 1";
+        cpu { sound-dai = <&q6afedai SLIMBUS_0_TX>; };
+        platform { sound-dai = <&q6routing>; };
+        codec { sound-dai = <&wcd9340 AIF1_CAP>; };
+    };
+};

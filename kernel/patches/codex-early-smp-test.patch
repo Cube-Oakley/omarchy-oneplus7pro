@@ -1,0 +1,86 @@
+--- a/kernel/smp.c
++++ b/kernel/smp.c
+@@ -926,10 +926,10 @@
+ EXPORT_SYMBOL(smp_call_function);
+ 
+ /* Setup configured maximum number of CPUs to activate */
+-/* 0 = don't boot secondaries in smp_init (USB-safe). They can still be
+- * marked present in smp_prepare_cpus and onlined after gadget enum.
+- */
+-unsigned int setup_max_cpus = 0;
++/* Discover the common feature set across both Kryo clusters before finalizing
++ * arm64 capabilities. Late hotplug cannot remove CPU0-only capabilities.
++ */
++unsigned int setup_max_cpus = NR_CPUS;
+ EXPORT_SYMBOL(setup_max_cpus);
+ 
+ 
+--- a/arch/arm64/kernel/smp.c
++++ b/arch/arm64/kernel/smp.c
+@@ -784,9 +784,16 @@
+ 	numa_add_cpu(this_cpu);
+ 
+ 	/*
+-	 * Mark secondaries present even when max_cpus==0 so they can be
+-	 * hotplugged after USB enumerates. bringup_nonboot_cpus(0) will
+-	 * not actually boot them here.
++	 * If UP is mandated by "nosmp" (which implies "maxcpus=0"), don't set
++	 * secondary CPUs present.
++	 */
++	if (max_cpus == 0)
++		return;
++
++	/*
++	 * Initialise the present map (which describes the set of CPUs
++	 * actually populated at the present time) and release the
++	 * secondaries from the bootloader.
+ 	 */
+ 	for_each_possible_cpu(cpu) {
+ 
+--- a/arch/arm64/kernel/bringup_usb.c
++++ b/arch/arm64/kernel/bringup_usb.c
+@@ -11,6 +11,7 @@
+ #include <linux/font.h>
+ #include <linux/init.h>
+ #include <linux/io.h>
++#include <linux/moduleparam.h>
+ #include <linux/netdevice.h>
+ #include <linux/of.h>
+ #include <linux/of_platform.h>
+@@ -383,6 +384,10 @@
+ static DECLARE_DELAYED_WORK(bringup_gpu_dwork, bringup_gpu_work);
+ static DECLARE_DELAYED_WORK(bringup_dpu_dwork, bringup_dpu_work);
+ 
++/* CPU/GPU tests keep the working bootloader scanout. DPU is opt-in. */
++static bool bringup_dpu;
++module_param_named(dpu, bringup_dpu, bool, 0400);
++
+ static DECLARE_DELAYED_WORK(bringup_simpledrm_dwork, bringup_simpledrm_work);
+ 
+ static void bringup_reboot_bootloader(void)
+@@ -435,10 +440,10 @@
+ 	bringup_dump_compat("qcom,sm8150-mdss");
+ 	schedule_delayed_work(&bringup_simpledrm_dwork, 25 * HZ);
+ 	schedule_delayed_work(&bringup_gpu_dwork, 90 * HZ);
+-	schedule_delayed_work(&bringup_dpu_dwork, 120 * HZ);
+-	pr_info("simpledrm delayed 25s, gpu delayed 90s, dpu delayed 120s\n");
++	if (bringup_dpu)
++		schedule_delayed_work(&bringup_dpu_dwork, 120 * HZ);
++	pr_info("simpledrm delayed 25s, gpu delayed 90s, dpu %s\n",
++		bringup_dpu ? "delayed 120s" : "disabled");
+ 	return 0;
+ }
+ late_initcall_sync(bringup_usb_init);
+-
+-
+--- a/arch/arm64/kernel/Makefile
++++ b/arch/arm64/kernel/Makefile
+@@ -37,7 +37,7 @@
+ 			   rsi.o jump_label.o bringup_usb.o embedded_dtb.o
+ 
+ targets += embedded_dtb.S
+-$(obj)/embedded_dtb.S: $(obj)/../boot/dts/qcom/sm8150-oneplus-guacamole.dtb FORCE
++$(obj)/embedded_dtb.S: bringup-guacamole.dtb FORCE
+ 	$(Q)printf '%s\n' \
+ 		'	.section .rodata,"a"' \
+ 		'	.balign 8' \

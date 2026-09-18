@@ -1,0 +1,15 @@
+/dts-v1/;
+/plugin/;
+
+/* Confirmed bq27541, ID 0x0541 / FW 0x0200, standard readout driver.
+ * Apply with guacamole-gauge-bus.dts for persistent boot integration.
+ * No battery-profile writes and no fast-charge MCU instance.
+ */
+&i2c8 {
+    #address-cells = <1>;
+    #size-cells = <0>;
+    battery@55 {
+        compatible = "ti,bq27541";
+        reg = <0x55>;
+    };
+};

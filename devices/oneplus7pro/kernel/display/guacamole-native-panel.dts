@@ -1,0 +1,82 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/dts-v1/;
+/plugin/;
+
+/* GM1911 / guacamole. Keep MDSS/DSI disabled until delayed kernel activation.
+ * Apply to the verified touch1 embedded DTB to preserve its CPU/USB fixes.
+ */
+/ {
+    compatible = "oneplus,guacamole";
+
+    fragment@0 {
+        target-path = "/";
+        __overlay__ {
+            panel_avdd_1p8: panel-avdd-regulator {
+                compatible = "regulator-fixed";
+                regulator-name = "panel_avdd_1p8";
+                regulator-min-microvolt = <1800000>;
+                regulator-max-microvolt = <1800000>;
+                gpio = <&tlmm 130 0>;
+                enable-active-high;
+                pinctrl-0 = <&panel_avdd_default>;
+                pinctrl-names = "default";
+            };
+        };
+    };
+
+    fragment@1 {
+        target = <&tlmm>;
+        __overlay__ {
+            panel_avdd_default: panel-avdd-default-state {
+                pins = "gpio130";
+                function = "gpio";
+                drive-strength = <8>;
+                bias-disable;
+            };
+            panel_te_default: panel-te-default-state {
+                pins = "gpio8";
+                function = "mdp_vsync";
+                drive-strength = <2>;
+                bias-pull-down;
+            };
+        };
+    };
+
+    fragment@2 {
+        target = <&mdss_dsi0>;
+        __overlay__ {
+            #address-cells = <1>;
+            #size-cells = <0>;
+            vdda-supply = <&vreg_l3c_1p2>;
+            panel@0 {
+                compatible = "samsung,oneplus-dsc";
+                reg = <0>;
+                vddio-supply = <&vreg_l14a_1p8>;
+                avdd-supply = <&panel_avdd_1p8>;
+                reset-gpios = <&tlmm 6 1>;
+                pinctrl-0 = <&panel_te_default>;
+                pinctrl-names = "default";
+                status = "okay";
+                port {
+                    guacamole_native_panel_in: endpoint {
+                        remote-endpoint = <&mdss_dsi0_out>;
+                    };
+                };
+            };
+        };
+    };
+
+    fragment@3 {
+        target = <&mdss_dsi0_phy>;
+        __overlay__ {
+            vdds-supply = <&vreg_l5a_0p875>;
+        };
+    };
+
+    fragment@4 {
+        target = <&mdss_dsi0_out>;
+        __overlay__ {
+            remote-endpoint = <&guacamole_native_panel_in>;
+        };
+    };
+};

@@ -1,0 +1,33 @@
+--- a/main.c
++++ b/main.c
+@@ -75,6 +75,7 @@
+ static int rounding = DEFAULT_ROUNDING;
+ static bool hidden = false;
+ static bool im_auto = false;
++static bool show_in_progress;
+ static bool im_pending_active;
+ static bool im_visibility_changed;
+ static int64_t im_hide_deadline;
+@@ -792,10 +793,13 @@
+ show()
+ {
+     im_hide_deadline = 0;
+-    if (layer_surface) {
++    if (layer_surface || show_in_progress) {
+         return;
+     }
+ 
++    /* The sizing roundtrips dispatch input-method events, which can call
++     * show() again before the outer call has assigned layer_surface. */
++    show_in_progress = true;
+     refresh_available_dimension();
+     redimension_keyboard();
+ 
+@@ -825,6 +829,7 @@
+     zwlr_layer_surface_v1_add_listener(layer_surface, &layer_surface_listener,
+                                        NULL);
+     wl_surface_commit(draw_surf.surf);
++    show_in_progress = false;
+ }
+ 
+ void

@@ -1,0 +1,192 @@
+--- a/ath10k/core.h
++++ b/ath10k/core.h
+@@ -1155,6 +1155,13 @@
+ 	u8 cfg_rx_chainmask;
+ 
+ 	struct completion install_key_done;
++	/* SNOC TLV key acknowledgements; pending metadata protected by data_lock. */
++	struct completion key_wmi_done;
++	bool key_wmi_pending;
++	bool key_wmi_desynced;
++	u32 key_wmi_vdev, key_wmi_idx, key_wmi_flags;
++	u8 key_wmi_addr[ETH_ALEN];
++	int key_wmi_status;
+ 
+ 	int last_wmi_vdev_start_status;
+ 	struct completion vdev_setup_done;
+--- a/ath10k/core.c
++++ b/ath10k/core.c
+@@ -2987,6 +2987,10 @@
+ 	lockdep_assert_held(&ar->conf_mutex);
+ 
+ 	clear_bit(ATH10K_FLAG_CRASH_FLUSH, &ar->dev_flags);
++	spin_lock_bh(&ar->data_lock);
++	ar->key_wmi_pending = false;
++	ar->key_wmi_desynced = false;
++	spin_unlock_bh(&ar->data_lock);
+ 
+ 	ar->running_fw = fw;
+ 
+@@ -3689,6 +3693,7 @@
+ 	init_completion(&ar->wow.wakeup_completed);
+ 
+ 	init_completion(&ar->install_key_done);
++	init_completion(&ar->key_wmi_done);
+ 	init_completion(&ar->vdev_setup_done);
+ 	init_completion(&ar->vdev_delete_done);
+ 	init_completion(&ar->thermal.wmi_sync);
+--- a/ath10k/mac.c
++++ b/ath10k/mac.c
+@@ -298,30 +298,64 @@
+ }
+ 
+ static int ath10k_install_key(struct ath10k_vif *arvif,
+-			      struct ieee80211_key_conf *key,
+-			      enum set_key_cmd cmd,
+-			      const u8 *macaddr, u32 flags)
++                              struct ieee80211_key_conf *key,
++                              enum set_key_cmd cmd,
++                              const u8 *macaddr, u32 flags)
+ {
+ 	struct ath10k *ar = arvif->ar;
++	bool wmi_ack = ar->hif.bus == ATH10K_BUS_SNOC &&
++		ar->running_fw->fw_file.wmi_op_version == ATH10K_FW_WMI_OP_VERSION_TLV;
++	unsigned long time_left;
+ 	int ret;
+-	unsigned long time_left;
+ 
+ 	lockdep_assert_held(&ar->conf_mutex);
+-
+-	reinit_completion(&ar->install_key_done);
+-
+ 	if (arvif->nohwcrypt)
+ 		return 1;
++	reinit_completion(&ar->install_key_done);
++	if (wmi_ack) {
++		reinit_completion(&ar->key_wmi_done);
++		spin_lock_bh(&ar->data_lock);
++		/* After an ambiguous timeout, never match a late reply to a new
++		 * operation. A firmware restart is required to reset this state.
++		 */
++		if (ar->key_wmi_desynced) {
++			spin_unlock_bh(&ar->data_lock);
++			return -EIO;
++		}
++		ar->key_wmi_vdev = arvif->vdev_id;
++		ar->key_wmi_idx = key->keyidx;
++		ar->key_wmi_flags = flags;
++		ether_addr_copy(ar->key_wmi_addr, macaddr);
++		ar->key_wmi_status = -ETIMEDOUT;
++		ar->key_wmi_pending = true;
++		spin_unlock_bh(&ar->data_lock);
++	}
+ 
+ 	ret = ath10k_send_key(arvif, key, cmd, macaddr, flags);
+ 	if (ret)
+-		return ret;
+-
++		goto out;
++	if (wmi_ack) {
++		time_left = wait_for_completion_timeout(&ar->key_wmi_done, 3 * HZ);
++		spin_lock_bh(&ar->data_lock);
++		ret = time_left ? ar->key_wmi_status : -ETIMEDOUT;
++		spin_unlock_bh(&ar->data_lock);
++		if (ret || cmd == DISABLE_KEY)
++			goto out;
++	}
++	/* Key installation still requires HTT security/PN initialization.
++	 * WCN3990 deletion reports WMI completion but no HTT SEC_IND.
++	 */
+ 	time_left = wait_for_completion_timeout(&ar->install_key_done, 3 * HZ);
+-	if (time_left == 0)
+-		return -ETIMEDOUT;
+-
+-	return 0;
++	ret = time_left ? 0 : -ETIMEDOUT;
++out:
++	if (wmi_ack) {
++		spin_lock_bh(&ar->data_lock);
++		ar->key_wmi_pending = false;
++		if (ret)
++			ar->key_wmi_desynced = true;
++		spin_unlock_bh(&ar->data_lock);
++	}
++	return ret;
+ }
+ 
+ static int ath10k_install_peer_wep_keys(struct ath10k_vif *arvif,
+--- a/ath10k/wmi-tlv.c
++++ b/ath10k/wmi-tlv.c
+@@ -25,6 +25,8 @@
+ };
+ 
+ static const struct wmi_tlv_policy wmi_tlv_policies[] = {
++	[WMI_TLV_TAG_STRUCT_VDEV_INSTALL_KEY_COMPLETE_EVENT]
++		= { .min_len = sizeof(struct wmi_tlv_key_complete_ev) },
+ 	[WMI_TLV_TAG_ARRAY_BYTE]
+ 		= { .min_len = 0 },
+ 	[WMI_TLV_TAG_ARRAY_UINT32]
+@@ -632,6 +634,38 @@
+ /* TLV ops */
+ /***********/
+ 
++static void ath10k_wmi_tlv_key_complete(struct ath10k *ar, struct sk_buff *skb)
++{
++	const struct wmi_tlv_key_complete_ev *ev;
++	const void **tb;
++
++	if (ar->hif.bus != ATH10K_BUS_SNOC)
++		return;
++	tb = ath10k_wmi_tlv_parse_alloc(ar, skb->data, skb->len, GFP_ATOMIC);
++	if (IS_ERR(tb))
++		return;
++	ev = tb[WMI_TLV_TAG_STRUCT_VDEV_INSTALL_KEY_COMPLETE_EVENT];
++	if (!ev)
++		goto out;
++	ath10k_dbg(ar, ATH10K_DBG_WMI,
++		   "key ack vdev %u idx %u flags %u status %u\n",
++		   le32_to_cpu(ev->vdev_id), le32_to_cpu(ev->key_idx),
++		   le32_to_cpu(ev->key_flags), le32_to_cpu(ev->status));
++	spin_lock_bh(&ar->data_lock);
++	if (ar->key_wmi_pending &&
++	    ar->key_wmi_vdev == le32_to_cpu(ev->vdev_id) &&
++	    ar->key_wmi_idx == le32_to_cpu(ev->key_idx) &&
++	    ar->key_wmi_flags == le32_to_cpu(ev->key_flags) &&
++	    ether_addr_equal(ar->key_wmi_addr, ev->peer_macaddr.addr)) {
++		ar->key_wmi_status = le32_to_cpu(ev->status) ? -EIO : 0;
++		ar->key_wmi_pending = false;
++		complete(&ar->key_wmi_done);
++	}
++	spin_unlock_bh(&ar->data_lock);
++out:
++	kfree(tb);
++}
++
+ static void ath10k_wmi_tlv_op_rx(struct ath10k *ar, struct sk_buff *skb)
+ {
+ 	struct wmi_cmd_hdr *cmd_hdr;
+@@ -751,7 +785,7 @@
+ 		ath10k_wmi_event_addba_complete(ar, skb);
+ 		break;
+ 	case WMI_TLV_VDEV_INSTALL_KEY_COMPLETE_EVENTID:
+-		ath10k_wmi_event_vdev_install_key_complete(ar, skb);
++		ath10k_wmi_tlv_key_complete(ar, skb);
+ 		break;
+ 	case WMI_TLV_SERVICE_READY_EVENTID:
+ 		ath10k_wmi_event_service_ready(ar, skb);
+--- a/ath10k/wmi-tlv.h
++++ b/ath10k/wmi-tlv.h
+@@ -2680,4 +2680,13 @@
+ 	__le32 frame_len;
+ 	__le32 buf_len;
+ } __packed;
++
++/* WMI_TLV_TAG_STRUCT_VDEV_INSTALL_KEY_COMPLETE_EVENT payload. */
++struct wmi_tlv_key_complete_ev {
++	__le32 vdev_id;
++	struct wmi_mac_addr peer_macaddr;
++	__le32 key_idx;
++	__le32 key_flags;
++	__le32 status;
++} __packed;
+ #endif

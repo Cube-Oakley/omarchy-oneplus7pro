@@ -1,0 +1,7 @@
+/dts-v1/;
+/plugin/;
+
+/* Alarm-only bring-up: leave the vendor RTC counter and offset storage intact.
+ * In particular, do not add allow-set-time or an NVMEM/UEFI offset provider.
+ */
+&pm8150_rtc { status = "okay"; };

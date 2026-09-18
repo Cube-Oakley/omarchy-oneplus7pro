@@ -1,0 +1,79 @@
+Subject: [PATCH] s6sy761: guacamole live-probe voltage and safe failed-probe cleanup
+
+Diagnostic patch after the optional-reset backport. Request the stock board
+voltage through the regulator consumer API; changing an existing regulator DT
+node in a live overlay does not reparse its constraints. Avoid disabling an
+unrequested interrupt or unenabled supplies on unsuccessful probe.
+
+--- a/drivers/input/touchscreen/s6sy761.c
++++ b/drivers/input/touchscreen/s6sy761.c
+@@ -13,6 +13,7 @@
+ #include <linux/interrupt.h>
+ #include <linux/irq.h>
+ #include <linux/module.h>
++#include <linux/of.h>
+ #include <linux/pm_runtime.h>
+ #include <linux/regulator/consumer.h>
+ 
+@@ -103,6 +104,8 @@
+ 	struct i2c_client *client;
+ 	struct regulator_bulk_data regulators[2];
+ 	struct gpio_desc *reset_gpio;
++	bool supplies_on;
++	bool irq_requested;
+ 	struct input_dev *input;
+ 	struct touchscreen_properties prop;
+ 
+@@ -337,6 +340,8 @@
+ 				    sdata->regulators);
+ 	if (ret)
+ 		return ret;
++
++	sdata->supplies_on = true;
+ 
+ 	/*
+ 	 * A completed boot is only announced after the controller has really
+@@ -429,11 +434,15 @@
+ {
+ 	struct s6sy761_data *sdata = data;
+ 
+-	disable_irq(sdata->client->irq);
++	if (sdata->irq_requested)
++		disable_irq(sdata->client->irq);
+ 	if (sdata->reset_gpio)
+ 		gpiod_set_value_cansleep(sdata->reset_gpio, 1);
+-	regulator_bulk_disable(ARRAY_SIZE(sdata->regulators),
+-						sdata->regulators);
++	if (sdata->supplies_on) {
++		regulator_bulk_disable(ARRAY_SIZE(sdata->regulators),
++				       sdata->regulators);
++		sdata->supplies_on = false;
++	}
+ }
+ 
+ static int s6sy761_probe(struct i2c_client *client)
+@@ -462,6 +471,16 @@
+ 	if (err)
+ 		return err;
+ 
++	/* Guacamole's stock 18821 DT specifies 3.008 V on PM8150 L17.
++	 * Its regulator already exists when the diagnostic overlay is applied.
++	 */
++	if (of_machine_is_compatible("oneplus,guacamole")) {
++		err = regulator_set_voltage(sdata->regulators[S6SY761_REGULATOR_AVDD].consumer,
++					    3008000, 3008000);
++		if (err)
++			return dev_err_probe(&client->dev, err, "AVDD voltage request failed\n");
++	}
++
+ 	sdata->reset_gpio = devm_gpiod_get_optional(&client->dev, "reset",
+ 						    GPIOD_OUT_LOW);
+ 	if (IS_ERR(sdata->reset_gpio))
+@@ -518,6 +537,7 @@
+ 	if (err)
+ 		return err;
+ 
++	sdata->irq_requested = true;
+ 	pm_runtime_enable(&client->dev);
+ 
+ 	return 0;

@@ -1,0 +1,24 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/dts-v1/;
+/plugin/;
+
+/* Temporary graph-only repair for the already booted native1 image. */
+/ {
+    compatible = "oneplus,guacamole";
+    fragment@0 {
+        target-path = "/soc@0/display-subsystem@ae00000/dsi@ae94000/panel@0";
+        __overlay__ {
+            port {
+                guacamole_native_panel_in: endpoint {
+                    remote-endpoint = <&mdss_dsi0_out>;
+                };
+            };
+        };
+    };
+    fragment@1 {
+        target = <&mdss_dsi0_out>;
+        __overlay__ {
+            remote-endpoint = <&guacamole_native_panel_in>;
+        };
+    };
+};

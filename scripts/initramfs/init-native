@@ -1,0 +1,140 @@
+#!/bin/busybox sh
+# Native display boot: USB first, then the mobile desktop after DSI is ready.
+
+export PATH=/bin:/sbin:/usr/bin:/usr/sbin
+
+busybox mkdir -p /proc /sys /dev /tmp /run /sys/kernel/config
+busybox mount -t proc proc /proc
+busybox mount -t sysfs sysfs /sys
+busybox mount -t devtmpfs devtmpfs /dev
+busybox mkdir -p /dev/pts
+busybox mount -t devpts devpts /dev/pts
+busybox mount -t configfs configfs /sys/kernel/config 2>/dev/null
+
+klog() { echo "guacamole-init: $*" > /dev/kmsg 2>/dev/null; echo "guacamole-init: $*"; }
+
+klog "ramdisk up uname=$(busybox uname -r)"
+UDC="$(busybox ls /sys/class/udc 2>/dev/null | busybox head -n 1)"
+udc_wait=0
+while [ -z "$UDC" ] && [ "$udc_wait" -lt 30 ]; do
+    busybox sleep 1
+    udc_wait=$((udc_wait + 1))
+    UDC="$(busybox ls /sys/class/udc 2>/dev/null | busybox head -n 1)"
+done
+klog "UDC='$UDC'"
+
+setup_gadget() {
+	G=/sys/kernel/config/usb_gadget/g1
+	busybox mkdir -p "$G/strings/0x409" "$G/configs/c.1/strings/0x409"
+	echo 0x1d6b > "$G/idVendor"
+	echo 0x0104 > "$G/idProduct"
+	echo 0x0200 > "$G/bcdUSB"
+	echo 0x0100 > "$G/bcdDevice"
+	echo "omarchy-oneplus7pro" > "$G/strings/0x409/manufacturer"
+	echo "guacamole-bringup" > "$G/strings/0x409/product"
+	echo "guacamole-bringup" > "$G/strings/0x409/serialnumber"
+	echo "bringup" > "$G/configs/c.1/strings/0x409/configuration"
+	if [ -f /hypr/power/power_support.ko ]; then
+		echo 500 > "$G/configs/c.1/MaxPower"
+	else
+		echo 120 > "$G/configs/c.1/MaxPower"
+	fi
+	busybox mkdir -p "$G/functions/ncm.usb0" "$G/functions/acm.gs0"
+	busybox ln -s "$G/functions/ncm.usb0" "$G/configs/c.1/"
+	busybox ln -s "$G/functions/acm.gs0" "$G/configs/c.1/"
+	klog "sleep 2 then write UDC=$UDC"
+	busybox sleep 2
+	klog "writing UDC=$UDC"
+	echo "$UDC" > "$G/UDC"
+}
+
+if [ -n "$UDC" ]; then
+	if setup_gadget; then
+		klog "gadget bound to $UDC"
+	else
+		klog "gadget setup failed rc=$?"
+	fi
+else
+	klog "no UDC (smmu may have deferred dwc3)"
+fi
+
+# All eight CPUs now start during normal SMP initialization.
+# Preserve the tested USB startup delay; the old little-core writes are harmless.
+busybox sleep 3
+for c in /sys/devices/system/cpu/cpu[1-3]/online; do
+	[ -w "$c" ] && echo 1 > "$c"
+done
+klog "cpus=$(busybox cat /sys/devices/system/cpu/online)"
+
+busybox sleep 1
+if busybox ip link show usb0 >/dev/null 2>&1; then
+	busybox ip link set usb0 up
+	busybox ip addr add 172.16.42.1/24 dev usb0
+	klog "usb0 172.16.42.1/24"
+else
+	klog "no usb0 yet"
+fi
+busybox nc -lk -p 23 -e /bin/sh &
+klog "nc -lk -p 23"
+
+busybox mkdir -p /newroot
+i=0
+while [ "$i" -lt 30 ] && [ ! -b /dev/sda19 ]; do
+	i=$((i + 1))
+	busybox sleep 1
+done
+if [ -b /dev/sda19 ] && busybox mount -t ext4 /dev/sda19 /newroot; then
+	klog "mounted LABEL=archroot /dev/sda19 on /newroot"
+	busybox sh /hypr/save-boot-diagnostics.sh &
+	busybox mkdir -p /lib/firmware
+	if [ -d /newroot/lib/firmware ]; then
+		busybox mount -o bind /newroot/lib/firmware /lib/firmware
+		klog "firmware bind-mounted"
+	fi
+else
+	klog "archroot mount failed sda19=$(ls /dev/sda19 2>/dev/null)"
+fi
+
+# Prepare the persistent Arch environment without launching display clients.
+if [ -x /newroot/usr/bin/Hyprland ] && busybox grep -q ' /newroot ext4 ' /proc/mounts; then
+    busybox mkdir -p /dev/shm /newroot/tmp /newroot/run /newroot/dev /newroot/proc /newroot/sys
+    busybox mount -t tmpfs tmpfs /dev/shm
+    busybox mount -t tmpfs tmpfs /newroot/tmp
+    busybox mount -t tmpfs tmpfs /newroot/run
+    busybox mount -t proc proc /newroot/proc
+    busybox mount -t sysfs sysfs /newroot/sys
+    busybox mount -o bind /dev /newroot/dev
+    busybox mount -t devpts devpts /newroot/dev/pts
+    busybox mount -t debugfs debugfs /newroot/sys/kernel/debug
+    busybox mount -t securityfs securityfs /newroot/sys/kernel/security
+    busybox mkdir -p /newroot/run/user/0
+    busybox chmod 700 /newroot/run/user/0
+    busybox sh /hypr/start-usb-services.sh > /newroot/root/native-usb.log 2>&1
+    busybox chroot /newroot /usr/bin/seatd -u root -g root > /newroot/root/native-seatd.log 2>&1 &
+    busybox chroot /newroot /usr/lib/systemd/systemd-udevd --daemon > /newroot/root/native-udevd.log 2>&1
+    (
+        # Preserve the tested ordering: touch after the GPU initializes.
+        attempt=0
+        while [ ! -c /dev/dri/renderD128 ] && [ "$attempt" -lt 150 ]; do
+            busybox sleep 1
+            attempt=$((attempt + 1))
+        done
+        for module in evdev s6sy761 touch_overlay; do
+            busybox insmod "/hypr/touch/$module.ko" || exit 1
+        done
+        busybox chroot /newroot /usr/bin/env SYSTEMD_IN_CHROOT=0 /usr/bin/udevadm trigger --action=add --subsystem-match=input
+        busybox chroot /newroot /usr/bin/env SYSTEMD_IN_CHROOT=0 /usr/bin/udevadm settle --timeout=10
+        echo NATIVE_TOUCH_MODULES_LOADED
+    ) > /newroot/root/native-touch.log 2>&1 &
+    # Clear the previous boot's marker before either background task starts.
+    : > /newroot/root/native-desktop-start.log
+    busybox sh /hypr/start-native-desktop.sh >> /newroot/root/native-desktop-start.log 2>&1 &
+    if [ -f /hypr/power/power_support.ko ]; then
+        busybox sh /hypr/start-power.sh > /newroot/root/native-power.log 2>&1 &
+    fi
+    klog "native USB environment ready; waiting for DSI desktop"
+fi
+
+while :; do
+    busybox sleep 3600
+done
