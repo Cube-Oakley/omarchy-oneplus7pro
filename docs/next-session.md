@@ -11,9 +11,11 @@ PipeWire output has a fixed -36 dB cap pending speaker protection; themed volume
 OSD installed. Opt-in automatic startup hook is installed and the live supervisor passes;
 automatic reboot/startup and post-boot playback now pass. Audio suspend and
 microphone remain untested. Latest boot `dcca1845-3070-43d3-9e21-85fe257b5c64`.
-README, six screenshots and the clean source snapshot are pushed to the local
-review branch `review/audio-and-readme-20260918`; **no public push until user
-approval**. Local private recovery bundle is in ignored `out/private/`.
+README, six screenshots and the clean source snapshot are published: the review
+snapshot became the public branch, the user approved publication, and GitHub `main`
+plus GitHub Pages now carry it. The review branch was merged into `main` and deleted.
+Local private recovery bundle is in ignored `out/private/`. See
+[publication](publishing.md).
 
 **Latest user report:** YouTube playback is inaudible and video streaming is
 choppy. Application sound is not yet acoustically verified. At the first follow-up

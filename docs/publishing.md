@@ -1,8 +1,10 @@
 # Review and publication
 
-The September 18 review branch is a clean source snapshot, with no parent commits
-from the private bring-up history. This prevents old versions of removed files
-and identifiers from accompanying a later public push.
+The published line starts from the September 18 review snapshot: a clean source
+tree with no parent commits from the private bring-up history. It is carried by
+the local `public` branch, which is GitHub `main`; the original review branch was
+merged into `main` and deleted. This keeps old versions of removed files and
+identifiers from accompanying a later public push.
 
 The original development history is preserved privately in the development
 checkout and an ignored recovery bundle under `out/private/`. It is not the
@@ -24,3 +26,36 @@ development ancestry; GitHub `main` starts from the clean review snapshot. These
 branches have the same published file content but intentionally different history.
 Future public updates must descend from the clean public branch. Never merge the
 private development ancestry into it or mirror the private repository.
+
+## Mechanics
+
+Two branches, deliberately unrelated. `main` carries the private development
+ancestry and pushes to the private development remote (`origin`). `public` descends
+only from the clean snapshot and is what GitHub serves.
+
+The `github` remote is pinned to one branch so an ordinary or mirrored push cannot
+send private history:
+
+```bash
+git config remote.github.push '+refs/heads/public:refs/heads/main'
+```
+
+Public edits happen in the ignored `.work/public` worktree, never in the
+development checkout:
+
+```bash
+cd .work/public
+git checkout main -- <paths>       # or: git cherry-pick <sha>
+git commit
+git push github                    # GitHub main
+git push origin public:refs/heads/public   # private-side mirror of the public line
+```
+
+The two trees stay byte-identical except for the Pages files below, so check that
+diff after each public commit.
+
+GitHub branch Pages can publish only `/` or `/docs`, so the site is served from the
+public repository root: a root `index.html` redirects to `plans/`, and a root
+`.nojekyll` keeps the hand-written HTML, CSS and JavaScript verbatim. Nothing on
+the public branch may name or embed the private host — no LAN addresses, no
+internal hostnames, no forge/gitea references.
