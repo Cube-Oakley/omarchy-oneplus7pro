@@ -34,7 +34,7 @@ def themes():
     result = {}
     for root in ROOTS:
         for file in sorted(root.glob("*/colors.toml")):
-            if re.fullmatch(r"[a-z0-9-]+", file.parent.name):
+            if re.fullmatch(r"[a-z0-9_][a-z0-9._+-]*", file.parent.name):
                 result[file.parent.name] = file
     return result
 
@@ -63,6 +63,15 @@ def image_file(path):
     return path.is_file() and path.resolve().suffix.lower() in IMAGE_SUFFIXES
 
 
+def wallpaper_ref(path):
+    path = Path(path).resolve()
+    return {
+        "path": str(path),
+        "url": path.as_uri() + "?v=" + str(path.stat().st_mtime_ns),
+        "name": path.name,
+    }
+
+
 def wallpaper_choices(selected, current):
     slug = selected.lower().replace(" ", "-")
     # Match Omarchy's stock + user overlay model by filename.
@@ -89,6 +98,43 @@ def saved_backgrounds():
         return {}
 
 
+def wallpaper_refs(paths):
+    refs = []
+    for path in paths:
+        try:
+            refs.append(wallpaper_ref(path))
+        except OSError:
+            pass
+    return refs
+
+
+def theme_previews(available):
+    previews = {}
+    for name in available:
+        choices = wallpaper_choices(name, None)
+        if choices:
+            try:
+                previews[name] = wallpaper_ref(choices[0])["url"]
+            except OSError:
+                pass
+    return previews
+
+
+def wallpaper_pick(selected, current, name):
+    if current:
+        raise ValueError("Use Omarchy's background command to change its current state")
+    choices = wallpaper_choices(selected, current)
+    if not choices:
+        raise ValueError("This theme has no wallpapers")
+    chosen = next((path for path in choices if path.name == name or str(path) == name), None)
+    if chosen is None:
+        raise ValueError("Unknown wallpaper")
+    saved = saved_backgrounds()
+    saved[selected] = str(chosen)
+    write_changed(MOBILE / "backgrounds.json", json.dumps(saved, indent=2) + "\n")
+    return chosen
+
+
 def wallpaper_state(selected, current, advance=False):
     choices = wallpaper_choices(selected, current)
     saved = saved_backgrounds()
@@ -113,13 +159,11 @@ def wallpaper_state(selected, current, advance=False):
     if not current and chosen:
         saved[selected] = str(chosen)
         write_changed(MOBILE / "backgrounds.json", json.dumps(saved, indent=2) + "\n")
-    return {
-        "path": str(chosen) if chosen else "",
-        "url": chosen.as_uri() + "?v=" + str(chosen.stat().st_mtime_ns) if chosen else "",
-        "name": chosen.name if chosen else "",
-        "index": choices.index(chosen) + 1 if chosen in choices else 0,
-        "count": len(choices),
-    }
+    ref = wallpaper_ref(chosen) if chosen else {"path": "", "url": "", "name": ""}
+    ref["index"] = choices.index(chosen) + 1 if chosen in choices else 0
+    ref["count"] = len(choices)
+    ref["choices"] = wallpaper_refs(choices)
+    return ref
 
 
 def palette(file):
@@ -154,7 +198,17 @@ def sync():
     colors = palette(file)
     devicefile = CONFIG / "omarchy-mobile/device.json"
     device = json.loads(devicefile.read_text()) if devicefile.exists() else {}
-    result = {"name": selected, "colors": colors, "themes": sorted(available), "device": device, "wallpaper": wallpaper_state(selected, current)}
+    font = "JetBrainsMono Nerd Font"
+    try:
+        prefs = json.loads((CONFIG / "omarchy-mobile/prefs.json").read_text())
+        candidate = prefs.get("fontFamily")
+        if isinstance(candidate, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 +._-]{0,78}", candidate):
+            font = candidate
+    except (OSError, ValueError):
+        pass
+    result = {"name": selected, "colors": colors, "themes": sorted(available), "device": device,
+              "wallpaper": wallpaper_state(selected, current), "fontFamily": font,
+              "themePreviews": theme_previews(available)}
     border = 'hl.config({general={col={active_border={colors={"rgba(' + colors['accent'][1:] + 'ff)"},angle=0},inactive_border="rgba(' + colors['muted'][1:] + 'ff)"}}})'
     lua = 'dofile(' + json.dumps(str(DATA / 'omarchy-mobile/hypr-mobile.lua')) + ')\n'
     scale = device.get('scale')
@@ -171,12 +225,15 @@ def sync():
         previous = {}
     # Optional trusted device integration, separate from imported theme assets.
     wallpaper_hook = CONFIG / "omarchy-mobile/wallpaper-apply"
-    if previous.get("wallpaper") != result["wallpaper"] and os.access(wallpaper_hook, os.X_OK):
+    previous_wallpaper = (previous.get("wallpaper") or {}).get("path")
+    if previous_wallpaper != result["wallpaper"].get("path") and os.access(wallpaper_hook, os.X_OK):
         subprocess.run([str(wallpaper_hook), result["wallpaper"]["path"]], check=True,
                        stdout=subprocess.DEVNULL)
     write_changed(MOBILE / "palette.json", json.dumps(result, indent=2) + "\n")
+    if previous.get("fontFamily") != font:
+        write_changed(CONFIG / "kitty/mobile-font.conf", f"font_family {font}\n")
     # Wallpaper changes must not restart the keyboard or reconfigure terminals.
-    if previous.get("colors") != colors:
+    if previous.get("colors") != colors or previous.get("fontFamily") != font:
         lines = [f"background {colors['background']}", f"foreground {colors['foreground']}", f"cursor {colors['accent']}",
                  f"selection_background {colors.get('selection_background', colors['selection'])}", f"selection_foreground {colors.get('selection_foreground', colors['bright_foreground'])}"]
         ansi = ["background", "red", "green", "yellow", "blue", "magenta", "cyan", "foreground", "muted", "bright_red", "bright_green", "bright_yellow", "bright_blue", "bright_magenta", "bright_cyan", "bright_foreground"]
@@ -184,18 +241,11 @@ def sync():
             lines.append(f"color{i} {colors.get(name, colors.get('color'+str(i), colors['foreground']))}")
         write_changed(CONFIG / "kitty/mobile-theme.conf", "\n".join(lines) + "\n")
         signal_owned("kitty", signal.SIGUSR1)
-        # Keyboard colors are startup options. Restart only this helper's PID.
-        runtime = Path(os.getenv("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"))
-        pidfile = runtime / "omarchy-mobile-keyboard.pid"
-        try:
-            pid = int(pidfile.read_text())
-            if Path(f"/proc/{pid}/comm").read_text().strip() == "wvkbd-mobintl":
-                os.kill(pid, signal.SIGTERM)
-        except (FileNotFoundError, ValueError, ProcessLookupError):
-            pass
+        # Do not restart wvkbd here: --auto would see Settings' text-input
+        # and flash the keyboard. Colors apply the next time the helper starts it.
         helper = HOME / ".local/bin/omarchy-mobile-keyboard"
         if helper.exists() and os.getenv("WAYLAND_DISPLAY"):
-            subprocess.run([str(helper), "start"], stdout=subprocess.DEVNULL, check=True)
+            subprocess.run([str(helper), "hide"], stdout=subprocess.DEVNULL, check=False)
         # Only update the border colors, retaining the user's layout/bindings.
         subprocess.run(["hyprctl", "eval", border], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return result
@@ -215,8 +265,17 @@ def main():
         if shutil.which("omarchy"):
             subprocess.run(["omarchy", "theme", "bg", "next"], check=True, stdout=sys.stderr)
             delegated = True
+    elif len(args) == 3 and args[0] == "background" and args[1] == "set":
+        if shutil.which("omarchy"):
+            _, selected, _, current = theme_context()
+            chosen = next((path for path in wallpaper_choices(selected, current)
+                           if path.name == args[2] or str(path) == args[2]), None)
+            if chosen is None:
+                raise ValueError("Unknown wallpaper")
+            subprocess.run(["omarchy", "theme", "bg", "set", str(chosen)], check=True, stdout=sys.stderr)
+            delegated = True
     elif args not in ([], ["sync"]):
-        raise ValueError("Usage: omarchy-mobile-theme [sync|set THEME|background next]")
+        raise ValueError("Usage: omarchy-mobile-theme [sync|set THEME|background next|background set NAME]")
     MOBILE.mkdir(parents=True, exist_ok=True)
     with (MOBILE / "theme.lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
@@ -225,6 +284,9 @@ def main():
         elif not delegated and args == ["background", "next"]:
             _, selected, _, current = theme_context()
             wallpaper_state(selected, current, advance=True)
+        elif not delegated and len(args) == 3 and args[0] == "background" and args[1] == "set":
+            _, selected, _, current = theme_context()
+            wallpaper_pick(selected, current, args[2])
         print(json.dumps(sync()))
 
 

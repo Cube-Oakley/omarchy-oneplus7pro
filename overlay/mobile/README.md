@@ -7,12 +7,13 @@ and the standard Omarchy integration plan.
 Current controls:
 
 - Power sleeps through the device adapter when it is ready, otherwise blanks
-  the screen; another tap restores a blanked display. The OnePlus adapter
+  the screen; another tap restores a blanked display. Off plays a CRT close
+  before the panel blanks; on plays the open after it lights. The OnePlus adapter
   permits suspend only when unplugged with its wake/battery checks satisfied.
   Press/release pairing and a two-second post-resume grace suppress wake events.
-- Swipe up from the **bottom-left third** for the app launcher and Appearance.
-  Appearance changes theme colors and wallpapers, shows a preview, and offers
-  **Next wallpaper**. Wallpaper selection is remembered per theme.
+- Swipe up from the **bottom-left third** for the app launcher. Settings opens
+  as a normal app (Appearance, clipboard, Do Not Disturb). Theme, wallpaper and
+  font live there.
 - Swipe up from the **bottom-center third** for the combined overview.
 - Swipe up from the **bottom-right third** to show the keyboard; tap that
   corner to hide it. The gesture area is 24 logical pixels tall, with a subtle
@@ -22,6 +23,8 @@ Current controls:
   Go enters the selected workspace without choosing an app.
 - The card's **···** menu reveals move, maximize and close controls.
 - Swipe down on a drawer's heading or tap × to dismiss it.
+- The status bar has a compact CPU/RAM chip; tap it for the performance panel.
+- The shade has Wi-Fi radio, mute and Do Not Disturb toggles. Notifications group by app. New notifications can show a short toast while the shade is closed.
 - Kitty touch scrolling is available through the optional, version-matched
   [Wayland backend patch](kitty-touch/README.md). New terminals launched by
   the mobile session opt in; already running terminals need reopening.

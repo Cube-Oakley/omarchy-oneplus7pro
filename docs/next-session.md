@@ -1,3 +1,87 @@
+# Next session — theme installer follow-up
+
+**CRT screen on/off is in (2026-09-21).** `omarchy-mobile-display` plays a
+close before DPMS off and an open after DPMS on. Power-button blank/restore
+uses that path. Preview without blanking: `omarchy-mobile-display preview`.
+
+**Theme installer is in.** Settings → Appearance → Install theme. Catalog
+grid from https://omarchy.us/themes with search, confirm-to-install, and a
+GitHub link that opens in the default browser. Pasted GitHub URLs use the
+same helper. Pairing should call `omarchy-mobile-theme-install url|name`,
+not a second clone. Ash was installed as a smoke test and the previous
+theme (`vantablack`) was restored; Ash stays available in the picker.
+
+Still out of scope: the pairing daemon itself, clipboard sync, and icon packs.
+
+## Goal
+
+An interactive theme installer in Settings → Appearance. Same
+`MenuOverlay` language as Theme / Wallpaper / Font. Not a terminal flow.
+
+## Install paths
+
+1. **Catalog (easier on a phone).** Scrollable grid of themes from
+   https://omarchy.us/themes. Name under each card. Search bar at the top
+   filters by name.
+2. **GitHub URL (same as desktop Omarchy).** Paste a repository link and
+   install through Omarchy's real theme installer, not a second format.
+
+## Card actions
+
+Tap a catalog theme:
+
+- Confirm dialog: install? Yes runs the standard installer and refreshes
+  the Appearance picker.
+- Separate control: open that theme's GitHub in the system default browser.
+
+## Installer framework (required even if pairing is later)
+
+One helper / one code path for every install source:
+
+- catalog tap
+- pasted GitHub URL
+- future integration service ("desktop just installed theme X")
+
+Do not build a mobile-only installer. Call Omarchy's actual theme
+installation machinery, show progress/errors, then
+`omarchy-mobile-theme sync` so the cover-flow picks up the new palette
+and wallpapers.
+
+Leave an explicit hook the pairing daemon can call later: install-by-name
+or install-by-url, idempotent, no UI required. When a theme is installed
+on the desktop, mobile should notice and run that same helper. Do not
+invent a second sync protocol for themes.
+
+Reuse conversion, staging, icon and wallpaper handling from Omarchy
+rather than competing with it. See [architecture](mobile-architecture.md).
+
+## Out of scope for the installer
+
+Pairing daemon, clipboard sync, and actually talking to a desktop. Only
+the installer UI plus the helper contract those later hooks will use.
+
+---
+
+## CRT screen on/off
+
+**If we can, same morning.** Wake and sleep should not slam the panel
+on or off. Opening (wake / display on) and closing (sleep / display off)
+should play a CRT-style animation, then the hardware actually follows.
+
+Today `omarchy-mobile-display` (`overlay/mobile/display-power.sh`) just
+runs Hyprland DPMS. Power-button blank (plugged in) and real suspend
+both go through that. Hook the animation there so every on/off path
+gets it — button, idle, and resume — not only one gesture.
+
+Close: play the shutdown (collapse / bright line / fade), *then* DPMS
+off / suspend. Open: DPMS on, *then* play the power-up. Do not leave
+the panel scanning during "off". Keep it in the portable shell; do not
+bake it into the guacamole adapter. If a full shader CRT is too heavy
+on this GPU, a simpler analog collapse is still better than instant.
+
+Theme installer stays first. CRT is the second morning item.
+---
+
 # Next session — power and hardware
 
 **Current hardware checkpoint (Sep 18):** [Audio bring-up](audio-bringup-20260918.md).

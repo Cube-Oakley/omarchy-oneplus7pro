@@ -39,38 +39,39 @@ class PowerButton:
         return any(monitor['dpmsStatus'] for monitor in monitors)
 
     def set_display(self, action):
-        subprocess.run([self.display, action], check=True, timeout=10)
+        subprocess.run([self.display, action], check=True, timeout=15)
 
     def act(self):
         if not self.display_on():
             self.set_display('on')
             self.record('display-on')
             return
+        # The close has to start before suspend policy. That check used to run first.
+        visual = subprocess.Popen([self.display, 'off'])
         if not os.access(self.adapter, os.X_OK):
-            self.set_display('off')
+            visual.wait(timeout=8)
             self.record('display-off', reason='No suspend adapter installed')
             return
         ready = subprocess.run([str(self.adapter), '--check'], capture_output=True, text=True, timeout=10)
         if ready.returncode:
-            self.set_display('off')
+            visual.wait(timeout=8)
             self.record('display-off', reason=(ready.stdout + ready.stderr).strip())
             return
-        command = [str(self.adapter)]
-        # Temporary, RAM-only fallback alarm for supervised power-key trials.
-        alarm = self.runtime / 'omarchy-mobile-power-test-alarm'
-        if alarm.exists():
-            seconds = int(alarm.read_text())
-            if not 10 <= seconds <= 600:
-                raise RuntimeError('Invalid test wake alarm')
-            command += ['--wake-after', str(seconds)]
-        self.record('suspend-start', fallback_alarm=alarm.exists())
         try:
-            # Do not time out a process that is intentionally asleep.
+            visual.wait(timeout=8)
+            command = [str(self.adapter)]
+            alarm = self.runtime / 'omarchy-mobile-power-test-alarm'
+            if alarm.exists():
+                seconds = int(alarm.read_text())
+                if not 10 <= seconds <= 600:
+                    raise RuntimeError('Invalid test wake alarm')
+                command += ['--wake-after', str(seconds)]
+            self.record('suspend-start', fallback_alarm=alarm.exists())
             result = subprocess.run(command)
             self.record('suspend-return', exit_code=result.returncode)
         finally:
-            # Held under the event lock through resume/input rediscovery. The
-            # wake press cannot arm a release; queued events get a short grace.
+            if visual.poll() is None:
+                visual.wait(timeout=8)
             self.save({'ignore_until': time.monotonic() + 2})
             self.set_display('on')
 

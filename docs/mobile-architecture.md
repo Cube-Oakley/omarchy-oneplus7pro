@@ -76,11 +76,13 @@ successfully converted it during this work; the resulting background and
 accent were checked against the adapter. Its theme-provided Lua/configuration
 was not executed. Archwave has not been installed or selected on the phone.
 
-The eventual **Appearance → Install theme → repository URL** flow should call
-Omarchy's actual theme installation machinery, display progress/errors, and
-refresh the picker. Reuse its conversion, staging, icon and wallpaper handling
-rather than building a competing repository installer. Wallpaper switching
-is now implemented in Appearance; full repository installation remains future work.
+The **Appearance → Install theme** flow lists https://omarchy.us/themes and
+also accepts a pasted GitHub URL. Both go through
+`omarchy-mobile-theme-install`. When `omarchy theme install` is on PATH it
+is the installer; otherwise the helper uses that command's URL check, theme
+name and `~/.config/omarchy/themes` clone, then applies the palette. A future
+pairing daemon should call `url` or `name` on that helper when a desktop
+installs a theme. Do not add a second clone path.
 
 ## Another phone
 
@@ -95,10 +97,21 @@ is now implemented in Appearance; full repository installation remains future wo
    lifecycle/power behavior and recovery on that hardware. Only the OnePlus
    7 Pro has been tested so far.
 
+## Settings, apps and clipboard
+
+Settings is a normal app (`omarchy-mobile-settings`), not a shell panel. It
+imports the shared `OmarchyMobile` QML module for theme and widgets. Privileged
+changes go through the existing helpers (`omarchy-mobile-theme`, prefs, wifi,
+volume, clipboard). The shade remains another client of those helpers.
+
+Clipboard history is a JSON store with stable records (`id`, `created`,
+`origin`, `mime`, `text`, `pinned`). Presentation is QML; a future pairing
+daemon should read and write the same store, opt-in, without replacing the UI.
+
 ## Remaining milestones
 
 - Standard user/session management and full Omarchy package integration.
-- Repository theme install UI and complete icon/application theming.
+- Icon packs and application theming. Theme repository install uses the shared helper.
 - More window gestures, drag/reorder, rotation and accessibility preferences.
 - Power, battery/charging, brightness, sleep/wake and screen lock.
 - Wi-Fi and other hardware support, owned by each device port.

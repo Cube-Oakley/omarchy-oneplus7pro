@@ -110,6 +110,13 @@ ShellRoot {
         closeDrawer();
         console.log("MOBILE_WORKSPACE " + number);
     }
+    function openSettings(panel) {
+        closeDrawer();
+        keyboard("hide");
+        const page = panel || "home";
+        Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/omarchy-mobile-settings", page]);
+        console.log("MOBILE_SETTINGS " + page);
+    }
 
     Process {
         id: setup
@@ -131,14 +138,20 @@ ShellRoot {
             return true;
         }
         function spaces(): void { root.showPage("spaces"); }
-        function themes(): void { root.showPage("themes"); }
+        function themes(): void { root.openSettings("appearance"); }
+        function settings(panel: string): void { root.openSettings(panel || "home"); }
         function dismiss(): void { root.closeDrawer(); shade.close(); }
         function controls(): void { shade.toggle(); }
         function controlState(): string { return JSON.stringify({open: shade.opened, detail: shade.detail, notifications: shade.notificationCount, wifi: shade.wifi.connected, networks: shade.networks.length}); }
-        function detail(name: string): void { if (["wifi", "battery", "calendar", "weather"].indexOf(name) >= 0) shade.showDetail(name); }
+        function detail(name: string): void { if (["wifi", "battery", "calendar", "weather", "stats", "clipboard", "speedtest"].indexOf(name) >= 0) shade.showDetail(name); }
         function terminal(): void { root.terminal(); }
         function keyboard(): void { root.keyboard("toggle"); }
         function volume(action: string): void { volumeOsd.adjust(action); }
+        function crt(action: string, token: string): string {
+            if (action === "cover") { crtPower.cover(token); return "covered"; }
+            if (action === "off" || action === "on") { crtPower.play(action, token); return "playing"; }
+            return "ignored";
+        }
         function screenshotPrivacy(enabled: bool): void { shade.closeDetail(); shade.screenshotPrivacy = enabled; }
         function workspace(number: int): void { if (number > 0 && number < 100) root.selectWorkspace(number); }
         function windows(): string { return JSON.stringify(Hyprland.toplevels.values.map(w => ({address: w.address, title: w.title, workspace: w.workspace ? w.workspace.id : 0}))); }
@@ -153,12 +166,27 @@ ShellRoot {
     }
     SystemClock { id: clock; precision: SystemClock.Minutes }
     VolumeOsd { id: volumeOsd }
+    Process {
+        id: clipboardWatch
+        command: ["wl-paste", "--watch", Quickshell.env("HOME") + "/.local/bin/omarchy-mobile-clipboard", "ingest"]
+        running: true
+        onExited: clipboardWatchRetry.start()
+    }
+    Timer { id: clipboardWatchRetry; interval: 10000; onTriggered: clipboardWatch.running = true }
+    NotificationToast {
+        id: toast
+        blocked: MobileStatus.dnd || shade.opened || shade.screenshotPrivacy
+        onActivate: shade.open()
+    }
 
     NotificationShade {
         id: shade
         topInset: statusBar.height
-        onOpening: { root.closeDrawer(); root.keyboard("hide"); }
+        onOpening: { root.closeDrawer(); root.keyboard("hide"); toast.dismiss(); }
+        onArrived: notification => toast.offer(notification)
         onKeyboardRequested: action => root.keyboard(action)
+        onVolumeRequested: action => { volumeOsd.adjust(action); MobileStatus.refresh(); }
+        onSettingsRequested: panel => { shade.close(); root.openSettings(panel); }
     }
     PanelWindow {
         id: statusBar
@@ -171,6 +199,7 @@ ShellRoot {
             anchors.fill: parent; anchors.leftMargin: 16; anchors.rightMargin: 16
             Text { font.family: MobileTheme.fontFamily; text: "omarchy"; color: MobileTheme.accent; font.pixelSize: 17; font.bold: true }
             Text { font.family: MobileTheme.fontFamily; text: root.keyboardError || root.startupError || "Space " + root.workspace; color: MobileTheme.secondary; font.pixelSize: 13; Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter }
+            StatsStatus { TapHandler { onTapped: shade.showDetail("stats") } }
             WifiStatus { TapHandler { onTapped: shade.showDetail("wifi") } }
             BatteryStatus { TapHandler { onTapped: shade.showDetail("battery") } }
             Text { font.family: MobileTheme.fontFamily; text: Qt.formatDateTime(clock.date, "h:mm"); color: MobileTheme.foreground; font.pixelSize: 16; TapHandler { onTapped: shade.showDetail("calendar") } }
@@ -307,8 +336,8 @@ ShellRoot {
                 anchors.fill: parent; anchors.margins: 24; spacing: 24
                 Item {
                     Layout.fillWidth: true; implicitHeight: 88
-                    Text { font.family: MobileTheme.fontFamily; y: 0; text: root.page === "spaces" ? "YOUR SPACE" : root.page === "apps" ? "EXPLORE" : "MAKE IT YOURS"; color: MobileTheme.accent; font.pixelSize: 11; font.letterSpacing: 2.4; font.bold: true }
-                    Text { font.family: MobileTheme.fontFamily; y: 23; text: root.page === "spaces" ? "Overview" : root.page === "apps" ? "Applications" : "Appearance"; color: MobileTheme.foreground; font.pixelSize: 34; font.bold: true }
+                    Text { font.family: MobileTheme.fontFamily; y: 0; text: root.page === "spaces" ? "YOUR SPACE" : "EXPLORE"; color: MobileTheme.accent; font.pixelSize: 11; font.letterSpacing: 2.4; font.bold: true }
+                    Text { font.family: MobileTheme.fontFamily; y: 23; text: root.page === "spaces" ? "Overview" : "Applications"; color: MobileTheme.foreground; font.pixelSize: 34; font.bold: true }
                     TouchButton { anchors.right: parent.right; y: 21; implicitWidth: 48; implicitHeight: 48; radius: 24; label: "×"; textSize: 26; onClicked: root.closeDrawer() }
                 }
                 WorkspaceOverview {
@@ -330,7 +359,7 @@ ShellRoot {
                 Flickable {
                     id: appList
                     enabled: motion.settledOpen
-                    visible: root.page !== "spaces"
+                    visible: root.page === "apps"
                     Layout.fillWidth: true; Layout.fillHeight: true
                     clip: true; contentHeight: contents.height; boundsBehavior: Flickable.StopAtBounds
                     Column {
@@ -338,51 +367,10 @@ ShellRoot {
                         RowLayout {
                             visible: root.page === "apps"; width: parent.width; spacing: 12
                             TouchButton { Layout.fillWidth: true; label: ">_  Terminal"; selected: true; onClicked: root.terminal() }
-                            TouchButton { Layout.fillWidth: true; label: "Appearance"; onClicked: root.showPage("themes") }
-                        }
-                        Text { font.family: MobileTheme.fontFamily; visible: root.page === "themes"; width: parent.width; wrapMode: Text.WordWrap; text: MobileTheme.error || MobileTheme.wallpaperError || "Omarchy themes · " + MobileTheme.state.name.replace(/-/g, " "); color: MobileTheme.secondary; font.pixelSize: 15 }
-                        Rectangle {
-                            visible: root.page === "themes"
-                            width: parent.width; height: 170; radius: 18; clip: true
-                            color: MobileTheme.surface
-                            Image {
-                                anchors.fill: parent
-                                source: MobileTheme.state.wallpaper ? MobileTheme.state.wallpaper.url : ""
-                                sourceSize: Qt.size(864, 340)
-                                asynchronous: true; retainWhileLoading: true; autoTransform: true
-                                fillMode: Image.PreserveAspectCrop
-                            }
-                            Text { font.family: MobileTheme.fontFamily;
-                                anchors.centerIn: parent
-                                visible: !MobileTheme.state.wallpaper || !MobileTheme.state.wallpaper.url
-                                text: "Theme background color"; color: MobileTheme.foreground
-                            }
-                        }
-                        RowLayout {
-                            visible: root.page === "themes"; width: parent.width
-                            Text { font.family: MobileTheme.fontFamily;
-                                Layout.fillWidth: true; elide: Text.ElideMiddle
-                                text: MobileTheme.state.wallpaper && MobileTheme.state.wallpaper.count
-                                      ? "Wallpaper " + MobileTheme.state.wallpaper.index + " of " + MobileTheme.state.wallpaper.count
-                                      : "No wallpapers in this theme"
-                                color: MobileTheme.secondary; font.pixelSize: 14
-                            }
-                            TouchButton {
-                                label: "Next wallpaper"; implicitWidth: 168
-                                enabled: !MobileTheme.busy && !!MobileTheme.state.wallpaper && MobileTheme.state.wallpaper.count > 1
-                                opacity: enabled ? 1 : 0.45
-                                onClicked: MobileTheme.nextWallpaper()
-                            }
+                            TouchButton { Layout.fillWidth: true; label: "Settings"; onClicked: root.openSettings("home") }
                         }
                         GridLayout {
-                            visible: root.page === "themes"; width: parent.width; columns: 2; columnSpacing: 12; rowSpacing: 12
-                            Repeater {
-                                model: MobileTheme.state.themes
-                                TouchButton { required property string modelData; Layout.fillWidth: true; Layout.preferredWidth: 1; implicitHeight: 72; label: modelData.replace(/-/g, " "); selected: MobileTheme.state.name === modelData; onClicked: MobileTheme.select(modelData) }
-                            }
-                        }
-                        GridLayout {
-                            visible: root.page === "apps"; width: parent.width; columns: 3; columnSpacing: 12; rowSpacing: 24
+                            width: parent.width; columns: 3; columnSpacing: 12; rowSpacing: 24
                             Repeater {
                                 model: root.apps
                                 Item {
@@ -414,4 +402,5 @@ ShellRoot {
             }
         }
     }
+    CrtPower { id: crtPower }
 }

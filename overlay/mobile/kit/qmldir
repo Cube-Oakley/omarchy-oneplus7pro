@@ -1,0 +1,17 @@
+module OmarchyMobile
+singleton MobileTheme 1.0 MobileTheme.qml
+TouchButton 1.0 TouchButton.qml
+TouchTextField 1.0 TouchTextField.qml
+DetailRow 1.0 DetailRow.qml
+PageHeader 1.0 PageHeader.qml
+SettingsRow 1.0 SettingsRow.qml
+AppearancePage 1.0 AppearancePage.qml
+ThemeInstaller 1.0 ThemeInstaller.qml
+CoverFlowPicker 1.0 CoverFlowPicker.qml
+MenuOverlay 1.0 MenuOverlay.qml
+ImagePreloader 1.0 ImagePreloader.qml
+SpeedGauge 1.0 SpeedGauge.qml
+SpeedTestView 1.0 SpeedTestView.qml
+SoundPage 1.0 SoundPage.qml
+BatteryPage 1.0 BatteryPage.qml
+AboutPage 1.0 AboutPage.qml

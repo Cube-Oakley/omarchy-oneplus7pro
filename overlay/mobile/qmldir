@@ -18,3 +18,10 @@ NotificationShade 1.0 NotificationShade.qml
 TouchTextField 1.0 TouchTextField.qml
 KeyboardDismiss 1.0 KeyboardDismiss.qml
 VolumeOsd 1.0 VolumeOsd.qml
+QuickToggle 1.0 QuickToggle.qml
+StatsStatus 1.0 StatsStatus.qml
+NotificationGroups 1.0 NotificationGroups.qml
+NotificationToast 1.0 NotificationToast.qml
+singleton WeatherIcons 1.0 WeatherIcon.qml
+CrtPhases 1.0 CrtPhases.qml
+CrtPower 1.0 CrtPower.qml

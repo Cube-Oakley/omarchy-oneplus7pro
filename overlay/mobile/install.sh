@@ -18,10 +18,24 @@ install -m755 "$source_dir/keyboard.sh" "$HOME/.local/bin/omarchy-mobile-keyboar
 install -m755 "$source_dir/display-power.sh" "$HOME/.local/bin/omarchy-mobile-display"
 install -m755 "$source_dir/power-button.py" "$HOME/.local/bin/omarchy-mobile-power"
 install -m755 "$source_dir/battery.py" "$HOME/.local/bin/omarchy-mobile-battery"
+install -m755 "$source_dir/about.py" "$HOME/.local/bin/omarchy-mobile-about"
 install -m755 "$source_dir/weather.py" "$HOME/.local/bin/omarchy-mobile-weather"
 install -m755 "$source_dir/wifi.py" "$HOME/.local/bin/omarchy-mobile-wifi"
+install -m755 "$source_dir/speedtest.py" "$HOME/.local/bin/omarchy-mobile-speedtest"
 install -m755 "$source_dir/volume.py" "$HOME/.local/bin/omarchy-mobile-volume"
+install -m755 "$source_dir/stats.py" "$HOME/.local/bin/omarchy-mobile-stats"
+install -m755 "$source_dir/prefs.py" "$HOME/.local/bin/omarchy-mobile-prefs"
+install -m755 "$source_dir/clipboard.py" "$HOME/.local/bin/omarchy-mobile-clipboard"
+install -m755 "$source_dir/settings.sh" "$HOME/.local/bin/omarchy-mobile-settings"
+kit="$data/omarchy-mobile/qml/OmarchyMobile"
+mkdir -p "$kit" "$config/quickshell/omarchy-mobile-settings" "$data/applications"
+install -m644 "$source_dir/MobileTheme.qml" "$source_dir/TouchButton.qml" \
+    "$source_dir/TouchTextField.qml" "$source_dir/DetailRow.qml" "$kit/"
+install -m644 "$source_dir/kit/"*.qml "$source_dir/kit/qmldir" "$kit/"
+install -m644 "$source_dir/settings/shell.qml" "$config/quickshell/omarchy-mobile-settings/"
+install -m644 "$source_dir/settings/omarchy-mobile-settings.desktop" "$data/applications/"
 install -m755 "$source_dir/theme.py" "$HOME/.local/bin/omarchy-mobile-theme"
+install -m755 "$source_dir/theme_install.py" "$HOME/.local/bin/omarchy-mobile-theme-install"
 install -m644 "$source_dir/hypr-mobile.lua" "$data/omarchy-mobile/hypr-mobile.lua"
 cp -a "$source_dir/themes" "$data/omarchy-mobile/"
 install -m644 "$source_dir/fastfetch/omarchy.png" "$source_dir/fastfetch/omarchy.txt" \
@@ -33,6 +47,9 @@ if [[ ! -f "$config/kitty/kitty.conf" ]]; then
     install -m644 "$source_dir/kitty.conf" "$config/kitty/kitty.conf"
 elif ! grep -qxF 'include mobile-theme.conf' "$config/kitty/kitty.conf"; then
     printf '\ninclude mobile-theme.conf\n' >> "$config/kitty/kitty.conf"
+fi
+if ! grep -qE '^copy_on_select ' "$config/kitty/kitty.conf" 2>/dev/null; then
+    printf '\ncopy_on_select clipboard\n' >> "$config/kitty/kitty.conf"
 fi
 install -m644 "$source_dir/kitty-font.conf" "$config/kitty/mobile-font.conf"
 if ! grep -qxF "include mobile-font.conf" "$config/kitty/kitty.conf" 2>/dev/null; then
