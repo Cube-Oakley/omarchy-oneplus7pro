@@ -28,34 +28,44 @@ TestCase {
         }
     }
     EdgeGestures { id: edge; y: 776; width: 480; height: 24 }
-    SignalSpy { id: started; target: edge; signalName: "drawerStarted" }
-    SignalSpy { id: moved; target: edge; signalName: "drawerMoved" }
-    SignalSpy { id: released; target: edge; signalName: "drawerReleased" }
-    SignalSpy { id: action; target: edge; signalName: "invoked" }
+    SignalSpy { id: started; target: edge; signalName: "started" }
+    SignalSpy { id: moved; target: edge; signalName: "moved" }
+    SignalSpy { id: released; target: edge; signalName: "released" }
+    SignalSpy { id: held; target: edge; signalName: "held" }
     function init() {
-        started.clear(); moved.clear(); released.clear(); action.clear();
+        started.clear(); moved.clear(); released.clear(); held.clear();
         holds = 0; holdFinishes = 0; taps = 0; swipes = 0;
         cards.cancelFlick(); cards.positionViewAtBeginning(); wait(50);
     }
-    function test_edge_data() {
-        return [{tag: "left", x: 70, page: "apps"}, {tag: "center", x: 240, page: "spaces"}, {tag: "right", x: 410, page: "keyboard"}];
-    }
-    function test_edge(data) {
+    function test_swipe_starts_from_anywhere() {
         const touch = touchEvent(edge);
-        touch.press(0, edge, data.x, 12).commit(); wait(30);
-        touch.move(0, edge, data.x, -25).commit(); wait(30);
-        touch.move(0, edge, data.x, -110).commit(); wait(30);
-        touch.move(0, edge, data.x, -240).commit(); wait(30);
-        touch.release(0, edge, data.x, -240).commit(); wait(30);
-        if (data.page === "keyboard") {
-            compare(action.count, 1); compare(action.signalArguments[0][0], "keyboard"); compare(started.count, 0);
-        } else {
-            compare(started.count, 1); compare(started.signalArguments[0][0], data.page);
-            verify(moved.count > 0); compare(released.count, 1); compare(action.count, 0);
-        }
+        touch.press(0, edge, 410, 12).commit(); wait(20);
+        touch.move(0, edge, 410, -40).commit(); wait(20);
+        touch.move(0, edge, 410, -180).commit(); wait(20);
+        touch.release(0, edge, 410, -180).commit(); wait(30);
+        compare(started.count, 1);
+        verify(moved.count > 0);
+        compare(released.count, 1);
+        compare(released.signalArguments[0][2], false);
     }
-    function test_bottom_right_tap_does_not_hide() {
-        mouseClick(edge, 410, 12); compare(action.count, 0);
+
+    function test_pause_arms_the_switcher() {
+        const touch = touchEvent(edge);
+        touch.press(0, edge, 240, 12).commit(); wait(20);
+        touch.move(0, edge, 240, -120).commit(); wait(40);
+        compare(held.count, 0);
+        touch.move(0, edge, 242, -118).commit(); wait(80);
+        touch.move(0, edge, 239, -122).commit(); wait(160);
+        compare(held.count, 1);
+        touch.release(0, edge, 240, -120).commit(); wait(30);
+        compare(released.count, 1);
+        compare(released.signalArguments[0][2], true);
+    }
+
+    function test_bottom_tap_does_not_invoke_a_zone() {
+        mouseClick(edge, 410, 12);
+        compare(started.count, 0);
+        compare(released.count, 0);
     }
     function test_horizontal_browse_not_close() {
         const touch = touchEvent(cards);

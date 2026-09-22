@@ -38,13 +38,22 @@ Item {
         animateTo(fling ? (speed < 0 ? 0 : 1) : (farEnough ? 0 : 1));
     }
     function cancel() { dragging = false; animateTo(startProgress >= 0.5 ? 1 : 0); }
+    function dismiss() {
+        settle.stop();
+        dragging = false;
+        progress = 0;
+        closed();
+    }
     function animateTo(value) {
-        settle.stop(); dragging = false;
+        settle.stop();
+        dragging = false;
         if (Math.abs(progress - value) < 0.001) {
-            progress = value; if (value === 0) closed(); return;
+            progress = value;
+            if (value === 0) closed();
+            return;
         }
         settle.to = value;
-        settle.duration = Math.round(140 + 160 * Math.abs(progress - value));
+        settle.duration = Math.round(90 + 120 * Math.abs(progress - value));
         settle.start();
     }
     NumberAnimation {

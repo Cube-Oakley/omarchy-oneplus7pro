@@ -15,12 +15,12 @@ PanelWindow {
     Image {
         anchors.fill: parent
         source: MobileTheme.state.wallpaper ? MobileTheme.state.wallpaper.url : ""
-        sourceSize: Qt.size(Math.ceil(wallpaper.width * Screen.devicePixelRatio),
-                            Math.ceil(wallpaper.height * Screen.devicePixelRatio))
+        sourceSize: Qt.size(Math.ceil(Screen.width * Screen.devicePixelRatio),
+                            Math.ceil(Screen.height * Screen.devicePixelRatio))
         fillMode: Image.PreserveAspectCrop
         asynchronous: true
         retainWhileLoading: true
-        cache: false
+        cache: true
         autoTransform: true
         onStatusChanged: {
             if (status === Image.Error) {

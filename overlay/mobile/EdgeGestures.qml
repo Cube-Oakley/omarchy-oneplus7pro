@@ -1,44 +1,92 @@
 import QtQuick
 
+// One bottom swipe. The shell decides home, launcher, or switcher.
+// A pause after the swipe has started arms the switcher, matching Android's
+// swipe-up-and-hold. A flick that never pauses does not.
 Item {
     id: edge
     property color handleColor: "white"
-    signal invoked(string action)
-    signal drawerStarted(string page)
-    signal drawerMoved(real distance, real velocity)
-    signal drawerReleased()
-    signal drawerCanceled()
-    readonly property int zone: Math.min(2, Math.max(0, Math.floor(drag.centroid.pressPosition.x / (width / 3))))
+    signal started()
+    signal moved(real distance, real velocity)
+    signal held()
+    signal released(real distance, real velocity, bool held)
+    signal canceled()
+    signal tapped()
+    property bool tracking: false
+    property bool armed: false
+    property real distance: 0
+    property real velocity: 0
+    property real armAnchor: 0
+
     DragHandler {
-        id: drag; target: null
-        minimumPointCount: 1; maximumPointCount: 1
-        property bool tracking: false
-        property bool fired: false
+        id: drag
+        target: null
+        minimumPointCount: 1
+        maximumPointCount: 1
         onActiveChanged: {
-            if (active) { tracking = false; fired = false; }
-            else if (tracking) { tracking = false; edge.drawerReleased(); }
+            if (active) {
+                edge.tracking = false;
+                edge.armed = false;
+                edge.distance = 0;
+                hold.stop();
+                return;
+            }
+            if (!edge.tracking) return;
+            hold.stop();
+            const held = edge.armed;
+            edge.tracking = false;
+            edge.released(edge.distance, edge.velocity, held);
         }
         onActiveTranslationChanged: {
             if (!active) return;
             const up = -activeTranslation.y;
-            if (!tracking && !fired && up > 8 && up > Math.abs(activeTranslation.x) * 1.2) {
-                if (edge.zone < 2) {
-                    tracking = true;
-                    edge.drawerStarted(edge.zone === 0 ? "apps" : "spaces");
-                } else if (up >= 54) {
-                    fired = true; edge.invoked("keyboard");
+            edge.velocity = -centroid.velocity.y;
+            if (!edge.tracking) {
+                if (up < 10 || up < Math.abs(activeTranslation.x) * 1.15) return;
+                edge.tracking = true;
+                edge.started();
+            }
+            edge.distance = Math.max(0, up);
+            // Arm only after the finger pauses. Touchscreens keep reporting
+            // small jitter while a finger is held, so that must not reset the timer.
+            if (up > 72 && !edge.armed) {
+                if (!hold.running) {
+                    edge.armAnchor = up;
+                    hold.start();
+                } else if (Math.abs(up - edge.armAnchor) > 36) {
+                    edge.armAnchor = up;
+                    hold.restart();
                 }
             }
-            if (tracking) edge.drawerMoved(up, -centroid.velocity.y);
+            edge.moved(edge.distance, edge.velocity);
         }
-        onCanceled: { tracking = false; edge.drawerCanceled(); }
+        onCanceled: {
+            hold.stop();
+            edge.tracking = false;
+            edge.armed = false;
+            edge.canceled();
+        }
     }
+    Timer {
+        id: hold
+        interval: 180
+        onTriggered: {
+            if (!edge.tracking || edge.armed) return;
+            edge.armed = true;
+            edge.held();
+        }
+    }
+    TapHandler { onTapped: edge.tapped() }
     Rectangle {
         anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: parent.bottom; anchors.bottomMargin: 6
-        width: drag.active ? 76 : 58; height: 3; radius: 2
-        color: edge.handleColor; opacity: drag.active ? 0.8 : 0.22
-        Behavior on width { NumberAnimation { duration: 130 } }
-        Behavior on opacity { NumberAnimation { duration: 130 } }
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 6
+        width: drag.active ? 84 : 64
+        height: 4
+        radius: 2
+        color: edge.handleColor
+        opacity: drag.active ? 0.9 : 0.35
+        Behavior on width { NumberAnimation { duration: 120 } }
+        Behavior on opacity { NumberAnimation { duration: 120 } }
     }
 }

@@ -55,6 +55,25 @@ install -m644 "$source_dir/kitty-font.conf" "$config/kitty/mobile-font.conf"
 if ! grep -qxF "include mobile-font.conf" "$config/kitty/kitty.conf" 2>/dev/null; then
     printf "\ninclude mobile-font.conf\n" >> "$config/kitty/kitty.conf"
 fi
+python3 - "$config/kitty/kitty.conf" <<'PY'
+import pathlib, sys
+path = pathlib.Path(sys.argv[1])
+lines = path.read_text().splitlines() if path.exists() else []
+found = False
+out = []
+for line in lines:
+    if line.strip().startswith("confirm_os_window_close"):
+        out.append("confirm_os_window_close 0")
+        found = True
+    else:
+        out.append(line)
+if not found:
+    if out and out[-1] != "":
+        out.append("")
+    out.append("confirm_os_window_close 0")
+path.parent.mkdir(parents=True, exist_ok=True)
+path.write_text("\n".join(out) + "\n")
+PY
 if [[ -n $device ]]; then
     install -m644 "$device/mobile.json" "$config/omarchy-mobile/device.json"
     install -m755 "$device/desktop-prepare.sh" "$config/omarchy-mobile/session-prepare"

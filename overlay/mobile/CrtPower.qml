@@ -12,6 +12,7 @@ PanelWindow {
     property string token: ""
     property real progress: 0
     property bool playing: false
+    property double wakeAt: 0
     property bool capturing: false
     readonly property string shot: Quickshell.env("XDG_RUNTIME_DIR") + "/omarchy-mobile-crt.jpg"
     readonly property var phase: phases.sample(mode === "on" ? "on" : "off", progress)
@@ -88,12 +89,23 @@ PanelWindow {
         console.log("MOBILE_CRT covered");
     }
     function play(which, id) {
+        const now = Date.now();
+        // Wake asks twice, once from suspend cleanup and once from the power
+        // key. The second request must settle so the caller returns, without
+        // starting the open animation again.
+        if (which === "on" && wakeAt > 0 && now - wakeAt < 2500) {
+            mark("settled", id);
+            console.log("MOBILE_CRT skip duplicate on");
+            return;
+        }
         if (playing) return;
         token = id;
         progress = 0;
         mode = which === "on" ? "on" : "off";
-        if (which === "on")
+        if (which === "on") {
+            wakeAt = now;
             Quickshell.execDetached(["hyprctl", "eval", "hl.dispatch(hl.dsp.dpms({ action = \"enable\" }))"]);
+        }
         begin();
     }
     function begin() {

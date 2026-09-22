@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Window
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
@@ -9,6 +10,9 @@ ShellRoot {
     id: root
     property string page: ""
     property string startupError: ""
+    property string lastDispatch: ""
+    property bool openLanded: false
+    property bool openingCard: false
     property string keyboardError: ""
     property var keyboardQueue: []
     property var keyboardLayer: null
@@ -39,12 +43,27 @@ ShellRoot {
         stdout: StdioCollector {}
         stderr: StdioCollector {}
         onExited: (code, status) => {
-            if (code === 0 && stdout.text.trim().split(/\s+/).every(word => word === "ok")) {
+            // Dismiss on a clean exit. hyprctl often prints nothing or an extra
+            // token after a successful batch; requiring every word to be "ok"
+            // left the switcher up after the app had already focused.
+            const output = (stdout.text + " " + stderr.text).trim();
+            if (!root.openingCard) {
+                if (code === 0) root.closeDrawer();
+                else root.startupError = "Could not focus that window";
+                return;
+            }
+            if (code === 0) {
                 root.startupError = "";
-                root.closeDrawer();
+                if (output && output.split(/\s+/).some(word => word !== "ok"))
+                    console.warn("MOBILE_FOCUS_NOTE " + output);
+                root.openLanded = true;
+                root.tryReveal();
             } else {
-                root.startupError = "Could not focus that window";
-                console.warn("MOBILE_FOCUS_FAILED " + stdout.text + stderr.text);
+                root.openingCard = false;
+                root.openLanded = false;
+                overview.cancelExpand();
+                root.startupError = "Could not open that app";
+                console.warn("MOBILE_FOCUS_FAILED " + output + " :: " + root.lastDispatch);
             }
         }
     }
@@ -77,41 +96,241 @@ ShellRoot {
         travel: drawer.height
         onClosed: root.page = ""
     }
-    function closeDrawer() { motion.animateTo(0); }
+    property bool clearing: false
+    function closeDrawer() {
+        root.page = "";
+        motion.dismiss();
+        // Present one transparent frame. Otherwise the next open can show
+        // the previous switcher image for a frame before Qt draws the new one.
+        clearing = true;
+        clearFrame.restart();
+    }
+    Timer { id: clearFrame; interval: 32; onTriggered: root.clearing = false }
+    readonly property bool atHome: !Hyprland.toplevels.values.some(w => w.workspace && w.workspace.id === 1)
+    readonly property int workspaceLimit: MobileTheme.state.device.workspaceCount || 8
+    function windowsOn(id) {
+        return Hyprland.toplevels.values.filter(w => w.workspace && w.workspace.id === id);
+    }
+    function settingsOnScreen() {
+        const tops = Hyprland.toplevels.values;
+        for (let i = 0; i < tops.length; i++) {
+            const window = tops[i];
+            if (!window.workspace || window.workspace.id !== 1) continue;
+            const info = window.lastIpcObject;
+            const title = info && info.title ? info.title : (window.title || "");
+            if (title === "Settings") return true;
+        }
+        return false;
+    }
+    function requestBack() {
+        if (page !== "" || shade.opened) return;
+        if (!settingsOnScreen()) return;
+        const settings = Quickshell.env("HOME") + "/.config/quickshell/omarchy-mobile-settings/shell.qml";
+        Quickshell.execDetached(["quickshell", "ipc", "-n", "-p", settings, "call", "settings", "back"]);
+        console.log("MOBILE_BACK");
+    }
     function beginDrawer(name) {
         shade.close();
         if (page !== name) { motion.begin(); motion.progress = 0; page = name; }
         keyboard("hide"); motion.begin();
     }
-    function edgeAction(action) {
-        if (action === "keyboard") { closeDrawer(); keyboard("show"); }
-        else showPage(action);
-        console.log("MOBILE_EDGE " + action);
+    property bool parkedGesture: false
+    property var parkedAddresses: []
+    property bool gestureFromApp: false
+    // Set only when the finger goes down while the switcher is already open.
+    // The gesture that opens the switcher also sets page to spaces, so the
+    // release check cannot use the page alone.
+    property bool gestureClosesSwitcher: false
+    function edgeStarted() {
+        gestureClosesSwitcher = page === "spaces";
+        if (gestureClosesSwitcher) return;
+        parkedGesture = false;
+        parkedAddresses = [];
+        gestureFromApp = !atHome;
+        if (atHome) return;
+        overview.touchWindows(windowsOn(1));
+        beginDrawer("spaces");
+        if (overview.frontReady) schedulePark();
+    }
+    Timer { id: parkHold; interval: 48; onTriggered: root.parkForeground() }
+    function schedulePark() {
+        if (!gestureFromApp || parkedGesture) return;
+        parkHold.restart();
+    }
+    function parkForeground() {
+        if (parkedGesture || atHome) return;
+        const command = goHome();
+        if (!command || command === "stay") return;
+        parkedGesture = true;
+        Quickshell.execDetached(command);
+    }
+    function edgeHeld() {
+        if (gestureClosesSwitcher) return;
+        overview.browse = 0;
+        if (page !== "spaces") beginDrawer("spaces");
+        overview.home = 0;
+        if (!gestureFromApp) motion.progress = 1;
+        else motion.animateTo(1);
+        if (gestureFromApp && overview.frontReady) schedulePark();
+    }
+    function edgeReleased(distance, velocity, held) {
+        if (gestureClosesSwitcher) {
+            gestureClosesSwitcher = false;
+            if (!held && distance >= 48) closeDrawer();
+            return;
+        }
+        if (held) { edgeHeld(); return; }
+        if (!gestureFromApp) {
+            if (distance < 64) return;
+            beginDrawer("apps");
+            motion.animateTo(1);
+            return;
+        }
+        if (distance < 48 && motion.progress < 0.2) { parkHold.stop(); restoreForeground(); closeDrawer(); return; }
+        parkForeground();
+        overview.minimizeHome();
+    }
+    function goHome() {
+        const home = windowsOn(1);
+        if (home.length === 0) { dispatch("hl.dsp.focus({workspace = 1})"); return; }
+        const used = {};
+        Hyprland.toplevels.values.forEach(w => { if (w.workspace) used[w.workspace.id] = true; });
+        let slot = 0;
+        for (let i = 2; i <= workspaceLimit; i++) if (!used[i]) { slot = i; break; }
+        if (!slot) { motion.animateTo(1); return "stay"; }
+        const commands = home.map(w => {
+            const address = windowAddress(w);
+            return address ? 'dispatch hl.dsp.window.move({window = "address:' + address + '", workspace = ' + slot + ', follow = false})' : "";
+        }).filter(Boolean);
+        commands.push("dispatch hl.dsp.focus({workspace = 1})");
+        overview.touchWindows(home);
+        parkedAddresses = home.map(windowAddress).filter(Boolean);
+        parkedSlot = slot;
+        console.log("MOBILE_HOME slot=" + slot);
+        return ["hyprctl", "--batch", commands.join("; ")];
+    }
+    property int parkedSlot: 0
+    function restoreForeground() {
+        if (!parkedGesture || !parkedAddresses.length) return;
+        const lines = parkedAddresses.map(address => 'dispatch hl.dsp.window.move({window = "address:' + address + '", workspace = 1, follow = false})');
+        lines.push("dispatch hl.dsp.focus({workspace = 1})");
+        if (parkedAddresses[0]) lines.push('dispatch hl.dsp.focus({window="address:' + parkedAddresses[0] + '"})');
+        parkedGesture = false;
+        Quickshell.execDetached(["hyprctl", "--batch", lines.join("; ")]);
+    }
+    function finishHome() {
+        if (page !== "spaces") return;
+        if (parkedGesture) { closeDrawer(); return; }
+        const command = goHome();
+        if (command === "stay") return;
+        if (!command) { closeDrawer(); return; }
+        if (homeRequest.running) return;
+        homeRequest.command = command;
+        homeRequest.running = true;
+    }
+    Process {
+        id: homeRequest
+        stdout: StdioCollector {}
+        stderr: StdioCollector {}
+        onExited: root.closeDrawer()
+    }
+    function tryReveal() {
+        if (!openingCard || !openLanded || overview.lift < 0.98) return;
+        revealHold.restart();
+    }
+    Timer {
+        id: revealHold
+        interval: 48
+        onTriggered: root.finishReveal()
+    }
+    function finishReveal() {
+        if (!openingCard || !openLanded || overview.lift < 0.98) return;
+        openingCard = false;
+        openLanded = false;
+        closeDrawer();
+        overview.expandingId = 0;
+        overview.lift = 0;
+        overview.syncCards();
+    }
+    function cardWindows(id) {
+        const cards = overview.cardsModel || [];
+        for (let i = 0; i < cards.length; i++)
+            if (cards[i].id === id && cards[i].windows && cards[i].windows.length)
+                return cards[i].windows;
+        return windowsOn(id);
+    }
+    function openGroup(id) {
+        if (focusRequest.running || overview.expandingId) return;
+        const incoming = cardWindows(id);
+        if (!incoming.length) {
+            console.warn("MOBILE_OPEN empty " + id);
+            startupError = "That app is no longer open";
+            return;
+        }
+        const lines = ["dispatch hl.dsp.focus({workspace=1})"];
+        const wanted = {};
+        incoming.forEach(w => { const address = windowAddress(w); if (address) wanted[address] = true; });
+        const slot = incoming[0] && incoming[0].workspace ? incoming[0].workspace.id : id;
+        if (slot !== 1) {
+            windowsOn(1).forEach(w => {
+                const address = windowAddress(w);
+                if (address && !wanted[address]) lines.push('dispatch hl.dsp.window.move({window = "address:' + address + '", workspace = ' + slot + ', follow = false})');
+            });
+            incoming.forEach(w => {
+                const address = windowAddress(w);
+                if (address) lines.push('dispatch hl.dsp.window.move({window = "address:' + address + '", workspace = 1, follow = false})');
+            });
+        }
+        const first = windowAddress(incoming[0]);
+        if (first) lines.push('dispatch hl.dsp.focus({window="address:' + first + '"})');
+        lastDispatch = lines.join("; ");
+        openLanded = false;
+        openingCard = true;
+        overview.touchWindows(incoming);
+        overview.expandCard(id);
+        focusRequest.command = ["hyprctl", "--batch", lastDispatch];
+        focusRequest.running = true;
+        console.log("MOBILE_OPEN " + id + " " + first);
+    }
+    function closeGroup(id) {
+        cardWindows(id).forEach(w => windowAction(w, "hl.dsp.window.close", ""));
+    }
+    function tileGroups(source, target) {
+        const moving = windowsOn(source);
+        const staying = windowsOn(target);
+        moving.forEach(w => windowAction(w, "hl.dsp.window.move", "workspace = " + target + ", follow = false"));
+        overview.touchWindows(moving.concat(staying));
     }
     function showPage(name) {
         shade.close();
         if (page === name && motion.progress > 0) closeDrawer();
         else { page = name; keyboard("hide"); motion.animateTo(1); }
     }
-    onPageChanged: if (page === "spaces") overview.selectedWorkspace = workspace
-    function launch(app) {
-        closeDrawer();
+    function launch(app, from, icon) {
         const command = app.runInTerminal ? ["kitty", "--"].concat(app.command) : app.command;
+        const origin = from ? from.mapToItem(launchZoom, 0, 0) : null;
+        const glyph = (app.name || "A").substring(0, 1);
+        closeDrawer();
+        if (origin) launchZoom.beginAt(origin.x, origin.y, from.width, from.height, icon || "", glyph);
         Quickshell.execDetached({ command: command, workingDirectory: app.workingDirectory || Quickshell.env("HOME") });
         console.log("MOBILE_LAUNCH " + app.id);
     }
-    function terminal() {
+    function terminal(from) {
+        const origin = from ? from.mapToItem(launchZoom, 0, 0) : null;
         closeDrawer();
+        if (origin) launchZoom.beginAt(origin.x, origin.y, from.width, from.height, "", ">");
         Quickshell.execDetached(["kitty"]);
-        keyboard("show");
+        keyboard("hide");
     }
     function selectWorkspace(number) {
         dispatch("hl.dsp.focus({workspace = " + number + "})");
         closeDrawer();
         console.log("MOBILE_WORKSPACE " + number);
     }
-    function openSettings(panel) {
+    function openSettings(panel, from) {
+        const origin = from ? from.mapToItem(launchZoom, 0, 0) : null;
         closeDrawer();
+        if (origin) launchZoom.beginAt(origin.x, origin.y, from.width, from.height, "", "S");
         keyboard("hide");
         const page = panel || "home";
         Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/omarchy-mobile-settings", page]);
@@ -283,6 +502,33 @@ ShellRoot {
         }
     }
     PanelWindow {
+        id: backEdge
+        anchors { left: true; top: true; bottom: true }
+        implicitWidth: 200
+        color: "transparent"
+        exclusionMode: ExclusionMode.Ignore
+        exclusiveZone: 0
+        WlrLayershell.namespace: "omarchy-mobile-back"
+        WlrLayershell.layer: WlrLayer.Overlay
+        WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+        // Only the left strip is touchable until the swipe starts. The region
+        // then opens up so the finger can travel inward without the gesture dying.
+        mask: Region {
+            // The resting strip has to contain a full back-swipe. The region
+            // widens as soon as the finger lands, before it travels inward.
+            width: root.page === "" && !shade.opened && launchZoom.t < 0.01 ? ((backSwipe.pressed || backSwipe.tracking) ? backEdge.width : 64) : 0
+            height: backEdge.height
+        }
+        LeftBack {
+            id: backSwipe
+            anchors.fill: parent
+            pill: MobileTheme.surface
+            ink: MobileTheme.foreground
+            enabled: root.page === "" && !shade.opened && launchZoom.t < 0.01
+            onCommitted: root.requestBack()
+        }
+    }
+    PanelWindow {
         id: navigation
         anchors { bottom: true; left: true; right: true }
         exclusionMode: ExclusionMode.Ignore
@@ -297,22 +543,26 @@ ShellRoot {
         EdgeGestures {
             handleColor: MobileTheme.foreground
             anchors.fill: parent
-            onInvoked: action => root.edgeAction(action)
-            onDrawerStarted: name => root.beginDrawer(name)
-            onDrawerMoved: (distance, velocity) => motion.update(distance, velocity)
-            onDrawerReleased: motion.finish()
-            onDrawerCanceled: if (motion.dragging) motion.cancel()
+            onTapped: if (root.page === "" && !root.atHome) root.keyboard("show")
+            onStarted: root.edgeStarted()
+            onMoved: (distance, velocity) => motion.update(distance, velocity)
+            onHeld: root.edgeHeld()
+            onReleased: (distance, velocity, held) => root.edgeReleased(distance, velocity, held)
+            onCanceled: if (motion.dragging) motion.cancel()
         }
     }
 
     PanelWindow {
         id: drawer
-        // Keep the surface mapped: remapping can present its previous full
-        // buffer before Qt paints the new finger-tracked position.
+        // Keep the surface mapped. Hiding it lets the next open come back as a
+        // tiny top-left buffer before the layer is configured to full screen.
         visible: true
         mask: Region {
-            width: root.page !== "" ? drawer.width : 0
-            height: root.page !== "" ? drawer.height : 0
+            // While the shade is open it must receive the swipe that closes it.
+            // The home surface only listens when that tray is fully out of the way.
+            readonly property bool homeFree: root.atHome && root.page === "" && !shade.opened && !homeDrag.active
+            width: root.page !== "" || launchZoom.t > 0.01 || homeFree || homeDrag.active || root.clearing ? drawer.width : 0
+            height: root.page !== "" || launchZoom.t > 0.01 || homeFree || homeDrag.active || root.clearing ? drawer.height : 0
         }
         anchors { top: true; left: true; right: true; bottom: true }
         exclusionMode: ExclusionMode.Normal
@@ -321,53 +571,98 @@ ShellRoot {
         WlrLayershell.namespace: "omarchy-mobile-drawer"
         WlrLayershell.layer: WlrLayer.Top
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
-        // The input region is empty while closed and covers the drawer while open.
-        Rectangle { anchors.fill: parent; color: "black"; opacity: motion.progress * 0.28 }
-        TapHandler { onTapped: point => { if (point.position.y < sheet.y) root.closeDrawer(); } }
+        // On the home screen this surface also takes swipes. An open app leaves
+        // the mask empty so those touches reach the app.
+        Rectangle { anchors.fill: parent; color: "black"; opacity: root.page === "spaces" ? motion.progress * 0.45 : motion.progress * 0.28 }
+        DragHandler {
+            id: homeDrag
+            target: null
+            enabled: homeDrag.active || (root.atHome && root.page === "" && launchZoom.t < 0.01 && !shade.opened)
+            xAxis.enabled: false
+            yAxis.enabled: true
+            property string mode: ""
+            onActiveChanged: {
+                if (active) { mode = ""; return; }
+                if (mode === "up") motion.finish();
+                else if (mode === "down") shade.release();
+                mode = "";
+            }
+            onActiveTranslationChanged: {
+                if (!active) return;
+                const dy = activeTranslation.y;
+                if (mode === "" && Math.abs(dy) < 24) return;
+                if (mode === "") {
+                    if (shade.opened) return;
+                    if (dy < 0) { mode = "up"; root.beginDrawer("apps"); }
+                    else { mode = "down"; shade.begin(); }
+                }
+                if (mode === "up") motion.update(-dy, -centroid.velocity.y);
+                else shade.move(dy, centroid.velocity.y);
+            }
+            onCanceled: {
+                if (mode === "up") motion.cancel();
+                else if (mode === "down") shade.cancel();
+                mode = "";
+            }
+        }
+        TapHandler {
+            enabled: root.page === "apps"
+            onTapped: point => { if (point.position.y < sheet.y) root.closeDrawer(); }
+        }
         Rectangle {
             id: sheet
             visible: root.page !== ""
             width: parent.width; height: parent.height
-            y: (1 - motion.progress) * height
-            radius: motion.progress < 0.99 ? 24 : 0
-            color: MobileTheme.background
-            clip: true
+            y: root.page === "spaces" ? 0 : (1 - motion.progress) * height
+            radius: root.page === "spaces" ? 0 : (motion.progress > 0.98 ? 0 : 24)
+            color: root.page === "apps" ? MobileTheme.background : "transparent"
+            clip: root.page !== "spaces"
+            Rectangle {
+                anchors.fill: parent
+                visible: root.page === "spaces"
+                color: "black"
+                opacity: 0.32 * Math.min(1, overview.present)
+            }
             ColumnLayout {
-                anchors.fill: parent; anchors.margins: 24; spacing: 24
+                anchors.fill: parent
+                anchors.margins: root.page === "spaces" ? 0 : 24
+                spacing: root.page === "spaces" ? 0 : 24
                 Item {
-                    Layout.fillWidth: true; implicitHeight: 88
-                    Text { font.family: MobileTheme.fontFamily; y: 0; text: root.page === "spaces" ? "YOUR SPACE" : "EXPLORE"; color: MobileTheme.accent; font.pixelSize: 11; font.letterSpacing: 2.4; font.bold: true }
-                    Text { font.family: MobileTheme.fontFamily; y: 23; text: root.page === "spaces" ? "Overview" : "Applications"; color: MobileTheme.foreground; font.pixelSize: 34; font.bold: true }
+                    visible: root.page === "apps"
+                    Layout.fillWidth: true
+                    implicitHeight: visible ? 88 : 0
+                    Text { font.family: MobileTheme.fontFamily; y: 0; text: "EXPLORE"; color: MobileTheme.accent; font.pixelSize: 11; font.letterSpacing: 2.4; font.bold: true }
+                    Text { font.family: MobileTheme.fontFamily; y: 23; text: "Applications"; color: MobileTheme.foreground; font.pixelSize: 34; font.bold: true }
                     TouchButton { anchors.right: parent.right; y: 21; implicitWidth: 48; implicitHeight: 48; radius: 24; label: "×"; textSize: 26; onClicked: root.closeDrawer() }
                 }
                 WorkspaceOverview {
                     id: overview
-                    enabled: motion.settledOpen
-                    visible: root.page === "spaces"; active: visible && motion.progress > 0.05
-                    Layout.fillWidth: true; Layout.fillHeight: true
-                    onEnterWorkspace: number => root.selectWorkspace(number)
-                    onLaunchTerminal: root.terminal()
-                    onFocusWindow: window => root.focusWindow(window)
-                    onSwapWindows: (source, target) => {
-                        const address = root.windowAddress(target);
-                        if (address) root.windowAction(source, "hl.dsp.window.swap", 'target = "address:' + address + '"');
-                    }
-                    onMoveWindow: (window, number) => root.windowAction(window, "hl.dsp.window.move", "workspace = " + number + ", follow = false")
-                    onMaximizeWindow: window => { root.windowAction(window, "hl.dsp.window.fullscreen", 'mode = "maximized"'); root.closeDrawer(); }
-                    onCloseWindow: window => root.windowAction(window, "hl.dsp.window.close", "")
+                    enabled: root.page === "spaces" && motion.progress > 0.35
+                    visible: root.page === "spaces"
+                    active: visible
+                    openness: motion.progress
+                    Layout.fillWidth: true
+                    Layout.fillHeight: visible
+                    onOpenGroup: id => root.openGroup(id)
+                    onCovered: root.tryReveal()
+                    onMinimized: root.finishHome()
+                    onPreviewReady: root.schedulePark()
+                    onCloseGroup: id => root.closeGroup(id)
+                    onTileGroups: (source, target) => root.tileGroups(source, target)
+                    onDismissed: root.closeDrawer()
                 }
                 Flickable {
                     id: appList
                     enabled: motion.settledOpen
                     visible: root.page === "apps"
-                    Layout.fillWidth: true; Layout.fillHeight: true
+                    Layout.fillWidth: true; Layout.fillHeight: visible
                     clip: true; contentHeight: contents.height; boundsBehavior: Flickable.StopAtBounds
                     Column {
                         id: contents; width: parent.width; spacing: 22
                         RowLayout {
                             visible: root.page === "apps"; width: parent.width; spacing: 12
-                            TouchButton { Layout.fillWidth: true; label: ">_  Terminal"; selected: true; onClicked: root.terminal() }
-                            TouchButton { Layout.fillWidth: true; label: "Settings"; onClicked: root.openSettings("home") }
+                            TouchButton { id: terminalButton; Layout.fillWidth: true; label: ">_  Terminal"; selected: true; onClicked: root.terminal(terminalButton) }
+                            TouchButton { id: settingsButton; Layout.fillWidth: true; label: "Settings"; onClicked: root.openSettings("home", settingsButton) }
                         }
                         GridLayout {
                             width: parent.width; columns: 3; columnSpacing: 12; rowSpacing: 24
@@ -377,12 +672,13 @@ ShellRoot {
                                     required property var modelData
                                     Layout.fillWidth: true; Layout.preferredWidth: 1; implicitHeight: 116
                                     Rectangle {
+                                        id: appTile
                                         anchors.horizontalCenter: parent.horizontalCenter; width: 70; height: 70; radius: 21; color: appTap.pressed ? MobileTheme.selection : MobileTheme.surface
                                         Image { id: appIcon; anchors.centerIn: parent; width: 40; height: 40; source: modelData.icon ? Quickshell.iconPath(modelData.icon, true) : ""; fillMode: Image.PreserveAspectFit }
                                         Text { font.family: MobileTheme.fontFamily; anchors.centerIn: parent; visible: appIcon.status !== Image.Ready; text: modelData.name.substring(0, 1); color: MobileTheme.accent; font.pixelSize: 28; font.bold: true }
                                     }
                                     Text { font.family: MobileTheme.fontFamily; anchors { top: parent.top; topMargin: 80; left: parent.left; right: parent.right } text: modelData.name; textFormat: Text.PlainText; color: MobileTheme.foreground; font.pixelSize: 13; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight }
-                                    TapHandler { id: appTap; onTapped: root.launch(modelData) }
+                                    TapHandler { id: appTap; onTapped: root.launch(modelData, appTile, appIcon.source) }
                                 }
                             }
                         }
@@ -391,14 +687,116 @@ ShellRoot {
             }
             DrawerPull {
                 anchors.fill: parent
-                available: motion.progress > 0.05 && !motion.dragging
+                available: root.page === "apps" && motion.progress > 0.05 && !motion.dragging
                 atTop: root.page === "spaces" || appList.atYBeginning
                 headerBottom: 24 + 88
-                blocked: root.page === "spaces" && overview.arranging
+                blocked: root.page === "spaces" && overview.heldId !== 0
                 onStarted: motion.begin()
                 onMoved: (distance, velocity) => motion.update(-Math.max(0, distance), -velocity)
                 onReleased: motion.finishClose()
                 onCanceled: if (motion.dragging) motion.cancel()
+            }
+            Text {
+                visible: root.page === "spaces" && root.startupError !== ""
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: 40
+                z: 2
+                text: root.startupError
+                textFormat: Text.PlainText
+                color: MobileTheme.foreground
+                font.family: MobileTheme.fontFamily
+                font.pixelSize: 15
+            }
+        }
+        Item {
+            id: launchZoom
+            anchors.fill: parent
+            z: 4
+            visible: growAnim.running || fadeAnim.running || t > 0.01
+            property real t: 0
+            property real fade: 1
+            property real ix: 0
+            property real iy: 0
+            property real iw: 70
+            property real ih: 70
+            property string icon: ""
+            property string letter: ""
+            property var startedAddresses: []
+            readonly property real tileX: overview.tileGap
+            readonly property real tileY: overview.tileGap
+            readonly property real tileW: Math.max(1, width - overview.tileGap * 2)
+            readonly property real tileH: Math.max(1, height - overview.tileGap * 2)
+            function beginAt(x, y, w, h, iconSource, glyph) {
+                const tops = Hyprland.toplevels.values;
+                const found = [];
+                for (let i = 0; i < tops.length; i++) found.push(String(tops[i].address));
+                startedAddresses = found;
+                ix = x; iy = y; iw = Math.max(1, w); ih = Math.max(1, h);
+                icon = iconSource || "";
+                letter = glyph || "";
+                launchZoom.fade = 1;
+                launchZoom.t = 0;
+                fadeAnim.stop();
+                revealApp.stop();
+                growAnim.restart();
+            }
+            function newcomerReady() {
+                const tops = Hyprland.toplevels.values;
+                for (let i = 0; i < tops.length; i++) {
+                    const window = tops[i];
+                    if (startedAddresses.indexOf(String(window.address)) >= 0) continue;
+                    const info = window.lastIpcObject;
+                    if (info && info.mapped === false) continue;
+                    const size = info && info.size;
+                    if (!size || size[0] < 200 || size[1] < 200) continue;
+                    if (!window.workspace || window.workspace.id !== 1) continue;
+                    return true;
+                }
+                return false;
+            }
+            function finish() {
+                if (fadeAnim.running || t < 0.05) return;
+                fadeAnim.start();
+            }
+            NumberAnimation { id: growAnim; target: launchZoom; property: "t"; to: 1; duration: 320; easing.type: Easing.OutCubic }
+            NumberAnimation { id: fadeAnim; target: launchZoom; property: "fade"; to: 0; duration: 80; easing.type: Easing.OutCubic; onFinished: launchZoom.t = 0 }
+            // The new window exists before it has painted. Hold the cover
+            // until that first picture is up, then let it show through.
+            Timer {
+                id: readyHold
+                interval: 40
+                repeat: true
+                running: launchZoom.t > 0.05 && !fadeAnim.running && !revealApp.running
+                onTriggered: if (launchZoom.newcomerReady()) revealApp.restart()
+            }
+            Timer { id: revealApp; interval: 420; onTriggered: launchZoom.finish() }
+            Timer { id: launchWait; interval: 1800; running: launchZoom.t > 0.05 && !fadeAnim.running; onTriggered: launchZoom.finish() }
+            Rectangle {
+                x: launchZoom.ix + (launchZoom.tileX - launchZoom.ix) * launchZoom.t
+                y: launchZoom.iy + (launchZoom.tileY - launchZoom.iy) * launchZoom.t
+                width: launchZoom.iw + (launchZoom.tileW - launchZoom.iw) * launchZoom.t
+                height: launchZoom.ih + (launchZoom.tileH - launchZoom.ih) * launchZoom.t
+                radius: 21 + (8 - 21) * launchZoom.t
+                color: MobileTheme.surface
+                opacity: launchZoom.fade
+                Image {
+                    anchors.centerIn: parent
+                    width: 40 + 24 * launchZoom.t
+                    height: width
+                    source: launchZoom.icon
+                    fillMode: Image.PreserveAspectFit
+                    visible: status === Image.Ready
+                }
+                Text {
+                    anchors.centerIn: parent
+                    visible: !parent.children[0].visible
+                    text: launchZoom.letter
+                    color: MobileTheme.accent
+                    font.family: MobileTheme.fontFamily
+                    font.pixelSize: 28 + 16 * launchZoom.t
+                    font.bold: true
+                }
             }
         }
     }

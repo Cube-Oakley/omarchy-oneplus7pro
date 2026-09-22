@@ -32,6 +32,6 @@ Item {
         opacity: overlay.open ? 1 : 0
         Behavior on scale { NumberAnimation { duration: overlay.duration; easing.type: Easing.OutCubic } }
         Behavior on opacity { NumberAnimation { duration: overlay.duration; easing.type: Easing.OutCubic } }
-        TapHandler { onTapped: overlay.dismissed() }
+
     }
 }

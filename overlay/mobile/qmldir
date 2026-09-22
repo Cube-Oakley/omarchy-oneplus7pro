@@ -2,7 +2,9 @@ singleton MobileTheme 1.0 MobileTheme.qml
 TouchButton 1.0 TouchButton.qml
 WindowCard 1.0 WindowCard.qml
 EdgeGestures 1.0 EdgeGestures.qml
+LeftBack 1.0 LeftBack.qml
 WorkspaceOverview 1.0 WorkspaceOverview.qml
+SnapPager 1.0 SnapPager.qml
 Wallpaper 1.0 Wallpaper.qml
 DrawerMotion 1.0 DrawerMotion.qml
 PreviewGestures 1.0 PreviewGestures.qml

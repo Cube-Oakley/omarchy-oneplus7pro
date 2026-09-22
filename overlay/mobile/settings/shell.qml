@@ -14,6 +14,36 @@ ShellRoot {
     property var wifi: ({available: false})
     property var networks: []
     property string networkMessage: ""
+    function goBack() {
+        if (speedOpen) { speedOpen = false; return; }
+        if (panel === "appearance" && appearance.pickerShown) {
+            appearance.closePicker();
+            return;
+        }
+        if (panel === "home") return;
+        dnsEditing = false;
+        panel = panel === "wifi" ? "network" : "home";
+    }
+    property string backStamp: ""
+    Process {
+        id: backRead
+        command: ["cat", Quickshell.env("XDG_RUNTIME_DIR") + "/omarchy-mobile/back"]
+        stdout: StdioCollector {}
+        stderr: StdioCollector {}
+        onExited: {
+            const stamp = stdout.text.trim();
+            if (!stamp || stamp === root.backStamp) return;
+            const first = root.backStamp === "";
+            root.backStamp = stamp;
+            if (!first) root.goBack();
+        }
+    }
+    Timer {
+        interval: 180
+        repeat: true
+        running: root.panel !== "home" || root.speedOpen
+        onTriggered: if (!backRead.running) backRead.running = true
+    }
     function openPanel(name) {
         if (["home", "appearance", "clipboard", "network", "wifi", "sound", "battery", "about"].indexOf(name) >= 0) {
             speedOpen = false;
@@ -54,6 +84,7 @@ ShellRoot {
         target: "settings"
         function open(name: string): void { win.visible = true; root.openPanel(name); }
         function panel(): string { return root.panel; }
+        function back(): void { root.goBack(); }
     }
     Process {
         id: clipRequest
@@ -206,15 +237,7 @@ ShellRoot {
                 kicker: root.panel === "home" ? "OMARCHY" : "SETTINGS"
                 title: root.speedOpen ? "Speed test" : ({home: "Settings", appearance: "Appearance", clipboard: "Clipboard", network: "Network", wifi: "Wi-Fi", sound: "Sound", battery: "Battery", about: "About"})[root.panel] || "Settings"
                 backVisible: root.panel !== "home" || root.speedOpen
-                onBackClicked: {
-                    if (root.speedOpen) { root.speedOpen = false; return; }
-                    if (root.panel === "appearance" && appearance.pickerShown) {
-                        appearance.closePicker();
-                        return;
-                    }
-                    root.dnsEditing = false;
-                    root.panel = root.panel === "wifi" ? "network" : "home";
-                }
+                onBackClicked: root.goBack()
             }
             Flickable {
                 visible: root.panel === "home"

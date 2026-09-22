@@ -57,7 +57,18 @@ case $action in
         dpms disable
         ;;
     on)
-        # The shell turns the panel on at the start of the open animation.
+        # Suspend cleanup and the power key both ask for wake. The open
+        # animation enables the panel itself, so a second on in the next
+        # few seconds would play it again. Sleep is unchanged.
+        now=$(date +%s)
+        stamp=$XDG_RUNTIME_DIR/omarchy-mobile-crt.wake
+        if [[ -f $stamp ]]; then
+            prev=$(tr -cd '0-9' < "$stamp" || true)
+            if [[ -n ${prev} ]] && (( now - prev < 3 )) && dpms_on; then
+                exit 0
+            fi
+        fi
+        printf '%s\n' "$now" > "$stamp"
         crt on || dpms enable
         ;;
 esac

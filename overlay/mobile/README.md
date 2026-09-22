@@ -11,17 +11,14 @@ Current controls:
   before the panel blanks; on plays the open after it lights. The OnePlus adapter
   permits suspend only when unplugged with its wake/battery checks satisfied.
   Press/release pairing and a two-second post-resume grace suppress wake events.
-- Swipe up from the **bottom-left third** for the app launcher. Settings opens
-  as a normal app (Appearance, clipboard, Do Not Disturb). Theme, wallpaper and
-  font live there.
-- Swipe up from the **bottom-center third** for the combined overview.
-- Swipe up from the **bottom-right third** to show the keyboard; tap that
-  corner to hide it. The gesture area is 24 logical pixels tall, with a subtle
-  center handle. There is no button bar.
-- Workspace tiles preview that space's windows. Swipe horizontally through
-  its app cards; tap a preview or Open to switch workspace and focus that app.
-  Go enters the selected workspace without choosing an app.
-- The card's **···** menu reveals move, maximize and close controls.
+- Swipe up from the bottom and release to go home. The app stays open and is
+  parked; it is not closed. From the wallpaper, a short swipe opens the
+  launcher and a hold opens the switcher.
+- Swipe up and hold to open the switcher. Swipe a card up to close it, tap a
+  card to bring it forward, or hold a card and drop it on another to tile them.
+- The keyboard opens from a text field and hides by dragging its handle down.
+  There is no bottom-right keyboard swipe.
+
 - Swipe down on a drawer's heading or tap × to dismiss it.
 - The status bar has a compact CPU/RAM chip; tap it for the performance panel.
 - The shade has Wi-Fi radio, mute and Do Not Disturb toggles. Notifications group by app. New notifications can show a short toast while the shade is closed.
