@@ -54,6 +54,19 @@ if [[ -d $source_dir/apps ]]; then
         done
     done
 fi
+# The camera engine is a native QML module on libcamera; build it here, where
+# its Qt and libcamera match the ones it will run against.
+if command -v cmake >/dev/null && command -v ninja >/dev/null && pkg-config --exists libcamera; then
+    camera_build="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy-mobile/camera-build"
+    camera_module="$data/omarchy-mobile/qml/OmarchyCamera"
+    nice -n 10 cmake -S "$source_dir/camera" -B "$camera_build" -G Ninja -DCMAKE_BUILD_TYPE=Release >/dev/null
+    nice -n 10 cmake --build "$camera_build" -j2 >/dev/null
+    mkdir -p "$camera_module"
+    install -m644 "$camera_build/qmldir" "$camera_build/omarchycamera.qmltypes" "$camera_module/"
+    install -m755 "$camera_build/libomarchycamera.so" "$camera_module/"
+else
+    echo "Skipping the camera engine: it needs cmake, ninja and libcamera." >&2
+fi
 install -m755 "$source_dir/theme.py" "$HOME/.local/bin/omarchy-mobile-theme"
 install -m755 "$source_dir/theme_install.py" "$HOME/.local/bin/omarchy-mobile-theme-install"
 install -m644 "$source_dir/hypr-mobile.lua" "$data/omarchy-mobile/hypr-mobile.lua"

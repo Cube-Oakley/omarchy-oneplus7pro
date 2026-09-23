@@ -1,11 +1,12 @@
 # libcamera with the OnePlus 7 Pro camera patches, replacing Arch's libcamera,
-# libcamera-ipa and libcamera-tools. Patches 0001-0010 and imx586.yaml are the
-# OnePlus 7T Pro bring-up's (Robin Snyders, hotdog-linux-bringup); 0011-0013 are ours.
+# libcamera-ipa and libcamera-tools. Patches 0001-0010 are the OnePlus 7T Pro
+# bring-up's (Robin Snyders, hotdog-linux-bringup); 0011-0017 are ours.
+# imx586.yaml starts from theirs, with a borrowed colour matrix (see its header).
 # Build on the phone with scripts/phone-libcamera-package.sh.
 # Rollback: pacman -U the cached libcamera{,-ipa,-tools}-0.7.2-4 packages.
 pkgname=libcamera-guacamole
 pkgver=0.7.2
-pkgrel=3
+pkgrel=5
 pkgdesc='Linux camera framework, with the OnePlus 7 Pro IMX586 helper, autofocus and fixes'
 arch=(aarch64)
 url='https://libcamera.org/'
@@ -32,9 +33,13 @@ source=("https://gitlab.freedesktop.org/camera/libcamera/-/archive/v$pkgver/libc
         0011-libcamera-dma-buf-allocator-fall-back-to-the-system-heap.patch
         0012-libcamera-software-isp-gather-GPU-statistics-over-the-visible-input.patch
         0013-libcamera-software-isp-let-the-lens-settle-before-autofocus-samples.patch
+        0014-libcamera-software-isp-take-contrast-and-saturation-defaults-from-tuning.patch
+        0015-libcamera-software-isp-keep-exposure-and-white-balance-across-configurations.patch
+        0016-libcamera-software-isp-fit-the-autofocus-peak-between-fine-samples.patch
+        0017-libcamera-software-isp-keep-focus-across-configurations.patch
         imx586.yaml)
 sha512sums=('b317cdc96f61682ee0bf26dfb7c4d6441db9a9c5b93ab53528121a8cd44862b3d59cbaa3881bb0837e3e381564c184c7b742124aef4267eea754c6083de353c1'
-            SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP)
+            SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP)
 
 prepare() {
   cd libcamera-v$pkgver

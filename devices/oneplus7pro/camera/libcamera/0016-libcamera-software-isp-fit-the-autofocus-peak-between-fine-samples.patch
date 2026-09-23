@@ -1,0 +1,102 @@
+libcamera: software_isp: fit the autofocus peak between fine samples
+
+The fine scan steps 5% of the lens range, which at close range leaves a
+visibly soft result: users saw focus sharpen, then settle slightly off.
+Fit a parabola through the best fine sample and its neighbours and move to
+its vertex, within half a step.
+
+---
+diff --git a/src/ipa/simple/algorithms/af.cpp b/src/ipa/simple/algorithms/af.cpp
+index 5e8c506..34a4445 100644
+--- a/src/ipa/simple/algorithms/af.cpp
++++ b/src/ipa/simple/algorithms/af.cpp
+@@ -7,6 +7,7 @@
+ 
+ #include <algorithm>
+ #include <cmath>
++#include <iterator>
+ #include <stdint.h>
+ 
+ #include <linux/v4l2-controls.h>
+@@ -217,6 +218,8 @@ void Af::processScan(IPAContext &context, uint64_t sharpness)
+ 		af.bestSharpness = sharpness;
+ 		af.bestPosition = af.position;
+ 	}
++	if (af.fineScan)
++		fineSamples_.emplace_back(af.position, sharpness);
+ 
+ 	if (af.position + af.scanStep <= af.scanEnd) {
+ 		af.position += af.scanStep;
+@@ -235,11 +238,12 @@ void Af::processScan(IPAContext &context, uint64_t sharpness)
+ 		af.position = af.scanStart;
+ 		af.bestSharpness = 0;
+ 		af.settleSamples = kLensJumpSettleSamples;
++		fineSamples_.clear();
+ 		return;
+ 	}
+ 
+ 	af.scanning = false;
+-	af.position = af.bestPosition;
++	af.position = peakPosition(context, af.bestPosition);
+ 	af.lockedSharpness = af.bestSharpness;
+ 	af.state = af.bestSharpness ? controls::AfStateFocused
+ 				    : controls::AfStateFailed;
+@@ -250,6 +254,33 @@ void Af::processScan(IPAContext &context, uint64_t sharpness)
+ 		<< " (sharpness " << af.bestSharpness << ")";
+ }
+ 
++/*
++ * The fine scan samples every fine step, which at close range is coarse
++ * enough to leave a visibly soft result. Fit a parabola through the best
++ * sample and its neighbours and move to its vertex.
++ */
++int32_t Af::peakPosition(const IPAContext &context, int32_t best) const
++{
++	const auto it = std::find_if(fineSamples_.begin(), fineSamples_.end(),
++				     [best](const auto &sample) { return sample.first == best; });
++	if (it == fineSamples_.end() || it == fineSamples_.begin() ||
++	    std::next(it) == fineSamples_.end())
++		return best;
++
++	const double left = static_cast<double>(std::prev(it)->second);
++	const double centre = static_cast<double>(it->second);
++	const double right = static_cast<double>(std::next(it)->second);
++	const double curvature = left - 2.0 * centre + right;
++	if (curvature >= 0.0)
++		return best;
++
++	const int32_t step = context.configuration.focus.fineStep;
++	const double offset = std::clamp(0.5 * (left - right) / curvature, -0.5, 0.5);
++	return std::clamp(best + static_cast<int32_t>(std::lround(offset * step)),
++			  context.configuration.focus.min,
++			  context.configuration.focus.max);
++}
++
+ uint64_t Af::windowSharpness(const IPAContext &context,
+ 			     const SwIspStats *stats) const
+ {
+diff --git a/src/ipa/simple/algorithms/af.h b/src/ipa/simple/algorithms/af.h
+index 82111b1..1a4573e 100644
+--- a/src/ipa/simple/algorithms/af.h
++++ b/src/ipa/simple/algorithms/af.h
+@@ -5,6 +5,9 @@
+ 
+ #pragma once
+ 
++#include <utility>
++#include <vector>
++
+ #include "algorithm.h"
+ 
+ namespace libcamera {
+@@ -31,6 +34,10 @@ private:
+ 	uint64_t windowSharpness(const IPAContext &context,
+ 				 const SwIspStats *stats) const;
+ 	float normalizedPosition(const IPAContext &context) const;
++	int32_t peakPosition(const IPAContext &context, int32_t best) const;
++
++	/* Fine-scan samples as (position, sharpness), for the peak fit. */
++	std::vector<std::pair<int32_t, uint64_t>> fineSamples_;
+ };
+ 
+ } /* namespace ipa::soft::algorithms */

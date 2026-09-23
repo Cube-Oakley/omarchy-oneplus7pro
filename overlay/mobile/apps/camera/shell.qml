@@ -1,0 +1,290 @@
+import QtQuick
+import Qt.labs.folderlistmodel
+import Quickshell
+import Quickshell.Io
+import OmarchyMobile
+import OmarchyCamera
+
+// Omarchy Camera. The engine (OmarchyCamera) uses libcamera's public API
+// only, so this app carries to any phone libcamera supports.
+ShellRoot {
+    id: root
+    property bool ready: false
+    property bool allowed: false
+    property var requests: []
+    // Index in photos of the photo shown full screen, or -1.
+    property int viewing: -1
+    readonly property string latest: camera.lastPhoto.length ? camera.lastPhoto
+        : (photos.count > 0 ? String(photos.get(0, "filePath")) : "")
+
+    function bin(name) { return Quickshell.env("HOME") + "/.local/bin/" + name; }
+    function run(kind, args) {
+        tool.kind = kind;
+        tool.command = args;
+        tool.running = true;
+    }
+    Component.onCompleted: run("status", [bin("omarchy-mobile-app"), "status", "camera"])
+
+    Process {
+        id: tool
+        property string kind: ""
+        stdout: StdioCollector {}
+        onExited: {
+            let result = {};
+            try { result = JSON.parse(stdout.text); } catch (e) { return; }
+            if (tool.kind === "status") {
+                const items = result.permissions || [];
+                let granted = items.length > 0;
+                for (let i = 0; i < items.length; i++) if (!items[i].granted) granted = false;
+                root.requests = items;
+                root.allowed = granted;
+                root.ready = true;
+            } else if (tool.kind === "grant") {
+                root.allowed = true;
+            }
+        }
+    }
+
+    CameraSession {
+        id: camera
+        // Only while this app is in front: in the background the sensor, the
+        // image processor and the GPU would keep working for nothing.
+        active: root.allowed && back.focused()
+        onPhotoFailed: reason => status.show(reason)
+    }
+
+    // qs ipc call camera capture, or focus 0.5 0.3: for tests and scripts.
+    IpcHandler {
+        target: "camera"
+        function capture(): void { camera.capture(); }
+        function focus(x: real, y: real): void { camera.focusAt(x, y); }
+        function state(): string { return camera.state + " " + camera.focusState; }
+    }
+
+    FolderListModel {
+        id: photos
+        folder: "file://" + camera.photoFolder
+        nameFilters: ["*.jpg", "*.jpeg", "*.JPG", "*.JPEG"]
+        sortField: FolderListModel.Time
+        showDirs: false
+    }
+
+    FloatingWindow {
+        id: win
+        title: "Camera"
+        implicitWidth: 480
+        implicitHeight: 1040
+        color: "black"
+        onClosed: Qt.quit()
+        onBackingWindowVisibleChanged: if (!backingWindowVisible) Qt.quit()
+
+        AppBack {
+            id: back
+            width: 0
+            height: 0
+            windowTitle: "Camera"
+            onBack: {
+                if (root.viewing >= 0) root.viewing = -1;
+                else Qt.quit();
+            }
+        }
+
+        GrantPage {
+            anchors.fill: parent
+            anchors.margins: 24
+            visible: root.ready && !root.allowed
+            requests: root.requests
+            onAllowed: root.run("grant", [root.bin("omarchy-mobile-app"), "grant", "camera", "camera"])
+            onDenied: Qt.quit()
+        }
+
+        Item {
+            id: stage
+            anchors.fill: parent
+            visible: root.allowed
+
+            // The sensor is 4:3; upright on a portrait screen that is 3:4.
+            Item {
+                id: frame
+                width: parent.width
+                height: Math.round(width * 4 / 3)
+                y: Math.max(0, Math.round((parent.height - height - controls.height) / 2))
+                clip: true
+
+                Viewfinder {
+                    session: camera
+                    anchors.centerIn: parent
+                    width: camera.rotation % 180 ? parent.height : parent.width
+                    height: camera.rotation % 180 ? parent.width : parent.height
+                    rotation: camera.rotation
+                }
+
+                Rectangle {
+                    id: flash
+                    anchors.fill: parent
+                    color: "white"
+                    opacity: 0
+                    NumberAnimation on opacity { id: flashAnim; from: 0.7; to: 0; duration: 220; running: false }
+                }
+
+                Rectangle {
+                    id: ring
+                    readonly property color tint: camera.focusState === "focused" ? "#8ee08e"
+                        : camera.focusState === "failed" ? "#ff7a7a" : "white"
+                    width: 76
+                    height: 76
+                    radius: 38
+                    color: "transparent"
+                    border.width: 2
+                    border.color: tint
+                    visible: camera.focusPoint.x >= 0
+                    x: camera.focusPoint.x * frame.width - width / 2
+                    y: camera.focusPoint.y * frame.height - height / 2
+                    scale: 1
+                    NumberAnimation on scale { id: ringAnim; from: 1.35; to: 1; duration: 180; running: false }
+                }
+
+                TapHandler {
+                    enabled: camera.state === "preview" && camera.canFocus
+                    onTapped: point => {
+                        camera.focusAt(point.position.x / frame.width, point.position.y / frame.height);
+                        ringAnim.restart();
+                    }
+                    onLongPressed: camera.resetFocus()
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    width: parent.width - 48
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.WordWrap
+                    visible: camera.state === "starting" || camera.state === "error"
+                    text: camera.state === "error" ? camera.error : "Starting the camera"
+                    color: "white"
+                    font.family: MobileTheme.fontFamily
+                    font.pixelSize: 16
+                }
+            }
+
+            Item {
+                id: controls
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                height: 180
+
+                // The most recent photo; tap to look at it.
+                Rectangle {
+                    id: thumb
+                    width: 60
+                    height: 60
+                    radius: MobileTheme.radius(12)
+                    anchors.verticalCenter: shutter.verticalCenter
+                    anchors.left: parent.left
+                    anchors.leftMargin: 40
+                    color: "#222"
+                    border.width: 2
+                    border.color: "white"
+                    clip: true
+                    visible: root.latest.length > 0
+                    Image {
+                        anchors.fill: parent
+                        anchors.margins: 2
+                        source: root.latest.length ? "file://" + root.latest : ""
+                        sourceSize: Qt.size(128, 128)
+                        fillMode: Image.PreserveAspectCrop
+                        asynchronous: true
+                        cache: false
+                    }
+                    // photos lists the newest first.
+                    TapHandler { onTapped: root.viewing = 0 }
+                }
+
+                Rectangle {
+                    id: shutter
+                    anchors.centerIn: parent
+                    width: 84
+                    height: 84
+                    radius: 42
+                    color: "transparent"
+                    border.width: 4
+                    border.color: "white"
+                    opacity: camera.state === "preview" ? 1 : 0.5
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: press.pressed ? 60 : 68
+                        height: width
+                        radius: width / 2
+                        color: "white"
+                        Behavior on width { NumberAnimation { duration: 80 } }
+                    }
+                    TapHandler {
+                        id: press
+                        enabled: camera.state === "preview"
+                        onTapped: {
+                            flashAnim.restart();
+                            camera.capture();
+                        }
+                    }
+                }
+
+                Text {
+                    id: status
+                    function show(message) { text = message; hide.restart(); }
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.top: shutter.bottom
+                    anchors.topMargin: 16
+                    text: camera.state === "capturing" ? "Taking the photo" : ""
+                    color: "white"
+                    opacity: 0.8
+                    font.family: MobileTheme.fontFamily
+                    font.pixelSize: 14
+                    Timer { id: hide; interval: 3000; onTriggered: status.text = Qt.binding(() => camera.state === "capturing" ? "Taking the photo" : "") }
+                }
+            }
+        }
+
+        // Photos full screen, newest first; swipe between them. The camera
+        // keeps running underneath, so going back is instant.
+        Rectangle {
+            anchors.fill: parent
+            color: "black"
+            visible: root.viewing >= 0
+            onVisibleChanged: if (visible) gallery.positionViewAtIndex(root.viewing, ListView.Beginning)
+            ListView {
+                id: gallery
+                anchors.fill: parent
+                orientation: ListView.Horizontal
+                snapMode: ListView.SnapOneItem
+                highlightRangeMode: ListView.StrictlyEnforceRange
+                boundsBehavior: Flickable.StopAtBounds
+                cacheBuffer: width
+                model: photos
+                delegate: Item {
+                    required property url fileUrl
+                    width: gallery.width
+                    height: gallery.height
+                    Image {
+                        anchors.fill: parent
+                        source: parent.fileUrl
+                        fillMode: Image.PreserveAspectFit
+                        asynchronous: true
+                        cache: false
+                        sourceSize: Qt.size(win.width * 2, win.height * 2)
+                    }
+                }
+            }
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: 32
+                text: (gallery.currentIndex + 1) + " / " + photos.count
+                color: "white"
+                opacity: 0.7
+                font.family: MobileTheme.fontFamily
+                font.pixelSize: 14
+            }
+            TapHandler { onTapped: root.viewing = -1 }
+        }
+    }
+}

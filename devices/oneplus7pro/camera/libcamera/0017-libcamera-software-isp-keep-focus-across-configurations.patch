@@ -1,0 +1,72 @@
+libcamera: software_isp: keep focus across configurations
+
+Autofocus restarted at the lens default with a new scan on every
+configure(), so a still taken from a focused preview was shot mid-scan and
+came out blurred. Keep the autofocus state while the focus range is the same,
+and when manual focus hands back to continuous at the position the last scan
+found, as after a still, resume watching instead of scanning again.
+
+---
+diff --git a/src/ipa/simple/algorithms/af.cpp b/src/ipa/simple/algorithms/af.cpp
+index 34a4445..d46dd6c 100644
+--- a/src/ipa/simple/algorithms/af.cpp
++++ b/src/ipa/simple/algorithms/af.cpp
+@@ -158,7 +158,18 @@ void Af::queueRequest([[maybe_unused]] typename Module::Context &context,
+ 	if (const auto mode = requestControls.get(controls::AfMode)) {
+ 		if (*mode != af.mode) {
+ 			af.mode = *mode;
+-			if (af.mode == controls::AfModeContinuous) {
++			if (af.mode == controls::AfModeContinuous &&
++			    af.lockedSharpness && af.position == af.bestPosition) {
++				/*
++				 * Back from manual at the position the last scan
++				 * found, such as after a still: keep it and resume
++				 * watching for a change instead of scanning again.
++				 */
++				af.pendingScan = false;
++				af.scanning = false;
++				af.state = controls::AfStateFocused;
++				af.settleSamples = kContinuousMonitorDelaySamples;
++			} else if (af.mode == controls::AfModeContinuous) {
+ 				af.pendingScan = true;
+ 				af.scanning = false;
+ 				af.state = controls::AfStateScanning;
+@@ -244,6 +255,7 @@ void Af::processScan(IPAContext &context, uint64_t sharpness)
+ 
+ 	af.scanning = false;
+ 	af.position = peakPosition(context, af.bestPosition);
++	af.bestPosition = af.position;
+ 	af.lockedSharpness = af.bestSharpness;
+ 	af.state = af.bestSharpness ? controls::AfStateFocused
+ 				    : controls::AfStateFailed;
+diff --git a/src/ipa/simple/soft_simple.cpp b/src/ipa/simple/soft_simple.cpp
+index 7f45fd4..b58b64b 100644
+--- a/src/ipa/simple/soft_simple.cpp
++++ b/src/ipa/simple/soft_simple.cpp
+@@ -217,6 +217,8 @@ int IPASoftSimple::configure(const IPAConfigInfo &configInfo)
+ 	 */
+ 	const auto previousAgc = context_.activeState.agc;
+ 	const auto previousAwb = context_.activeState.awb;
++	const auto previousAf = context_.activeState.af;
++	const auto previousFocus = context_.configuration.focus;
+ 	const auto previousLineDuration = context_.configuration.agc.lineDuration;
+ 	const auto previousExposureMin = context_.configuration.agc.exposureMin;
+ 	const auto previousExposureMax = context_.configuration.agc.exposureMax;
+@@ -285,6 +287,17 @@ int IPASoftSimple::configure(const IPAConfigInfo &configInfo)
+ 		LOG(IPASoft, Debug) << "Keeping exposure and white balance";
+ 	}
+ 
++	/*
++	 * Keep the focus too while the lens is the same, so a still starts where
++	 * the preview focused instead of at the lens default with a new scan.
++	 */
++	if (previousFocus.available && context_.configuration.focus.available &&
++	    previousFocus.min == context_.configuration.focus.min &&
++	    previousFocus.max == context_.configuration.focus.max) {
++		context_.activeState.af = previousAf;
++		LOG(IPASoft, Debug) << "Keeping focus at " << previousAf.position;
++	}
++
+ 	LOG(IPASoft, Info)
+ 		<< "Exposure " << context_.configuration.agc.exposureMin << "-"
+ 		<< context_.configuration.agc.exposureMax

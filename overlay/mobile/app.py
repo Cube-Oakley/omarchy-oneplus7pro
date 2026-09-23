@@ -22,6 +22,10 @@ PERMISSIONS = {
         'title': 'Home folder',
         'detail': 'Read and change files in the home folder, including Documents, Downloads, and Pictures.',
     },
+    'camera': {
+        'title': 'Camera',
+        'detail': 'Use the cameras, and save photos to Pictures.',
+    },
 }
 
 

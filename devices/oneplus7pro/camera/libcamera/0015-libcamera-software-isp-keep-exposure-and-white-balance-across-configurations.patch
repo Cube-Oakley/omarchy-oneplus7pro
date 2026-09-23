@@ -1,0 +1,49 @@
+libcamera: software_isp: keep exposure and white balance across configurations
+
+Every configure() cleared the IPA state, so a new configuration of the same
+sensor mode, such as a full-resolution still taken from a 1440x1080 preview,
+started exposure from wherever the sensor was and white balance at unity
+gains. The first frames came out green: a still 3 frames in had mean RGB
+104/138/74. Keep the AGC and AWB state when the exposure limits and line
+duration are unchanged; the same still then read 87/92/74.
+
+---
+diff --git a/src/ipa/simple/soft_simple.cpp b/src/ipa/simple/soft_simple.cpp
+index 5281ddd..7f45fd4 100644
+--- a/src/ipa/simple/soft_simple.cpp
++++ b/src/ipa/simple/soft_simple.cpp
+@@ -209,6 +209,18 @@ int IPASoftSimple::configure(const IPAConfigInfo &configInfo)
+ 	const ControlInfo &exposureInfo = sensorInfoMap_.find(V4L2_CID_EXPOSURE)->second;
+ 	const ControlInfo &gainInfo = sensorInfoMap_.find(V4L2_CID_ANALOGUE_GAIN)->second;
+ 
++	/*
++	 * Keep the converged exposure and white balance for a new configuration
++	 * of the same sensor mode, such as a full-resolution still after a
++	 * preview. Starting them over left its first frames green and exposed from
++	 * wherever the sensor happened to be.
++	 */
++	const auto previousAgc = context_.activeState.agc;
++	const auto previousAwb = context_.activeState.awb;
++	const auto previousLineDuration = context_.configuration.agc.lineDuration;
++	const auto previousExposureMin = context_.configuration.agc.exposureMin;
++	const auto previousExposureMax = context_.configuration.agc.exposureMax;
++
+ 	/* Clear the IPA context before the streaming session. */
+ 	context_.configuration = {};
+ 	context_.activeState = {};
+@@ -264,6 +276,15 @@ int IPASoftSimple::configure(const IPAConfigInfo &configInfo)
+ 			return ret;
+ 	}
+ 
++	if (previousAgc.valid &&
++	    previousLineDuration == context_.configuration.agc.lineDuration &&
++	    previousExposureMin == context_.configuration.agc.exposureMin &&
++	    previousExposureMax == context_.configuration.agc.exposureMax) {
++		context_.activeState.agc = previousAgc;
++		context_.activeState.awb = previousAwb;
++		LOG(IPASoft, Debug) << "Keeping exposure and white balance";
++	}
++
+ 	LOG(IPASoft, Info)
+ 		<< "Exposure " << context_.configuration.agc.exposureMin << "-"
+ 		<< context_.configuration.agc.exposureMax

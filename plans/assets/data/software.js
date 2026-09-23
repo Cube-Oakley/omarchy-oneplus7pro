@@ -233,9 +233,10 @@ PAGE_SOFTWARE = {
             { n: "Weather", s: "partial",
               note: "A tile exists in the shade; a real app with locations and a forecast view does not.",
               ref: "docs/notification-shade-20260918.md" },
-            { n: "Camera", s: "partial", note: "GNOME Snapshot shows the main camera through PipeWire and a "
-                + "patched libcamera: autofocus lands and photos save to ~/Pictures. Image quality is modest, "
-                + "switching between the viewer and the preview lags, and only the main camera works.",
+            { n: "Camera", s: "partial", note: "Omarchy Camera, our own app on libcamera's public API so it "
+                + "carries to other phones: GPU preview with no CPU copies, tap to focus, 12 MP stills in "
+                + "about 0.6 s, and a swipeable gallery. Highlights still blow out, video is not done yet, and "
+                + "only the main camera works.",
               ref: "docs/camera-20260922.md" },
             { n: "Settings application", s: "partial", note: "See the Settings & configuration section.",
               ref: "docs/settings-clipboard-20260919.md" },
