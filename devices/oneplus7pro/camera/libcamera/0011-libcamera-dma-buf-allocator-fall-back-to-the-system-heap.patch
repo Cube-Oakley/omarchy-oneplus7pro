@@ -1,0 +1,101 @@
+libcamera: dma-buf allocator: fall back to the system heap
+
+The software ISP accepts the CMA, system and udmabuf providers, but the
+allocator uses only the first one it can open. On the OnePlus 7 Pro that is
+a 32 MiB CMA heap, smaller than one 3992x3000 ABGR8888 frame (48 MB), so
+full-resolution capture failed with "dma-heap allocation failure". When a
+CMA heap is chosen and the caller also accepts the system heap, keep the
+system heap open and retry allocations the CMA heap cannot satisfy. The
+GPU and display sit behind IOMMUs here, so non-contiguous buffers work.
+
+---
+diff --git i/include/libcamera/internal/dma_buf_allocator.h w/include/libcamera/internal/dma_buf_allocator.h
+index 1360091..69971b4 100644
+--- i/include/libcamera/internal/dma_buf_allocator.h
++++ w/include/libcamera/internal/dma_buf_allocator.h
+@@ -44,9 +44,10 @@ private:
+ 	std::unique_ptr<FrameBuffer> createBuffer(
+ 		std::string name, const std::vector<unsigned int> &planeSizes);
+ 
+-	UniqueFD allocFromHeap(const char *name, std::size_t size);
++	UniqueFD allocFromHeap(int heap, const char *name, std::size_t size);
+ 	UniqueFD allocFromUDmaBuf(const char *name, std::size_t size);
+ 	UniqueFD providerHandle_;
++	UniqueFD fallbackHandle_;
+ 	DmaBufAllocatorFlag type_;
+ };
+ 
+diff --git i/src/libcamera/dma_buf_allocator.cpp w/src/libcamera/dma_buf_allocator.cpp
+index d8c62dd..a9c7681 100644
+--- i/src/libcamera/dma_buf_allocator.cpp
++++ w/src/libcamera/dma_buf_allocator.cpp
+@@ -115,8 +115,22 @@ DmaBufAllocator::DmaBufAllocator(DmaBufAllocatorFlags type)
+ 		break;
+ 	}
+ 
+-	if (!providerHandle_.isValid())
++	if (!providerHandle_.isValid()) {
+ 		LOG(DmaBufAllocator, Error) << "Could not open any dma-buf provider";
++		return;
++	}
++
++	/*
++	 * A CMA heap can be much smaller than one full-resolution frame (32 MiB
++	 * on some phones). When the caller also accepts the system heap, keep it
++	 * open to retry allocations the CMA heap cannot satisfy.
++	 */
++	if (type_ == DmaBufAllocatorFlag::CmaHeap &&
++	    (type & DmaBufAllocatorFlag::SystemHeap)) {
++		int ret = ::open("/dev/dma_heap/system", O_RDWR | O_CLOEXEC, 0);
++		if (ret >= 0)
++			fallbackHandle_ = UniqueFD(ret);
++	}
+ }
+ 
+ /**
+@@ -160,7 +174,7 @@ UniqueFD DmaBufAllocator::allocFromUDmaBuf(const char *name, std::size_t size)
+ 	return UniqueFD(ret);
+ }
+ 
+-UniqueFD DmaBufAllocator::allocFromHeap(const char *name, std::size_t size)
++UniqueFD DmaBufAllocator::allocFromHeap(int heap, const char *name, std::size_t size)
+ {
+ 	struct dma_heap_allocation_data alloc = {};
+ 	int ret;
+@@ -168,12 +182,9 @@ UniqueFD DmaBufAllocator::allocFromHeap(const char *name, std::size_t size)
+ 	alloc.len = size;
+ 	alloc.fd_flags = O_CLOEXEC | O_RDWR;
+ 
+-	ret = ::ioctl(providerHandle_.get(), DMA_HEAP_IOCTL_ALLOC, &alloc);
+-	if (ret < 0) {
+-		LOG(DmaBufAllocator, Error)
+-			<< "dma-heap allocation failure for " << name;
++	ret = ::ioctl(heap, DMA_HEAP_IOCTL_ALLOC, &alloc);
++	if (ret < 0)
+ 		return {};
+-	}
+ 
+ 	UniqueFD allocFd(alloc.fd);
+ 	ret = ::ioctl(allocFd.get(), DMA_BUF_SET_NAME, name);
+@@ -204,8 +215,19 @@ UniqueFD DmaBufAllocator::alloc(const char *name, std::size_t size)
+ 
+ 	if (type_ == DmaBufAllocator::DmaBufAllocatorFlag::UDmaBuf)
+ 		return allocFromUDmaBuf(name, size);
+-	else
+-		return allocFromHeap(name, size);
++
++	UniqueFD fd = allocFromHeap(providerHandle_.get(), name, size);
++	if (!fd.isValid() && fallbackHandle_.isValid()) {
++		LOG(DmaBufAllocator, Debug)
++			<< "Retrying " << name << " (" << size
++			<< " bytes) from the system heap";
++		fd = allocFromHeap(fallbackHandle_.get(), name, size);
++	}
++	if (!fd.isValid())
++		LOG(DmaBufAllocator, Error)
++			<< "dma-heap allocation failure for " << name;
++
++	return fd;
+ }
+ 
+ /**
