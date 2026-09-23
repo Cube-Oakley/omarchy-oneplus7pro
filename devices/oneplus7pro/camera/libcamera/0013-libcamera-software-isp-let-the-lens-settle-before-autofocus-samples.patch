@@ -1,0 +1,56 @@
+libcamera: software_isp: let the lens settle before autofocus samples
+
+The contrast autofocus skipped one statistics sample after moving the lens.
+Statistics come every frame and up to four requests are queued at the
+device, so the next few frames were exposed at the old position. After a
+run that left the lens at 400, the first coarse sample at 0 read sharper
+(1.65M) than any real position (under 1.4M) and the scan settled at 100
+instead of 400. Wait four samples after each step and six after the jumps
+to the start of a coarse or fine scan.
+
+---
+diff --git i/src/ipa/simple/algorithms/af.cpp w/src/ipa/simple/algorithms/af.cpp
+index 50d0cf0..5e8c506 100644
+--- i/src/ipa/simple/algorithms/af.cpp
++++ w/src/ipa/simple/algorithms/af.cpp
+@@ -23,6 +23,13 @@ namespace ipa::soft::algorithms {
+ 
+ static constexpr unsigned int kAeValidSamples = 1;
+ static constexpr unsigned int kContinuousMonitorDelaySamples = 15;
++/*
++ * Frames still in flight when the lens moves were exposed at the old position:
++ * up to four requests can be queued at the device, and the lens needs time to
++ * travel, longest for the jump to the start of a scan.
++ */
++static constexpr unsigned int kLensStepSettleSamples = 4;
++static constexpr unsigned int kLensJumpSettleSamples = 6;
+ 
+ int Af::init(IPAContext &context,
+ 	     [[maybe_unused]] const ValueNode &tuningData)
+@@ -98,7 +105,7 @@ void Af::startScan(IPAContext &context)
+ 	af.position = af.scanStart;
+ 	af.bestPosition = af.position;
+ 	af.bestSharpness = 0;
+-	af.settleSamples = 1;
++	af.settleSamples = kLensJumpSettleSamples;
+ 	af.lowSharpnessSamples = 0;
+ 
+ 	LOG(IPASoftAf, Debug) << "Starting autofocus scan";
+@@ -213,7 +220,7 @@ void Af::processScan(IPAContext &context, uint64_t sharpness)
+ 
+ 	if (af.position + af.scanStep <= af.scanEnd) {
+ 		af.position += af.scanStep;
+-		af.settleSamples = 1;
++		af.settleSamples = kLensStepSettleSamples;
+ 		return;
+ 	}
+ 
+@@ -227,7 +234,7 @@ void Af::processScan(IPAContext &context, uint64_t sharpness)
+ 		af.scanStep = context.configuration.focus.fineStep;
+ 		af.position = af.scanStart;
+ 		af.bestSharpness = 0;
+-		af.settleSamples = 1;
++		af.settleSamples = kLensJumpSettleSamples;
+ 		return;
+ 	}
+ 

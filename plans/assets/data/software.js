@@ -233,8 +233,10 @@ PAGE_SOFTWARE = {
             { n: "Weather", s: "partial",
               note: "A tile exists in the shade; a real app with locations and a forecast view does not.",
               ref: "docs/notification-shade-20260918.md" },
-            { n: "Camera", s: "no", note: "libcamera delivers processed 30 fps frames from the main camera and "
-                + "focus works; no camera app yet, and colour is uncalibrated.", ref: "docs/camera-20260922.md" },
+            { n: "Camera", s: "partial", note: "GNOME Snapshot shows the main camera through PipeWire and a "
+                + "patched libcamera: autofocus lands and photos save to ~/Pictures. Image quality is modest, "
+                + "switching between the viewer and the preview lags, and only the main camera works.",
+              ref: "docs/camera-20260922.md" },
             { n: "Settings application", s: "partial", note: "See the Settings & configuration section.",
               ref: "docs/settings-clipboard-20260919.md" },
             { n: "Further stock apps (TBD)", s: "no",

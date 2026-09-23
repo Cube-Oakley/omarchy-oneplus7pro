@@ -1,0 +1,40 @@
+libcamera: software_isp: gather GPU statistics over the visible input
+
+The GPU debayer scales the whole input to the output size, cropping only
+what the aspect ratio does not fit, but it set the statistics window to an
+output-sized rectangle at the origin, which suits only the CPU debayer's
+centre crop. At 1280x960 or 1920x1080 from a 4000x3000 IMX586 frame, AGC,
+AWB and autofocus saw only the top-left corner: the autofocus sharpness
+curve was flat (about 5% across the lens range) while the same scene at
+full resolution peaked fivefold. Use the visible part of the input.
+
+---
+diff --git i/src/libcamera/software_isp/debayer_egl.cpp w/src/libcamera/software_isp/debayer_egl.cpp
+index 02651fe..4bd3ee2 100644
+--- i/src/libcamera/software_isp/debayer_egl.cpp
++++ w/src/libcamera/software_isp/debayer_egl.cpp
+@@ -340,10 +340,21 @@ int DebayerEGL::configure(const StreamConfiguration &inputCfg,
+ 	window_.height = outputCfg.size.height;
+ 
+ 	/*
+-	 * Don't pass x,y from window_ since process() already adjusts for it.
+-	 * But crop the window to 2/3 of its width and height for speedup.
++	 * The shader scales the whole input to the output size and crops only
++	 * what the aspect ratio does not fit, so gather statistics over that
++	 * visible part of the input. An output-sized window at the origin, as
++	 * the CPU debayer's centre crop uses, would cover only the top-left
++	 * corner of a downscaled frame and starve AGC, AWB and autofocus.
+ 	 */
+-	stats_->setWindow(Rectangle(window_.size()));
++	const float scale = std::max(static_cast<float>(outputCfg.size.width) / nativeOutputSize_.width,
++				     static_cast<float>(outputCfg.size.height) / nativeOutputSize_.height);
++	const Size visible(std::min(inputCfg.size.width,
++				    static_cast<unsigned int>(outputCfg.size.width / scale)),
++			   std::min(inputCfg.size.height,
++				    static_cast<unsigned int>(outputCfg.size.height / scale)));
++	stats_->setWindow(Rectangle((inputCfg.size.width - visible.width) / 2,
++				    (inputCfg.size.height - visible.height) / 2,
++				    visible.width, visible.height));
+ 
+ 	inputBufferCount_ = inputCfg.bufferCount;
+ 	outputBufferCount_ = outputCfg.bufferCount;

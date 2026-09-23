@@ -11,6 +11,7 @@
 #include <linux/delay.h>
 #include <linux/i2c.h>
 #include <linux/module.h>
+#include <linux/of.h>
 #include <linux/pm_runtime.h>
 #include <linux/regulator/consumer.h>
 
@@ -130,6 +131,7 @@ struct imx586_mode {
 struct imx586 {
 	struct device *dev;
 	struct i2c_client *client;
+	struct device_link *lens_link;
 	struct v4l2_subdev sd;
 	struct media_pad pad;
 	struct gpio_desc *reset_gpio;
@@ -1316,6 +1318,33 @@ error_free_hdlr:
  *
  * Return: 0 if successful, error code otherwise.
  */
+/*
+ * Power the focus actuator only while the sensor is powered. Its driver used to
+ * power up whenever its subdevice was open, and libcamera keeps it open, so the
+ * coil held the lens away from rest for as long as the camera stack was loaded.
+ */
+static void imx586_link_lens(struct imx586 *imx586)
+{
+	struct device_node *np;
+	struct i2c_client *lens;
+
+	np = of_parse_phandle(imx586->dev->of_node, "lens-focus", 0);
+	if (!np)
+		return;
+	lens = of_find_i2c_device_by_node(np);
+	of_node_put(np);
+	if (!lens) {
+		dev_warn(imx586->dev, "focus actuator device not found\n");
+		return;
+	}
+
+	imx586->lens_link = device_link_add(imx586->dev, &lens->dev,
+					    DL_FLAG_STATELESS | DL_FLAG_PM_RUNTIME);
+	put_device(&lens->dev);
+	if (!imx586->lens_link)
+		dev_warn(imx586->dev, "could not link the focus actuator\n");
+}
+
 static int imx586_probe(struct i2c_client *client)
 {
 	struct imx586 *imx586;
@@ -1387,6 +1416,8 @@ static int imx586_probe(struct i2c_client *client)
 		goto error_media_entity;
 	}
 
+	/* Linked before the status is set, which powers the lens with us. */
+	imx586_link_lens(imx586);
 	pm_runtime_set_active(imx586->dev);
 	pm_runtime_enable(imx586->dev);
 	pm_runtime_idle(imx586->dev);
@@ -1424,6 +1455,8 @@ static void imx586_remove(struct i2c_client *client)
 	if (!pm_runtime_status_suspended(&client->dev))
 		imx586_power_off(&client->dev);
 	pm_runtime_set_suspended(&client->dev);
+	if (imx586->lens_link)
+		device_link_del(imx586->lens_link);
 
 	mutex_destroy(&imx586->mutex);
 }

@@ -5,7 +5,8 @@
 #   LD_LIBRARY_PATH=/opt/libcamera-guacamole/lib /opt/libcamera-guacamole/bin/cam
 # Patches 0001-0010 and imx586.yaml are the OnePlus 7T Pro bring-up's
 # (Robin Snyders, hotdog-linux-bringup); 0011 lets full-resolution frames
-# fall back from the 32 MiB CMA heap. The phone needs meson, ninja,
+# fall back from the 32 MiB CMA heap, and 0012 points the GPU path's
+# statistics at the whole visible frame. The phone needs meson, ninja,
 # python-jinja, python-yaml and python-ply. Details: docs/camera-20260922.md.
 # Do not stream the camera while this builds: a capture started during the
 # full-load build crashed the phone into 05c6:900e.

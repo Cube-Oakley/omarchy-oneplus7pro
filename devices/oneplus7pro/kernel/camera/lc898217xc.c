@@ -164,24 +164,6 @@ static const struct v4l2_ctrl_ops lc898217xc_ctrl_ops = {
 	.s_ctrl = lc898217xc_set_ctrl,
 };
 
-static int lc898217xc_open(struct v4l2_subdev *sd,
-			   struct v4l2_subdev_fh *fh)
-{
-	return pm_runtime_resume_and_get(sd->dev);
-}
-
-static int lc898217xc_close(struct v4l2_subdev *sd,
-			    struct v4l2_subdev_fh *fh)
-{
-	pm_runtime_put_autosuspend(sd->dev);
-	return 0;
-}
-
-static const struct v4l2_subdev_internal_ops lc898217xc_internal_ops = {
-	.open = lc898217xc_open,
-	.close = lc898217xc_close,
-};
-
 static const struct v4l2_subdev_ops lc898217xc_subdev_ops = { };
 
 static int lc898217xc_runtime_suspend(struct device *dev)
@@ -238,8 +220,12 @@ static int lc898217xc_probe(struct i2c_client *client)
 
 	v4l2_i2c_subdev_init(&vcm->sd, client, &lc898217xc_subdev_ops);
 	device_disable_async_suspend(&client->dev);
+	/*
+	 * Opening the subdevice does not power the actuator: the sensor holds a
+	 * runtime PM link to it, so the lens is driven only while the sensor is
+	 * on. A position set meanwhile is kept and applied at power-up.
+	 */
 	vcm->sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
-	vcm->sd.internal_ops = &lc898217xc_internal_ops;
 	vcm->sd.entity.function = MEDIA_ENT_F_LENS;
 
 	v4l2_ctrl_handler_init(&vcm->ctrls, 1);

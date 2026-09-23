@@ -3,9 +3,9 @@
 focus actuator through its range, captures a raw IMX586 frame at each
 position and scores centre sharpness (variance of a green-pixel Laplacian),
 then leaves the lens at the sharpest position and saves one frame there.
-The lens node stays open throughout: the driver drops focus writes while the
-actuator is runtime-suspended, and suspending it lets the lens fall back to
-rest.
+The actuator is powered only while the sensor streams (a runtime PM link from
+the sensor); a position set between captures is kept and applied when the
+next capture starts. Holding the lens node open no longer powers it.
 
 Usage: phone-camera-focus-sweep.py [STEP] [OUT.raw]
 """
@@ -70,7 +70,7 @@ def main(argv):
     step = int(argv[1]) if len(argv) > 1 else 50
     out = argv[2] if len(argv) > 2 else '/tmp/imx586-focused.raw'
     video, lens = configure()
-    hold = os.open(lens, os.O_RDWR)  # keeps the actuator powered and in use
+    hold = os.open(lens, os.O_RDWR)
     scores = []
     for position in list(range(0, 401, step)) + ([400] if 400 % step else []):
         run('v4l2-ctl', '-d', lens, f'--set-ctrl=focus_absolute={position}')
