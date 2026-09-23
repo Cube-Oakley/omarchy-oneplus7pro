@@ -1,0 +1,120 @@
+--- drivers/gpu/drm/panel/panel-samsung-oneplus-dsc.c	2026-09-17 09:19:22.398356877 -0700
++++ drivers/gpu/drm/panel/panel-samsung-oneplus-dsc.c	2026-09-23 09:26:20.513385666 -0700
+@@ -14,6 +14,8 @@
+ 
+ #include <drm/display/drm_dsc.h>
+ #include <drm/display/drm_dsc_helper.h>
++#include <drm/drm_connector.h>
++#include <drm/drm_crtc.h>
+ #include <drm/drm_mipi_dsi.h>
+ #include <drm/drm_modes.h>
+ #include <drm/drm_panel.h>
+@@ -25,6 +27,8 @@
+ 	struct drm_dsc_config dsc;
+ 	struct regulator_bulk_data *supplies;
+ 	struct gpio_desc *reset_gpio;
++	/* Set by get_modes; tells prepare which refresh rate is being enabled. */
++	struct drm_connector *connector;
+ };
+ 
+ static const struct regulator_bulk_data samsung_oneplus_dsc_supplies[] = {
+@@ -48,9 +52,13 @@
+ 	usleep_range(5000, 6000);
+ }
+ 
++static u8 samsung_oneplus_dsc_control_display(struct samsung_oneplus_dsc *ctx);
++
+ static int samsung_oneplus_dsc_on(struct samsung_oneplus_dsc *ctx)
+ {
+ 	struct mipi_dsi_multi_context dsi_ctx = { .dsi = ctx->dsi };
++	u8 control_display[] = { MIPI_DCS_WRITE_CONTROL_DISPLAY,
++				 samsung_oneplus_dsc_control_display(ctx) };
+ 
+ 	ctx->dsi->mode_flags |= MIPI_DSI_MODE_LPM;
+ 
+@@ -107,8 +115,8 @@
+ 	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0xb1, 0x01);
+ 	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0xb0, 0x02);
+ 	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0xb5, 0xd3);
+-	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, MIPI_DCS_WRITE_CONTROL_DISPLAY,
+-				     0x20);
++	/* Stock "normal transition": 0x20 at 60 Hz, 0x30 at 90 Hz. */
++	mipi_dsi_dcs_write_buffer_multi(&dsi_ctx, control_display, sizeof(control_display));
+ 	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0xf0, 0xa5, 0xa5);
+ 	mipi_dsi_dcs_set_display_on_multi(&dsi_ctx);
+ 
+@@ -190,7 +198,7 @@
+ 	return 0;
+ }
+ 
+-static const struct drm_display_mode samsung_oneplus_dsc_mode = {
++static const struct drm_display_mode samsung_oneplus_dsc_60hz_mode = {
+ 	.clock = (1440 + 16 + 8 + 8) * (3120 + 400 + 28 + 1156) * 60 / 1000,
+ 	.hdisplay = 1440,
+ 	.hsync_start = 1440 + 16,
+@@ -205,10 +213,64 @@
+ 	.type = DRM_MODE_TYPE_DRIVER,
+ };
+ 
++/*
++ * Stock timing@3: the same pixel clock and DSC stream as 60 Hz, with the
++ * vertical blanking shrunk (1472 x 4704 x 60 == 1472 x 3136 x 90), so the DSI
++ * link rate does not change. Only the control-display byte differs.
++ */
++static const struct drm_display_mode samsung_oneplus_dsc_90hz_mode = {
++	.clock = (1440 + 16 + 8 + 8) * (3120 + 4 + 4 + 8) * 90 / 1000,
++	.hdisplay = 1440,
++	.hsync_start = 1440 + 16,
++	.hsync_end = 1440 + 16 + 8,
++	.htotal = 1440 + 16 + 8 + 8,
++	.vdisplay = 3120,
++	.vsync_start = 3120 + 4,
++	.vsync_end = 3120 + 4 + 4,
++	.vtotal = 3120 + 4 + 4 + 8,
++	.width_mm = 71,
++	.height_mm = 154,
++	.type = DRM_MODE_TYPE_DRIVER,
++};
++
++static u8 samsung_oneplus_dsc_control_display(struct samsung_oneplus_dsc *ctx)
++{
++	struct drm_connector *connector = ctx->connector;
++
++	/* 60 Hz is the preferred mode, and the safe answer when none is known. */
++	if (connector && connector->state && connector->state->crtc &&
++	    drm_mode_match(&connector->state->crtc->state->mode,
++			   &samsung_oneplus_dsc_90hz_mode,
++			   DRM_MODE_MATCH_TIMINGS | DRM_MODE_MATCH_CLOCK))
++		return 0x30;
++	return 0x20;
++}
++
+ static int samsung_oneplus_dsc_get_modes(struct drm_panel *panel,
+ 					 struct drm_connector *connector)
+ {
+-	return drm_connector_helper_get_modes_fixed(connector, &samsung_oneplus_dsc_mode);
++	static const struct drm_display_mode * const modes[] = {
++		&samsung_oneplus_dsc_60hz_mode,
++		&samsung_oneplus_dsc_90hz_mode,
++	};
++	struct samsung_oneplus_dsc *ctx = to_samsung_oneplus_dsc(panel);
++	struct drm_display_mode *mode;
++	unsigned int i;
++
++	ctx->connector = connector;
++	for (i = 0; i < ARRAY_SIZE(modes); i++) {
++		mode = drm_mode_duplicate(connector->dev, modes[i]);
++		if (!mode)
++			return -ENOMEM;
++		drm_mode_set_name(mode);
++		mode->type |= DRM_MODE_TYPE_DRIVER;
++		if (i == 0)
++			mode->type |= DRM_MODE_TYPE_PREFERRED;
++		drm_mode_probed_add(connector, mode);
++	}
++	connector->display_info.width_mm = modes[0]->width_mm;
++	connector->display_info.height_mm = modes[0]->height_mm;
++	return ARRAY_SIZE(modes);
+ }
+ 
+ static const struct drm_panel_funcs samsung_oneplus_dsc_panel_funcs = {

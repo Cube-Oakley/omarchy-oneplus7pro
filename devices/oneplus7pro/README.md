@@ -14,6 +14,14 @@ in `overlay/mobile/`.
   input rediscovery on resume, installed as `/usr/local/sbin/guacamole-suspend`.
 - `power-suspend.sh`: optional shared-shell suspend adapter delegating to that
   board command. No privileged hardware policy is embedded in shared bindings.
+- `boot-slot.py`: reads the A/B slot flags ABL keeps in the `boot_a`/`boot_b`
+  GPT entries on `sde`, and marks the running slot successful so ABL stops
+  spending a boot retry on it. It changes one bit in both GPT copies and their
+  CRCs, and refuses mismatched copies, an unbootable slot or two active slots.
+  Installed as `/usr/local/sbin/guacamole-boot-slot`; `desktop-prepare.sh`
+  runs it a minute after the desktop is up when `/root/boot-slot/autostart-enabled`
+  exists. `fastboot set_active` clears the bit, so a newly flashed kernel must
+  reach the desktop before it is marked.
 - `kernel/touch/`: S6SY761 reset support, OnePlus rail setup, DT overlay and
   overlay loader. These files were moved without changing their contents.
 

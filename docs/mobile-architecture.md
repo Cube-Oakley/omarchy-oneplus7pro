@@ -104,6 +104,124 @@ imports the shared `OmarchyMobile` QML module for theme and widgets. Privileged
 changes go through the existing helpers (`omarchy-mobile-theme`, prefs, wifi,
 volume, clipboard). The shade remains another client of those helpers.
 
+## Apps
+
+A new app is a directory under `overlay/mobile/apps/<id>/`. Settings is not
+one of these. It stays a first-party client of the privileged helpers.
+
+```
+overlay/mobile/apps/<id>/
+  manifest.json    id, name, comment, icon, permissions
+  shell.qml        Quickshell window, root ShellRoot, one AppWindow
+  <name>.desktop   Exec=omarchy-mobile-app launch <id>
+```
+
+`install.sh` copies the manifest to
+`$XDG_DATA_HOME/omarchy-mobile/apps/<id>/manifest.json`, the window to
+`$XDG_CONFIG_HOME/quickshell/omarchy-mobile-apps/<id>/shell.qml`, and the
+desktop entry to `$XDG_DATA_HOME/applications/`. The launcher does not install
+anything. It only starts what is already installed.
+
+Quickshell hot-reloads when a loaded QML file is modified in place. `install`
+replaces files instead, which the running shell does not notice, so after
+`install.sh` either rewrite the changed file in place or restart the shell
+through `omarchy-mobile-session launch`.
+
+`manifest.json` fields:
+
+| Field | Required | Meaning |
+|---|---|---|
+| `id` | yes | Same as the directory name. No slashes. |
+| `name` | yes | Drawer label and window title source. |
+| `comment` | no | Desktop entry comment. |
+| `icon` | no | Icon name from the current theme. |
+| `permissions` | yes | List of names from `PERMISSIONS` in `overlay/mobile/app.py`. An unknown name is refused. |
+
+The permission list today is only `files.home`: read and change the home
+folder, including Desktop, Documents, Downloads, Music, Pictures, and Videos
+when those directories exist. Adding a permission means adding it to
+`PERMISSIONS` and enforcing it in the helper that does the work. An app cannot
+invent a name and have it mean something.
+
+Grants are `$XDG_STATE_HOME/omarchy-mobile/grants/<id>.json`, a map of
+permission name to `true`. The first window shows `GrantPage` until every
+requested permission is granted. `Don't allow` closes the app.
+
+```bash
+omarchy-mobile-app status <id>
+omarchy-mobile-app grant <id> <permission>
+omarchy-mobile-app launch <id>
+```
+
+`launch` requires a Wayland session. It sets `QML_IMPORT_PATH` to the
+OmarchyMobile module, `QT_IM_MODULE=none`, and `OMARCHY_MOBILE_APP`. If that
+app's window is already open, launch replaces it. It does not kill the shell
+or Settings.
+
+`AppWindow` (`overlay/mobile/kit/AppWindow.qml`) is the page chrome: theme
+background, kicker, heading, optional back, and quit when the window closes.
+The app's own pages are its children. `GrantPage` renders the requested
+permissions and emits `allowed` or `denied`.
+
+The left-edge gesture is not special to Settings. The shell writes a new
+stamp to `$XDG_RUNTIME_DIR/omarchy-mobile/back`. `AppBack`, included by
+`AppWindow`, watches that file and emits the window's `backClicked` when
+this app's process owns the window on screen. The window's `appTitle` stays
+stable so a changing page heading does not hide the app from that check.
+An app handles the header button and the gesture with the same
+`onBackClicked`. Settings uses `AppBack` directly because it is not an
+`AppWindow`.
+
+Appearance → Corners writes `corners` in the mobile preferences. Theme sync
+reads that first, then Omarchy's toggle and `looknfeel.lua`. `MobileTheme.radius`
+is what the app drawer icons, shade cards, buttons, and app pages use, and
+Hyprland's window rounding is set to the same choice. The status bar is a
+full-width strip, so it has no outer corner to round; its glyphs stay icons.
+
+Corners follow Omarchy. An active `rounding` value in
+`~/.config/hypr/looknfeel.lua`, or the Style > Corners toggle file under
+`~/.local/state/omarchy/toggles/hypr/`, chooses the radius. `0` is square.
+A commented line is ignored, and the toggle wins over looknfeel. Until one
+of those is set, the shell keeps its current radius. Theme sync publishes
+`corners` and `radius` and sets Hyprland's window rounding to the same
+number. Shared widgets and app pages use `MobileTheme.radius(size)`, which
+is `0` when the choice is square and `size` when it is round.
+
+A helper that touches user data checks `has_grant` before doing the work.
+Files (`overlay/mobile/files.py`) resolves every path and rejects anything
+outside the granted roots. A symlink that points out of those roots is left
+out of the listing and cannot be opened, created, moved, copied, or deleted.
+Hidden names stay hidden until the user asks for them. The home folder itself
+cannot be renamed or deleted, and a folder cannot be placed inside itself.
+
+This is not a process sandbox and not a separate user. The session user can
+still run other programs. The grant only binds helpers that agree to check it.
+A later sandbox should wrap `omarchy-mobile-app launch` without changing the
+manifest. Contacts, location, camera, and notifications are not permissions yet.
+
+## Volume groups
+
+Volume follows Android: media, ring & notifications, calls and alarms each
+have their own volume. `wireplumber/30-mobile-volume-groups.conf` creates one
+WirePlumber role loopback sink per group; a stream reaches its group by
+`media.role` (Music/Movie/Game, Notification/Ringtone, Communication/Phone,
+Alarm/Alert), and a stream without a role counts as media. The loopbacks
+feed the default sink, which stays at 100% so board limits below it are the
+only fixed attenuation. A call pauses media; notifications and alarms duck
+it. WirePlumber stores each group's volume across restarts.
+
+WirePlumber publishes `current.role-based.volume.control`: the highest
+priority group that is playing, otherwise media. `omarchy-mobile-volume
+up|down|mute` follows it, so the keys change call volume during a call.
+`set PERCENT [GROUP]` defaults to media. Status keeps the old top-level
+`percent` and `muted` for media and adds `groups`, `keys` and `changed`.
+Without the loopbacks, media uses the default sink and the other groups
+report unavailable. A board that describes its own sink should give it a
+`priority.session`, so a loopback never becomes the default sink.
+
+The volume panel shows the group the keys changed; its chevron expands to
+all four sliders, each with a tap-to-mute icon.
+
 Clipboard history is a JSON store with stable records (`id`, `created`,
 `origin`, `mime`, `text`, `pinned`). Presentation is QML; a future pairing
 daemon should read and write the same store, opt-in, without replacing the UI.

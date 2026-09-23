@@ -61,7 +61,8 @@ PAGE_INTEGRATION = {
               note: "Depends on modem registration plus call audio, and on audio routing between devices.",
               ref: "docs/mobile-roadmap.md" },
             { n: "Clipboard sync (opt-in)", s: "no",
-              note: "Explicitly opt-in when built; nothing exists today.", ref: "docs/mobile-roadmap.md" },
+              note: "Local history exists on the phone. Sync is not built; the store is the intended surface.",
+              ref: "docs/settings-clipboard-20260919.md" },
             { n: "Agent works across both machines", s: "no",
               note: "Ask the desktop agent to change something on the phone, or the phone agent to read something "
                   + "on the desktop. Built on the phone-control API plus the paired service.",

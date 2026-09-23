@@ -59,3 +59,25 @@ public repository root: a root `index.html` redirects to `plans/`, and a root
 `.nojekyll` keeps the hand-written HTML, CSS and JavaScript verbatim. Nothing on
 the public branch may name or embed the private host — no LAN addresses, no
 internal hostnames, no forge/gitea references.
+
+## Checks before each public sync
+
+Scan the lines the sync adds (`git diff public main`, excluding the Pages files):
+
+- IPv4 addresses: only public resolvers such as 1.1.1.1 and 8.8.8.8 may appear.
+- MAC-style addresses: only obvious test fixtures.
+- Digit runs of 14–20 (IMEI, IMSI, ICCID) and phone-number patterns: none.
+- The private host, forge names, home paths and email addresses: none.
+- The handset's own values, compared on the phone without printing them: the
+  fastboot serial (`out/device.serial`), SoC serial, Wi-Fi connection names and
+  SSID, network and Bluetooth controller addresses, paired device addresses.
+  A paired device's product name, such as a headphone model, is acceptable.
+- Binary files: none unless reviewed; camera frames and recordings stay in `out/`.
+- Credentials, keys, tokens and PIN/PUK values: none.
+
+## Publication log
+
+- September 18: the reviewed snapshot became GitHub `main`.
+- September 23: `public` synced to development `main` (Settings kit, audio and
+  microphones, Bluetooth, camera, IPA, CPU scaling, 90 Hz, switcher smoothness)
+  after the checks above found nothing private.

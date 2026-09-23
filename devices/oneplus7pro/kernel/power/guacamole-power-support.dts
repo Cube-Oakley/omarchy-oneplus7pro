@@ -49,6 +49,14 @@
 };
 &{/soc@0/spmi@c440000/pmic@2} { status = "okay"; };
 &{/soc@0/spmi@c440000/pmic@3} { status = "disabled"; };
-&{/soc@0/spmi@c440000/pmic@4} { status = "disabled"; };
+/* PM8150L: only its GPIO block, for the camera power enables (IMX586
+ * custom2 is GPIO1) and later the pop-up motor pins. SPMI devices exist only
+ * if enabled when this overlay starts the bus, so this cannot wait for the
+ * camera overlay. Its ADC, thermal alarm and PON blocks stay off. */
+&{/soc@0/spmi@c440000/pmic@4} { status = "okay"; };
+&{/soc@0/spmi@c440000/pmic@4/adc@3100} { status = "disabled"; };
+&{/soc@0/spmi@c440000/pmic@4/adc-tm@3500} { status = "disabled"; };
+&{/soc@0/spmi@c440000/pmic@4/temp-alarm@2400} { status = "disabled"; };
+&{/soc@0/spmi@c440000/pmic@4/pon@800} { status = "disabled"; };
 &{/soc@0/spmi@c440000/pmic@5} { status = "disabled"; };
 &spmi_bus { status = "okay"; };

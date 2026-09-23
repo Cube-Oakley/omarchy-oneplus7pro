@@ -3,6 +3,8 @@ set -euo pipefail
 # Desktop Exec entries use user-installed commands, including webapp helpers.
 # The bring-up initramfs supplies only system directories in PATH.
 export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
+export QML_IMPORT_PATH="${XDG_DATA_HOME:-$HOME/.local/share}/omarchy-mobile/qml${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}"
+export QML2_IMPORT_PATH="$QML_IMPORT_PATH${QML2_IMPORT_PATH:+:$QML2_IMPORT_PATH}"
 export XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
 config=${XDG_CONFIG_HOME:-$HOME/.config}
 shell_config="$config/quickshell/omarchy-mobile/shell.qml"

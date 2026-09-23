@@ -1,4 +1,61 @@
-# Next session — theme installer follow-up
+# Next session — hardware and cellular handoffs
+
+**September 22 cellular groundwork:** [baseline](cellular-baseline-20260922.md).
+Read-only PDC probe works: 25 resident EU profiles, active `Free-VoLTE`, no
+T-Mobile resident; `Commercial-TMO` (PDC ID `cb45c810…`) is in the firmware
+library. Kernel #189 (#188 plus the IPA DTB, embedded in the Image) is on
+slot B; `ipa.ko` loaded by hand brings up `rmnet_ipa0` and an rmnet link.
+The bottom speaker works after the user reseated the bottom board. A Tello
+SIM (T-Mobile network) is on order.
+
+**September 23 smoothness:** [CPU and GPU scaling](smoothness-20260923.md).
+CPU frequency scaling was simply disabled in the boot DTB; a runtime overlay
+enables it (schedutil, energy-aware scheduling, CPU thermal cooling) and the
+big cores run 3.5x faster. GPU scaling already works. Kernel #191 (slot B,
+rollback #190) adds 60/90 Hz panel modes and cpufreq in the DTB; the shell runs
+at 90 Hz (89.8 Hz measured). The radio now finds its partitions by GPT name.
+
+**September 23 cameras:** [main camera bring-up](camera-20260922.md). The main
+IMX586 streams raw 4000x3000 frames over its C-PHY through CAMSS, all from
+runtime modules; the first image shows the room (no focus yet). A new hold
+module lets CAMCC bind without releasing the modem's power (MSS/MX/CX/MMCX
+unchanged). Kernel #190 (on slot B) adds PM8150L's GPIO block and the Bluetooth
+`hsuart0` alias; rollback is `scripts/flash_kernel190.sh rollback`.
+
+**September 22 Bluetooth:** [bring-up](bluetooth-20260922.md). WCN3990 works
+on #189 via runtime modules and a UART13 overlay: stock firmware, scanning,
+pairing, and A2DP audio (aptX HD) to OnePlus Bullets, heard by the user. Fixed a
+wake-IRQ/pinctrl self-deadlock and a missing serial alias (runtime shim until
+the next DTB carries `hsuart0`). Settings pairs and connects; the shade has a
+toggle; headphone buttons drive the volume overlay. Boot autostart is enabled
+(not yet through a reboot).
+
+**September 22 speakers:** [mic loopback measurements](speakers-20260922.md).
+Both speakers work; the bottom one needed the user to reseat the bottom board.
+The ADSP played the 24-bit path 48 dB low, which is why media was inaudible.
+Output is now S16 in mono, capped at -18 dBFS (bottom) and -42 dBFS (earpiece),
+behind a processing sink (400 Hz high-pass, leveler, limiter). An 8-period
+buffer fixed silent and ticking PipeWire playback; YouTube is audible and clean.
+
+**September 22 microphone session:** [microphone trial and boot-slot incident](microphone-20260922.md).
+The internal microphone works: AMIC4 records through PipeWire and starts with
+the audio stack; AMIC1 and AMIC3 are also real mics. A full regmap register
+sweep crashed the phone (900e);
+slot B then ran out of boot retries because Linux never marks a boot successful.
+Recovered with `fastboot set_active b`. `guacamole-boot-slot` now marks each
+boot successful after the desktop is up; verified that ABL keeps retry 6 on
+boot `e8adeb46`. Never iterate over every regmap.
+
+**September 22 planning checkpoint:** start with the
+[remaining hardware implementation plan](hardware-plan-20260922.md) and
+[cellular implementation plan](cellular-plan-20260922.md). These include fresh
+read-only phone observations, pinned related-device sources, known failures,
+implementation stages and physical acceptance tests. Suggested first hardware
+work: microphone/application audio, brightness, haptics and Bluetooth, then
+SLPI sensors and a rear camera. No implementation was deployed during planning.
+Preserve the existing uncommitted shell work. Earlier session notes follow.
+
+## Theme installer follow-up
 
 **CRT screen on/off is in (2026-09-21).** `omarchy-mobile-display` plays a
 close before DPMS off and an open after DPMS on. Power-button blank/restore

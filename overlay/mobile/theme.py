@@ -166,6 +166,43 @@ def wallpaper_state(selected, current, advance=False):
     return ref
 
 
+def uncommented(text):
+    return "\n".join(line.split("--", 1)[0] for line in text.splitlines())
+
+
+def rounding_value(text):
+    match = re.search(r"\brounding\s*=\s*(\d+)", uncommented(text))
+    return int(match.group(1)) if match else None
+
+
+def corner_radius():
+    """Return the corner radius, or None when nobody has chosen one.
+
+    The phone's Appearance setting wins. Otherwise Omarchy's Style > Corners
+    toggle wins over looknfeel.lua. Square is 0. A commented line does not count.
+    """
+    try:
+        prefs = json.loads((CONFIG / "omarchy-mobile/prefs.json").read_text())
+    except (OSError, ValueError):
+        prefs = {}
+    if prefs.get("corners") == "square":
+        return 0
+    if prefs.get("corners") == "round":
+        return 8
+    toggle_dir = STATE / "omarchy/toggles/hypr"
+    for name in ("rounded-corners.lua", "rounded-corners.conf"):
+        path = toggle_dir / name
+        if path.is_file():
+            value = rounding_value(path.read_text())
+            return 8 if value is None else value
+    look = CONFIG / "hypr/looknfeel.lua"
+    if look.is_file():
+        value = rounding_value(look.read_text())
+        if value is not None:
+            return value
+    return None
+
+
 def palette(file):
     data = tomllib.loads(file.read_text()) if file else {}
     # Support both current semantic names and older Omarchy ANSI palettes.
@@ -206,23 +243,35 @@ def sync():
             font = candidate
     except (OSError, ValueError):
         pass
+    chosen = corner_radius()
+    try:
+        previous_palette = json.loads((MOBILE / "palette.json").read_text())
+    except (OSError, ValueError):
+        previous_palette = {}
+    if chosen is None:
+        radius = previous_palette.get("radius") if isinstance(previous_palette.get("radius"), int) else 8
+    else:
+        radius = chosen
     result = {"name": selected, "colors": colors, "themes": sorted(available), "device": device,
               "wallpaper": wallpaper_state(selected, current), "fontFamily": font,
-              "themePreviews": theme_previews(available)}
+              "themePreviews": theme_previews(available),
+              "corners": "round" if radius else "square", "radius": radius}
     border = 'hl.config({general={col={active_border={colors={"rgba(' + colors['accent'][1:] + 'ff)"},angle=0},inactive_border="rgba(' + colors['muted'][1:] + 'ff)"}}})'
+    rounding = "hl.config({decoration={rounding=" + str(radius) + "}})"
     lua = 'dofile(' + json.dumps(str(DATA / 'omarchy-mobile/hypr-mobile.lua')) + ')\n'
     scale = device.get('scale')
+    # A board may ask for a mode other than the panel's preferred one (90 Hz on guacamole).
+    mode = device.get('displayMode')
+    if not (isinstance(mode, str) and re.fullmatch(r'\d+x\d+@\d+(\.\d+)?', mode)):
+        mode = 'preferred'
     if isinstance(scale, (int, float)) and not isinstance(scale, bool) and 0.5 <= scale <= 5:
-        lua += 'hl.monitor({output="",mode="preferred",position="auto",scale=' + str(scale) + '})\n'
-    lua += border + '\n'
+        lua += 'hl.monitor({output="",mode="' + mode + '",position="auto",scale=' + str(scale) + '})\n'
+    lua += border + '\n' + rounding + '\n'
     shortcut = device.get('terminalShortcut', '')
     if re.fullmatch(r'[A-Z0-9 +]+', shortcut):
         lua += 'hl.unbind(' + json.dumps(shortcut) + ')\nhl.bind(' + json.dumps(shortcut) + ', hl.dsp.exec_cmd("env KITTY_MOBILE_TOUCH=1 kitty"))\n'
     write_changed(CONFIG / 'hypr/mobile.lua', lua)
-    try:
-        previous = json.loads((MOBILE / "palette.json").read_text())
-    except (FileNotFoundError, ValueError):
-        previous = {}
+    previous = previous_palette
     # Optional trusted device integration, separate from imported theme assets.
     wallpaper_hook = CONFIG / "omarchy-mobile/wallpaper-apply"
     previous_wallpaper = (previous.get("wallpaper") or {}).get("path")
@@ -248,6 +297,8 @@ def sync():
             subprocess.run([str(helper), "hide"], stdout=subprocess.DEVNULL, check=False)
         # Only update the border colors, retaining the user's layout/bindings.
         subprocess.run(["hyprctl", "eval", border], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if previous.get("radius") != radius and os.getenv("WAYLAND_DISPLAY"):
+        subprocess.run(["hyprctl", "eval", rounding], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return result
 
 

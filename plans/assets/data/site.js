@@ -1,6 +1,6 @@
 /* Site-wide copy shared by all pages. */
 SITE = {
-  meta: ["updated 2026-09-18", "kernel #188 · slot B", "audio in bring-up"],
+  meta: ["updated 2026-09-23", "kernel #191 · slot B", "audio + Bluetooth working · SIM pending"],
 
   landing: {
     eyebrow: "Project plan · overview",
@@ -8,15 +8,15 @@ SITE = {
     blurb: "Arch Linux ARM + Hyprland + Quickshell on guacamole (Snapdragon 855 / Adreno 640), "
          + "shaped into a touch phone we can actually reprogram. Three pages: the hardware inside the "
          + "handset, the software you touch, and how the phone talks to a desktop.",
-    meta: ["updated 2026-09-18", "kernel #188 · slot B", "audio in bring-up", "3 pages"]
+    meta: ["updated 2026-09-23", "kernel #191 · slot B", "audio + Bluetooth working · SIM pending", "3 pages"]
   },
 
   howTo: [
     "<b>Working</b> means verified on the handset — not “the driver probed”. Where a check was only "
     + "automated, or only seen once, the note says so.",
     "<b>Partial</b> means the plumbing is up but the user-visible result is unproven, capped, or only "
-    + "one of several paths works. Audio is the current example: ADSP, codec and both amplifiers come "
-    + "up, but neither output has independent acoustic confirmation and application playback is not audible.",
+    + "one of several paths works. Cellular is the current example: the modem answers QMI and its data "
+    + "interface comes up, but with no SIM there is no registration, call or data yet.",
     "<b>Not working</b> means nothing usable yet, including “not attempted so far”.",
     "<b>Not present</b> means this handset simply has no such hardware — tracked so nobody spends a "
     + "week looking for a headphone jack.",

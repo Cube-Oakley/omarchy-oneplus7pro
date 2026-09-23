@@ -34,14 +34,14 @@ Rectangle {
     signal maximizeWindow()
     signal closeWindow()
     color: MobileTheme.surface
-    radius: 24
+    radius: MobileTheme.radius(24)
     border.width: 1; border.color: MobileTheme.muted
     ColumnLayout {
         anchors.fill: parent; anchors.margins: 16; spacing: 14
         RowLayout {
             Layout.fillWidth: true; spacing: 10
             Rectangle {
-                implicitWidth: 38; implicitHeight: 38; radius: 12; color: MobileTheme.selection
+                implicitWidth: 38; implicitHeight: 38; radius: MobileTheme.radius(12); color: MobileTheme.selection
                 Text { font.family: MobileTheme.fontFamily; anchors.centerIn: parent; text: card.appClass.substring(0, 1).toUpperCase(); color: MobileTheme.accent; font.pixelSize: 21; font.bold: true }
             }
             ColumnLayout {
@@ -53,7 +53,7 @@ Rectangle {
         }
         Rectangle {
             Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 100
-            radius: 14; color: MobileTheme.background; clip: true
+            radius: MobileTheme.radius(14); color: MobileTheme.background; clip: true
             Text { font.family: MobileTheme.fontFamily; anchors.centerIn: parent; text: card.appClass; color: MobileTheme.muted; font.pixelSize: 24 }
             ScreencopyView {
                 anchors.centerIn: parent

@@ -14,6 +14,27 @@ if [[ -x /usr/local/sbin/guacamole-audio-start &&
     nohup /usr/local/sbin/guacamole-audio-start \
         >> /root/audio-bringup/startup.log 2>&1 < /dev/null &
 fi
+# CPU frequency scaling (qcom-cpufreq-hw) as a runtime overlay on kernels whose
+# boot DTB leaves it off (before #191); without it every core stays at its boot clock.
+if [[ -f /root/power-bringup/cpufreq-enabled && ! -d /sys/module/guacamole_cpufreq &&
+      ! -d /sys/devices/system/cpu/cpufreq/policy0 ]]; then
+    insmod /root/power-bringup/cpufreq/guacamole_cpufreq.ko ||
+        echo 'CPU frequency overlay failed to load.' >&2
+fi
+if [[ -x /usr/local/sbin/guacamole-bluetooth-start &&
+      -f /root/bluetooth-bringup/autostart-enabled ]]; then
+    nohup /usr/local/sbin/guacamole-bluetooth-start \
+        >> /root/bluetooth-bringup/startup.log 2>&1 < /dev/null &
+fi
+# ABL spends one retry per boot until the slot is marked successful, then
+# refuses the slot. Mark it once the desktop has stayed up for a minute; a
+# kernel that never gets this far still spends its retries.
+if [[ -x /usr/local/sbin/guacamole-boot-slot &&
+      -f /root/boot-slot/autostart-enabled ]]; then
+    nohup bash -c 'sleep 60; pgrep -x Hyprland >/dev/null || exit 1
+        exec /usr/local/sbin/guacamole-boot-slot mark-successful' \
+        >> /root/boot-slot/mark.log 2>&1 < /dev/null &
+fi
 line='dofile("/root/.config/hypr/mobile.lua")'
 for config in /etc/hypr/hyprland.lua /root/.config/hypr/hyprland.lua; do
     if ! grep -qFx "$line" "$config"; then

@@ -130,6 +130,18 @@ Item {
             MobileTheme.request(["sync"]);
         }
     }
+    Process {
+        id: cornerSet
+        stdinEnabled: true
+        property string payload: ""
+        command: [Quickshell.env("HOME") + "/.local/bin/omarchy-mobile-prefs", "set"]
+        stdout: StdioCollector {}
+        onStarted: { write(cornerSet.payload); cornerSet.payload = ""; stdinEnabled = false; }
+        onExited: {
+            stdinEnabled = true;
+            MobileTheme.request(["sync"]);
+        }
+    }
     ImagePreloader { urls: page.preloadUrls }
     Flickable {
         id: list
@@ -152,7 +164,7 @@ Item {
             Rectangle {
                 width: parent.width
                 height: 170
-                radius: 18
+                radius: MobileTheme.radius(18)
                 clip: true
                 color: MobileTheme.surface
                 Image {
@@ -194,6 +206,15 @@ Item {
                 label: "Font"
                 value: MobileTheme.fontFamily
                 onClicked: page.openPicker("font")
+            }
+            SettingsRow {
+                width: parent.width
+                label: "Corners"
+                value: MobileTheme.square ? "Square" : "Round"
+                onClicked: {
+                    cornerSet.payload = JSON.stringify({corners: MobileTheme.square ? "round" : "square"}) + "\n";
+                    if (!cornerSet.running) cornerSet.running = true;
+                }
             }
             SettingsRow {
                 width: parent.width
@@ -277,7 +298,7 @@ Item {
                     required property string modelData
                     width: fontListView.width
                     height: 64
-                    radius: 16
+                    radius: MobileTheme.radius(16)
                     color: MobileTheme.fontFamily === modelData ? MobileTheme.selection : MobileTheme.surface
                     border.width: MobileTheme.fontFamily === modelData ? 1 : 0
                     border.color: MobileTheme.accent

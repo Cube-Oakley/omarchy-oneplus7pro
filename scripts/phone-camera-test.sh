@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Runs on the phone, one stage per call; nothing unloads, reboot to undo.
+#   power  - RPMh hold, then camcc; checks the rail votes did not move
+#   bus    - media, CCI and CAMSS drivers, the camera overlay, PM8009 rebind;
+#            no sensor is powered
+#   sensor - the IMX586 driver: powers the main camera in the stock order
+#            (VANA, custom1, VDIG, custom2, VIO, MCLK, reset) and reads its ID
+# Details: docs/camera-20260922.md.
+set -euo pipefail
+D=/root/camera-bringup
+[[ $(uname -r) == 6.17.0-sm8150-codex-native5-g379d8fe35c7c-dirty ]]
+stage=${1:?usage: phone-camera-test.sh power|bus|sensor}
+log=$D/$stage-$(date +%Y%m%d-%H%M%S).log
+marker="guacamole camera $stage $(date +%s)"
+load() { [[ -d /sys/module/${1//-/_} ]] && echo "$1 already loaded" || { insmod "$2/$1.ko"; echo "loaded $1"; }; }
+kernel() { dmesg | sed -n "/$marker/,\$p" | grep -vE 'memory leak will occur'; }
+echo "$marker" > /dev/kmsg
+{
+case $stage in
+power)
+    (cd "$D/power" && sha256sum -c --quiet SHA256SUMS)
+    . "$D/power/arc.sh"
+    load rpmh_votes "$D/power"
+    echo "before: synced=$(synced) $(arc)"
+    load guacamole_rpmhpd_hold "$D/power"
+    load camcc-sm8150 "$D/power"
+    sleep 2
+    echo "after:  synced=$(synced) $(arc)"
+    ;;
+bus)
+    [[ -d /sys/module/camcc_sm8150 && -d /sys/module/guacamole_rpmhpd_hold ]]
+    (cd "$D/modules" && sha256sum -c --quiet SHA256SUMS)
+    (cd "$D/overlay" && sha256sum -c --quiet SHA256SUMS)
+    for m in $(grep -vxE 'i2c-qcom-cci|imx586' "$D/modules/load-order"); do load "$m" "$D/modules"; done
+    # The CCI driver loads only after the overlay: probing mid-apply let the
+    # I2C core take its i2c-bus@N nodes for clients, which failed the apply.
+    load guacamole_camera "$D/overlay"
+    # LDO1/3/4 of PM8009 are new children of an already bound device.
+    pm8009=18200000.rsc:pm8009-rpmh-regulators
+    echo "$pm8009" > /sys/bus/platform/drivers/qcom-rpmh-regulator/unbind
+    echo "$pm8009" > /sys/bus/platform/drivers/qcom-rpmh-regulator/bind
+    load i2c-qcom-cci "$D/modules"
+    # The sensor completes only once its focus actuator has bound.
+    (cd "$D/lens" && sha256sum -c --quiet SHA256SUMS)
+    load lc898217xc "$D/lens"
+    sleep 2
+    kernel
+    echo '=== i2c adapters'; grep -H . /sys/bus/i2c/devices/i2c-*/name | grep -i cci || true
+    echo '=== clients'; ls /sys/bus/i2c/devices | grep -- '-001a' || true
+    echo '=== pm8009'; for r in /sys/class/regulator/regulator.*; do
+        [[ $(readlink -f "$r/device") == */$pm8009 ]] && echo "$(cat "$r/name") $(cat "$r/microvolts" 2>/dev/null) users=$(cat "$r/num_users")"; done
+    echo '=== bound'; for p in ac4a000.cci acb3000.camss; do echo "$p $(readlink /sys/bus/platform/devices/$p/driver || echo unbound)"; done
+    ;;
+sensor)
+    [[ -d /sys/module/guacamole_camera ]]
+    load imx586 "$D/modules"
+    sleep 2
+    kernel
+    echo '=== media'; ls /dev/media* /dev/video* /dev/v4l-subdev* 2>/dev/null | tr '\n' ' '; echo
+    ;;
+esac
+} 2>&1 | tee "$log"
+echo "log: $log"

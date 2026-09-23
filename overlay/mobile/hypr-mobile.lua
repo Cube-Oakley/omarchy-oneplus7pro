@@ -1,5 +1,5 @@
 -- Loaded after the verified hardware bring-up configuration.
-hl.config({ general = { gaps_in = 0, gaps_out = 6 }, decoration = { rounding = 8 } })
+hl.config({ general = { gaps_in = 0, gaps_out = 6 } })
 
 -- Pair press/release so the release that wakes the phone cannot sleep it again.
 hl.unbind("XF86PowerOff")

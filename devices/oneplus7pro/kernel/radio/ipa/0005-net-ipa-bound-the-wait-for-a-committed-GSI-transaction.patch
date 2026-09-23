@@ -1,0 +1,66 @@
+From: Robin Snyders <robin@snyders.xyz>
+Subject: [PATCH] net: ipa: bound the wait for a committed GSI transaction
+
+Subset of hotdog 0156-hotdog-integrate-validated-runtime-fixes.patch
+(drivers/net/ipa/gsi_trans.[ch] only). See hotdog
+docs/evidence/2026-08-18-ipa-ssr-notifier-deadlock.md: an unbounded wait in
+the modem SSR notifier left the modem unrecoverable after a crash.
+
+---
+diff --git a/drivers/net/ipa/gsi_trans.c b/drivers/net/ipa/gsi_trans.c
+index 19531883864ae6a3a3e039b2fc2629103afa5266..fbe796cd8a0a87844efdd087474fbe4f85949175 100644
+--- a/drivers/net/ipa/gsi_trans.c
++++ b/drivers/net/ipa/gsi_trans.c
+@@ -79,6 +79,13 @@ struct gsi_tre {
+ };
+ 
+ /* gsi_tre->flags mask values (in CPU byte order) */
++/* How long to wait for a committed transaction to complete.  Command channel
++ * transactions finish in microseconds; this only has to be generous enough to
++ * never expire on a working device, because the alternative is a wait that
++ * never ends.  GSI_CMD_TIMEOUT in gsi.c bounds the generic commands similarly.
++ */
++#define GSI_TRANS_TIMEOUT	1000	/* milliseconds */
++
+ #define TRE_FLAGS_CHAIN_FMASK	GENMASK(0, 0)
+ #define TRE_FLAGS_IEOT_FMASK	GENMASK(9, 9)
+ #define TRE_FLAGS_BEI_FMASK	GENMASK(10, 10)
+@@ -619,7 +626,22 @@ void gsi_trans_commit_wait(struct gsi_trans *trans)
+ 
+ 	__gsi_trans_commit(trans, true);
+ 
+-	wait_for_completion(&trans->completion);
++	/* Every caller of this is a command channel operation, and some of
++	 * them run from the modem's SSR notifier chain while holding the
++	 * remote processor lock. Waiting there without a bound is fatal: if
++	 * the transaction never completes, the modem can never be restarted
++	 * and any driver unregistering an SSR notifier blocks behind it.
++	 *
++	 * Timing out is safe. We hold a reference of our own here, and the
++	 * GSI completion path holds the one it took when the transaction was
++	 * committed, so dropping ours below never frees a transaction the
++	 * hardware may still complete later.
++	 */
++	if (!wait_for_completion_timeout(&trans->completion,
++					 msecs_to_jiffies(GSI_TRANS_TIMEOUT)))
++		dev_err(trans->gsi->dev,
++			"channel %u: transaction did not complete in %ums\n",
++			trans->channel_id, GSI_TRANS_TIMEOUT);
+ 
+ out_trans_free:
+ 	gsi_trans_free(trans);
+diff --git a/drivers/net/ipa/gsi_trans.h b/drivers/net/ipa/gsi_trans.h
+index c1b3386cbb9d53c8a262cd7864eafda3a3d9b4ba..0886c222d6ebef7de161550ef08861ec7401f30a 100644
+--- a/drivers/net/ipa/gsi_trans.h
++++ b/drivers/net/ipa/gsi_trans.h
+@@ -202,6 +202,10 @@ void gsi_trans_commit(struct gsi_trans *trans, bool ring_db);
+  * gsi_trans_commit_wait() - Commit a GSI transaction and wait for it
+  *			     to complete
+  * @trans:	Transaction to commit
++ *
++ * The wait is bounded.  If the transaction does not complete in time an error
++ * is logged and the caller continues; callers run from contexts, such as the
++ * modem's SSR notifier chain, where blocking forever wedges the system.
+  */
+ void gsi_trans_commit_wait(struct gsi_trans *trans);
+ 

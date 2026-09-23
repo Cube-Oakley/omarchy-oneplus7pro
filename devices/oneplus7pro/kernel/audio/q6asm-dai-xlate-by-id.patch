@@ -1,0 +1,42 @@
+--- a/sound/soc/qcom/qdsp6/q6asm-dai.c
++++ b/sound/soc/qcom/qdsp6/q6asm-dai.c
+@@ -1201,6 +1201,31 @@
+ 	SND_SOC_DAPM_AIF_OUT("MM_UL8", "MultiMedia8 Capture", 0, SND_SOC_NOPM, 0, 0),
+ };
+ 
++/*
++ * A phandle argument names a front end by its MSM_FRONTEND_DAI_* id, but the
++ * ASoC fallback treats it as an index into the DAI list, which follows DT
++ * child order. A live overlay prepends new children, so adding dai@1 after
++ * dai@0 swapped MultiMedia1 and MultiMedia2. Match the id instead.
++ */
++static int q6asm_dai_of_xlate_dai_name(struct snd_soc_component *component,
++				       const struct of_phandle_args *args,
++				       const char **dai_name)
++{
++	struct snd_soc_dai *dai;
++
++	if (args->args_count != 1)
++		return -EINVAL;
++
++	for_each_component_dais(component, dai) {
++		if (dai->driver->id == args->args[0]) {
++			*dai_name = dai->driver->name;
++			return 0;
++		}
++	}
++
++	return -EINVAL;
++}
++
+ static const struct snd_soc_component_driver q6asm_fe_dai_component = {
+ 	.name			= DRV_NAME,
+ 	.open			= q6asm_dai_open,
+@@ -1213,6 +1238,7 @@
+ 	.compress_ops		= &q6asm_dai_compress_ops,
+ 	.dapm_widgets		= q6asm_dapm_widgets,
+ 	.num_dapm_widgets	= ARRAY_SIZE(q6asm_dapm_widgets),
++	.of_xlate_dai_name	= q6asm_dai_of_xlate_dai_name,
+ 	.legacy_dai_naming	= 1,
+ };
+ 

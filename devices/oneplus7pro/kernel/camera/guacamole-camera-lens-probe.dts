@@ -1,0 +1,55 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Identification only: which focus actuator is on this unit's main camera.
+ * Stock supports both: LC898217XC on Samsung Electro-Mechanics modules, AK7374
+ * on O-Film ones (the 7T Pro's unit had the former, at 0x72). Applied after
+ * guacamole-camera.dts with CCI bound, so the I2C core creates both clients;
+ * the driver whose chip answers logs "ready". No lens-focus link, so neither
+ * gets a subdevice node. Reboot to remove.
+ */
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
+&tlmm {
+	cam0_vaf_default: cam0-vaf-default-state {
+		pins = "gpio25";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-disable;
+	};
+};
+
+&{/} {
+	/* GPIO25 switches the main camera's 3.3 V autofocus rail from BOB. */
+	vreg_cam0_vaf: regulator-cam0-vaf {
+		compatible = "regulator-fixed";
+		regulator-name = "cam0_vaf";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&tlmm 25 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		vin-supply = <&vreg_bob>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cam0_vaf_default>;
+	};
+};
+
+&cci0_i2c1 {
+	lens@72 {
+		compatible = "onnn,lc898217xc";
+		reg = <0x72>;
+		vdd-supply = <&vreg_cam0_vaf>;
+		vio-supply = <&vreg_l1c_1p8>;
+		onnn,max-focus-position = <400>;
+		onnn,default-focus-position = <400>;
+	};
+
+	lens@c {
+		compatible = "asahi-kasei,ak7374";
+		reg = <0x0c>;
+		vdd-supply = <&vreg_cam0_vaf>;
+		vio-supply = <&vreg_l1c_1p8>;
+	};
+};

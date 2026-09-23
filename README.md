@@ -53,7 +53,7 @@ Click an image to open it.
 | App launcher | Touch launcher, desktop entries and multiple tiled app windows. |
 | Window overview | Live previews, workspace selection, focusing apps across workspaces, and moving windows between workspaces. |
 | Themes | Omarchy theme colors and wallpapers, wallpaper previews/cycling, and remembered wallpaper choices. |
-| Notification shade | Pull-down panel, notifications, battery details, Wi-Fi picker/IP/DNS, calendar and optional weather. |
+| Notification shade | Pull-down panel, grouped notifications, heads-up toasts, Wi-Fi/mute/DND toggles, battery details, Wi-Fi picker, calendar, optional weather, and a compact CPU/RAM chip that opens a performance panel. |
 | Browser and webapps | Native-Wayland Chromium and a Grok webapp launcher, using a separate browser account with Chromium's sandbox enabled. |
 
 ### Audio milestone
@@ -67,8 +67,11 @@ One initial tone was heard by the user; **independent acoustic confirmation of
 both outputs is still pending**. PipeWire application playback and the themed volume slider are installed, with
 a fixed conservative output cap while DSP speaker protection is unfinished.
 Audio, the volume-key device and the floating panel now start automatically
-after reboot. Physical button confirmation, microphone recording and audio
-suspend validation remain unfinished. YouTube playback has been reported inaudible;
+after reboot. The internal microphone (the stock handset mic) records through
+PipeWire and starts with the rest of the audio stack; recordings were confirmed
+clean by ear. The other two microphones work but are not exposed yet. Physical
+button confirmation and audio suspend validation remain unfinished. YouTube
+playback has been reported inaudible;
 browser audio and choppy video playback need further diagnosis. See the [audio bring-up notes](docs/audio-bringup-20260918.md).
 
 ## Touch controls
@@ -78,19 +81,31 @@ browser audio and choppy video playback need further diagnosis. See the [audio b
 - **Swipe up from bottom right:** keyboard.
 - **Swipe down on an open launcher/overview:** close it; the launcher must be at the top of its scroll area.
 - **Swipe down from the top bar:** notification shade; swipe up to close.
+- **Launcher → Settings:** theme, wallpaper, font, clipboard history and DND.
+- **Shade clipboard button (⧉):** local clipboard history; desktop sync is not on.
+- **Heads-up toast:** tap to open the shade; swipe up to dismiss the banner only. Do Not Disturb silences toasts.
 - **Tap an app preview:** focus that window on its workspace.
 - **Tap a workspace:** preview its windows; tap it again to enter it.
 - **Drag an app preview to a workspace:** move the window there.
 - **Swipe down on the handle above the keyboard:** hide it.
+- **Volume keys:** change media volume, or call volume during a call. Tap the
+  chevron on the volume panel to show media, ring & notification, call and
+  alarm volumes side by side; tap an icon to mute that group.
 
 ## Still to do
 
-- Complete both speakers, microphone, application audio and volume controls.
+The [remaining hardware handoff](docs/hardware-plan-20260922.md) records the
+current baseline, source references, implementation order and physical tests
+for audio, Bluetooth, sensors, cameras, power and the other unfinished devices.
+
+- Complete both speakers, application audio, volume controls, and the second and third microphones.
 - Reach deeper idle/suspend states and measure repeatable battery life.
 - Implement reliable shutdown; current power-off attempts can reboot instead.
 - Bring up Bluetooth, haptics, sensors, GPS and cameras.
 - Integrate modem data, SMS and voice. Modem/QMI groundwork exists, but there is
-  no tested cellular service, calling or texting yet.
+  no tested cellular service, calling or texting yet. See the
+  [cellular investigation and implementation plan](docs/cellular-plan-20260922.md)
+  for the verified baseline, SIM recommendation and staged implementation gates.
 - Move the desktop into a standard user account with sudo. The current bring-up
   session runs as root; Chromium uses a separate restricted account.
 - Extend touch window management, notification handling, keyboard prediction,

@@ -1,4 +1,5 @@
-"""Exercise real Quickshell event coalescing, in-flight refresh and fallback."""
+"""Exercise real Quickshell event coalescing, in-flight refresh, fallback and
+an inactive probe that samples only once activated."""
 import json
 import os
 from pathlib import Path
@@ -28,6 +29,7 @@ else:
     fixture = json.dumps(str(work / 'fixture.py'))
     event_count = json.dumps(str(work / 'events.count'))
     fallback_count = json.dumps(str(work / 'fallback.count'))
+    idle_count = json.dumps(str(work / 'idle.count'))
     (work / 'shell.qml').write_text('''import QtQuick
 import Quickshell
 Scope {
@@ -43,18 +45,31 @@ Scope {
         eventCommand: ["python3", FIXTURE, "missing"]
         pollInterval: 500
     }
+    StatusProbe {
+        id: idle
+        active: false
+        sampleCommand: ["python3", FIXTURE, "sample", IDLE_COUNT]
+        pollInterval: 200
+    }
+    Timer {
+        interval: 1500; running: true
+        onTriggered: {
+            if (idle.state.count !== undefined) console.error("STATUS_PROBE_FAIL inactive probe sampled");
+            idle.active = true;
+        }
+    }
     Timer {
         interval: 2500; running: true
         onTriggered: {
-            if (eventProbe.state.count === 2 && fallback.state.count >= 3)
+            if (eventProbe.state.count === 2 && fallback.state.count >= 3 && idle.state.count >= 1)
                 console.log("STATUS_PROBE_PASS");
-            else console.error("STATUS_PROBE_FAIL", JSON.stringify(eventProbe.state), JSON.stringify(fallback.state));
+            else console.error("STATUS_PROBE_FAIL", JSON.stringify(eventProbe.state), JSON.stringify(fallback.state), JSON.stringify(idle.state));
             Qt.quit();
         }
     }
 }
 '''.replace('FIXTURE', fixture).replace('EVENT_COUNT', event_count)
-       .replace('FALLBACK_COUNT', fallback_count))
+       .replace('FALLBACK_COUNT', fallback_count).replace('IDLE_COUNT', idle_count))
     runtime = work / 'runtime'
     runtime.mkdir(mode=0o700)
     result = subprocess.run(['quickshell', '-p', str(work / 'shell.qml')],
@@ -63,4 +78,4 @@ Scope {
         capture_output=True, text=True, timeout=8)
     output = result.stdout + result.stderr
     print(output)
-    assert result.returncode == 0 and 'STATUS_PROBE_PASS' in output, output
+    assert result.returncode == 0 and 'STATUS_PROBE_PASS' in output and 'FAIL' not in output, output

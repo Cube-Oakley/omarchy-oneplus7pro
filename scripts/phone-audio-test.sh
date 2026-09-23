@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Manual-only bring-up. Does not play, record or install startup hooks.
-# "speakers" exposes the experimental output route; no stream is started.
+# "speakers" exposes the experimental output and microphone routes; no stream
+# is started.
 set -euo pipefail
 BASE=/root/audio-bringup
 [[ $(uname -r) == 6.17.0-sm8150-codex-native5-g379d8fe35c7c-dirty ]]
@@ -34,6 +35,8 @@ case ${1:-status} in
             [[ -d /sys/module/guacamole_amplifiers ]] || insmod ./guacamole_amplifiers.ko
             # Fresh boot only: do not alter topology under a registered card.
             [[ -d /sys/module/guacamole_speaker_route ]] || insmod ./guacamole_speaker_route.ko
+            # Adds dai@1 to q6asmdai, so it must precede q6asm-dai's probe.
+            [[ -d /sys/module/guacamole_microphone ]] || insmod ./guacamole_microphone.ko
         fi
         python3 phone-audio-modules.py
         [[ -r /proc/asound/cards ]] && grep -q 'OnePlus 7 Pro' /proc/asound/cards

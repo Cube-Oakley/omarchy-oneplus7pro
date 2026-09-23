@@ -59,9 +59,76 @@ class BackendTests(unittest.TestCase):
             cached={'configured':True,'available':True,'location':config,'fetched':m.time.time(),'current':{}}
             m.save(m.CACHE,cached)
             with patch.object(m,'get') as get:
-                self.assertEqual(m.main(),cached);get.assert_not_called()
+                result=m.main();get.assert_not_called()
+            self.assertTrue(result['configured'])
+            self.assertEqual(result['kind'],'unknown')
+            self.assertEqual(result['daily_forecast'],[])
             cached['fetched']=0;m.save(m.CACHE,cached)
             with patch.object(m,'get',side_effect=OSError('offline')):
                 result=m.main();self.assertTrue(result['stale']);self.assertTrue(result['available'])
+
+    def test_weather_forecast_weekdays_and_kinds(self):
+        m=module('weather')
+        from datetime import date
+        rows=m.forecast_rows({
+            'time':['2026-09-18','2026-09-19','2026-09-20'],
+            'temperature_2m_min':[58,60,55],
+            'temperature_2m_max':[72,68,64],
+            'weather_code':[0,61,95],
+        }, today=date(2026,9,18))
+        self.assertEqual([row['label'] for row in rows],['Today','Tomorrow','Sunday'])
+        self.assertEqual([row['weekday'] for row in rows],['Friday','Saturday','Sunday'])
+        self.assertEqual([row['kind'] for row in rows],['clear','rain','thunder'])
+        self.assertEqual(m.condition_name(2),'Partly cloudy')
+        self.assertEqual(m.condition_kind(45),'fog')
+
+    def test_dns_parse_modify_and_forget_guard(self):
+        m=module('wifi')
+        self.assertEqual(m.parse_dns('1.1.1.1, 8.8.8.8'),['1.1.1.1','8.8.8.8'])
+        with self.assertRaises(ValueError):
+            m.parse_dns(['not-an-ip'])
+        with self.assertRaises(ValueError):
+            m.parse_dns(['1.1.1.1']*5)
+        uuid='aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+        with patch.object(m,'wifi_uuids',return_value=[uuid]), patch.object(m,'nmcli') as run:
+            self.assertTrue(m.action('dns',{'uuid':uuid,'auto':False,'servers':['1.1.1.1']})['ok'])
+            self.assertEqual(run.call_args_list[0][0][:3],('connection','modify',uuid))
+            self.assertEqual(run.call_args_list[1][0][:3],('connection','up',uuid))
+            run.reset_mock()
+            self.assertTrue(m.action('forget',{'uuid':uuid})['ok'])
+            run.assert_called_with('connection','delete',uuid,wait=10)
+        with patch.object(m,'wifi_uuids',return_value=[uuid]), patch.object(m,'nmcli') as run:
+            with self.assertRaises(ValueError):
+                m.action('forget',{'uuid':'00000000-0000-0000-0000-000000000000'})
+            run.assert_not_called()
+
+    def test_wifi_radio_toggle_and_disabled_status(self):
+        m=module('wifi')
+        with patch.object(m,'nmcli') as run, patch.object(m,'interfaces',return_value=[]):
+            run.return_value='disabled\n'
+            status=m.status()
+            self.assertTrue(status['available'])
+            self.assertFalse(status['radio'])
+            self.assertFalse(status['connected'])
+            run.return_value=''
+            self.assertTrue(m.action('radio',{'enabled':False})['ok'])
+            run.assert_called_with('radio','wifi','off',wait=10)
+        self.assertTrue(m.radio_enabled('WIFI:enabled\n'))
+        self.assertFalse(m.radio_enabled('disabled'))
+
+    def test_prefs_dnd_round_trip_and_unknown_keys(self):
+        m=module('prefs')
+        with tempfile.TemporaryDirectory() as d:
+            path=Path(d)/'prefs.json'
+            self.assertEqual(m.main([],path=path),{'dnd':False,'fontFamily':'JetBrainsMono Nerd Font','corners':''})
+            result=m.main(['set'],stdin=__import__('io').StringIO('{"dnd":true}'),path=path)
+            self.assertTrue(result['dnd'])
+            self.assertEqual(json.loads(path.read_text())['dnd'], True)
+            result=m.main(['set'],stdin=__import__('io').StringIO('{"fontFamily":"CaskaydiaCove Nerd Font"}'),path=path)
+            self.assertEqual(result['fontFamily'],'CaskaydiaCove Nerd Font')
+            with self.assertRaises(ValueError):
+                m.main(['set'],stdin=__import__('io').StringIO('{"secret":1}'),path=path)
+            with self.assertRaises(ValueError):
+                m.main(['set'],stdin=__import__('io').StringIO('{"fontFamily":"bad\\nfont"}'),path=path)
 
 if __name__=='__main__': unittest.main()

@@ -1,0 +1,32 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/* Enables UART13 with its WCN3990 child. Reboot to remove: never unload
+ * hci_uart, whose serdev remove path panicked on the 7T Pro. */
+#include <linux/init.h>
+#include <linux/module.h>
+#include <linux/of.h>
+#include "bluetooth_dtbo.h"
+
+static int overlay_id = -1;
+static int __init bluetooth_init(void)
+{
+    struct device_node *node;
+    bool available;
+    int ret;
+    if (!of_machine_is_compatible("oneplus,guacamole"))
+        return -ENODEV;
+    node = of_find_node_by_path("/soc@0/geniqup@cc0000/serial@c8c000");
+    if (!node)
+        return -ENODEV;
+    available = of_device_is_available(node);
+    of_node_put(node);
+    if (available)
+        return -EBUSY;
+    ret = of_overlay_fdt_apply(bluetooth_dtbo, sizeof(bluetooth_dtbo),
+                               &overlay_id, NULL);
+    if (ret && overlay_id >= 0)
+        of_overlay_remove(&overlay_id);
+    return ret;
+}
+module_init(bluetooth_init);
+MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION("Guacamole WCN3990 Bluetooth UART overlay; reboot to remove");

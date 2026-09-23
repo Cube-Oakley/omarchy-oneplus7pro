@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-KERNEL="$ROOT/.work/linux-sm8150-codex-suspend"
+KERNEL="${KERNEL_TREE:-$ROOT/.work/linux-sm8150-codex-suspend}"
 WORK="$ROOT/.work/rpmh-votes"
-OUT="$ROOT/out/sleep-stats"
+OUT="${OUT_DIR:-$ROOT/out/sleep-stats}"
 mkdir -p "$WORK" "$OUT"
 cp "$ROOT/devices/oneplus7pro/kernel/power/rpmh_votes.c" "$WORK/"
 cp "$KERNEL/drivers/soc/qcom/rpmh-internal.h" "$WORK/"

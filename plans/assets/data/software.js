@@ -19,18 +19,23 @@ PAGE_SOFTWARE = {
       blurb: "The always-present surfaces: bar, shade, launcher, overview, keyboard, gestures.",
       items: [
         { n: "Status bar", s: "ok",
-          note: "Battery percentage with charging bolt, Wi-Fi signal. Event-driven, no polling latency.",
-          ref: "docs/status-indicators-20260917.md" },
+          note: "Battery percentage with charging bolt, Wi-Fi signal, and a compact CPU/RAM chip. Event-driven "
+              + "battery/Wi-Fi; the CPU/RAM chip reads /proc in the shell every 3 s. The full performance "
+              + "snapshot runs only while its shade page is open.",
+          ref: "docs/smoothness-20260923.md" },
         { n: "Notification shade (pull-down)", s: "ok",
-          note: "Drag-down panel with themed detail popups, real notifications, battery metrics, Wi-Fi scan and "
-              + "connect, calendar, opt-in weather. Swipe up to close.",
-          ref: "docs/notification-shade-20260918.md" },
+          note: "Drag-down panel with themed detail popups, grouped notifications, heads-up toasts, Wi-Fi/mute/DND "
+              + "toggles, battery metrics, Wi-Fi scan and connect, calendar, opt-in weather. Swipe up to close.",
+          ref: "docs/shell-controls-20260918.md" },
         { n: "App launcher / drawer", s: "ok",
           note: "Touch launcher on desktop entries; launching through the drawer verified for both installed apps.",
           ref: "docs/keyboard-browser-20260918.md" },
         { n: "Workspace & window overview", s: "ok",
-          note: "Live previews, tap to enter a workspace, drag a preview onto a workspace to move the window.",
-          ref: "docs/touch-drawers-20260917.md" },
+          note: "Card switcher with previews, tap to open, drag onto a card to tile. The swipe up follows the "
+              + "finger from the first frame (a recent screen copy, taken only while the phone is in use); "
+              + "thumbnails stop copying once taken, and opening another app no longer rebuilds the cards "
+              + "mid-animation. Periodic status and theme polling no longer stalls it.",
+          ref: "docs/smoothness-20260923.md" },
         { n: "Bottom-edge gesture navigation", s: "ok",
           note: "Left = launcher, centre = overview, right = keyboard; finger-tracked sheets with swipe-down "
               + "dismissal. User-confirmed.", ref: "docs/mobile-gestures-20260917.md" },
@@ -40,19 +45,27 @@ PAGE_SOFTWARE = {
         { n: "Mobile scaling & tiled windows", s: "ok",
           note: "Scale appropriate to 1440 × 3120; multiple tiled app windows coexist with the shell surfaces." },
         { n: "Notification actions, grouping and dismissal", s: "partial",
-          note: "Real notification history and presentation exist; actions, grouping and per-item dismissal are "
-              + "still being extended.", ref: "docs/mobile-roadmap.md" },
-        { n: "Quick-setting toggles (brightness, Bluetooth, DND…)", s: "no",
-          note: "The shade currently carries information rather than toggles.", ref: "docs/mobile-roadmap.md" },
+          note: "Cards group by app, with expand, per-item and group dismiss, actions, and heads-up toasts. No "
+              + "persistent history, lock-screen notifications or banners after reboot.",
+          ref: "docs/shell-controls-20260918.md" },
+        { n: "Quick-setting toggles (brightness, Bluetooth, DND…)", s: "partial",
+          note: "Wi-Fi radio, Bluetooth, mute and Do Not Disturb are in the shade; Bluetooth starts its stack "
+              + "when needed. Brightness and flashlight wait on hardware.", ref: "docs/bluetooth-20260922.md" },
+        { n: "Performance panel", s: "ok",
+          note: "CPU/RAM chip opens CPU, memory, load, thermal zones, battery draw and top CPU processes. Process "
+              + "ranking is CPU time, not milliwatts.",
+          ref: "docs/shell-controls-20260918.md" },
         { n: "Weather tile", s: "partial",
-          note: "Opt-in weather panel is installed; location unset and the end-to-end path is untested.",
-          ref: "docs/notification-shade-20260918.md" },
+          note: "Icons, weekday names and a five-day forecast are installed; location still unset on the handset.",
+          ref: "docs/shell-controls-20260918.md" },
         { n: "New Wi-Fi network entry (password)", s: "partial",
           note: "Saved-network activation and HTTPS verified; entering a password for a new network is untested.",
           ref: "docs/notification-shade-20260918.md" },
-        { n: "Copy / paste and touch text selection", s: "no",
-          note: "Selection handles, highlight and context menus. This blocks almost every real text task, "
-              + "including coding on the phone.", ref: "docs/mobile-roadmap.md" },
+        { n: "Copy / paste and touch text selection", s: "partial",
+          note: "Shell text fields long-press to select, with handles and Copy/Paste/All. Password fields do not "
+              + "copy. Kitty long-press selection is in the touch patch but needs a glfw rebuild. Chromium "
+              + "selection is unchanged. Desktop sync is not enabled.",
+          ref: "docs/settings-clipboard-20260919.md" },
         { n: "Touch window resize / move", s: "no", note: "Not implemented." },
         { n: "Auto-rotate", s: "no", note: "Depends on the accelerometer and a sensor service; nothing yet." },
         { n: "Lock screen, PIN / biometric unlock", s: "no", note: "Not implemented.",
@@ -70,19 +83,25 @@ PAGE_SOFTWARE = {
           title: "Working today",
           items: [
             { n: "Theme selection (Omarchy palettes)", s: "ok",
-              note: "Standard Omarchy theme colours apply across the shell, Kitty and keyboard.",
+              note: "Standard Omarchy theme colours apply across the shell, Kitty and keyboard. A theme picked in "
+                  + "Settings reaches the shell at once (it watches the palette file); changes made outside the "
+                  + "shell are picked up within 30 s.",
               ref: "docs/mobile-architecture.md" },
             { n: "Wallpaper preview, cycling and per-theme choice", s: "ok",
               note: "92 stock images; the chosen wallpaper survives shell restart.",
               ref: "docs/wallpaper-switching-20260917.md" },
-            { n: "Font handling", s: "ok", note: "JetBrainsMono Nerd Font installed for shell, Kitty and keyboard.",
-              ref: "docs/notification-shade-20260918.md" },
+            { n: "Font handling", s: "ok",
+              note: "JetBrainsMono Nerd Font is the default; Appearance in Settings can pick another installed family.",
+              ref: "docs/settings-clipboard-20260919.md" },
             { n: "Battery detail view", s: "ok",
               note: "Percentage, charge/current direction, voltage and temperature distinguished from input "
                   + "current.", ref: "docs/notification-shade-20260918.md" },
             { n: "Volume UI and output routing", s: "partial",
-              note: "Themed volume OSD and media-key bindings are installed; per-device routing does not exist "
-                  + "and the audible result is unconfirmed.", ref: "docs/audio-bringup-20260918.md" },
+              note: "Android-style panel: the keys change media volume, and an expand button reveals "
+                  + "notification, alarm and call volumes as draggable sliders; a tap outside closes it. "
+                  + "Connected Bluetooth headphones take over the output with their own volume, which their "
+                  + "buttons also drive; the speaker level returns when they leave. No manual output picker.",
+              ref: "docs/bluetooth-20260922.md" },
             { n: "Choices survive reboot", s: "partial",
               note: "Keyboard, audio and desktop auto-start after reboot is verified; the shade's session-bus "
                   + "startup after reboot is not yet tested.", ref: "docs/status.md" }
@@ -90,54 +109,66 @@ PAGE_SOFTWARE = {
         },
         {
           title: "Settings app (to build)",
-          note: "There is no settings application at all today — the rows below are the panels it needs, "
-              + "marked against whatever partial surface already exists elsewhere.",
+          note: "Settings exists as a themed app. Rows below are remaining panels.",
           items: [
-            { n: "Settings application", s: "no",
-              note: "A first-class Omarchy Mobile app: searchable panels, touch-first, themed by the running "
-                  + "theme, and readable by the agent.", ref: "docs/mobile-roadmap.md" },
+            { n: "Settings application", s: "partial",
+              note: "Appearance, Network/Wi-Fi, Sound, Battery, About, clipboard and DND. Shade still has the "
+                  + "quick toggles. Searchable panels are still ahead.",
+              ref: "docs/settings-panels-20260919.md" },
             { n: "Panel — Network & Wi-Fi", s: "partial",
-              note: "Scan, connect and details exist inside the notification shade; no real settings surface.",
-              ref: "docs/notification-shade-20260918.md" },
-            { n: "Panel — Display & brightness", s: "no", note: "Nothing to configure until brightness control "
-                  + "exists on the hardware side." },
+              note: "Settings Wi-Fi page plus shade picker. Static DNS and forget are installed. Cellular/VPN/"
+                  + "hotspot are not. Speed test is HTTP throughput to Cloudflare.",
+              ref: "docs/network-speedtest-20260919.md" },
+            { n: "Panel — Display & brightness", s: "partial",
+              note: "Settings Display shows the monitor mode. Brightness is read when a backlight exists and is "
+                  + "not changed. Corners are toggled from Appearance.",
+              ref: "docs/mobile-architecture.md" },
             { n: "Panel — Sound & output routing", s: "partial",
-              note: "Volume OSD only. No device picker, no per-app routing, no call-audio settings.",
-              ref: "docs/audio-bringup-20260918.md" },
+              note: "Settings Sound and the OSD share the PipeWire volume helper. The OSD's four volume groups "
+                  + "are not in Settings yet; no device picker or per-app routing.",
+              ref: "docs/settings-panels-20260919.md" },
             { n: "Panel — Battery & charging", s: "partial",
-              note: "Read-only metrics exist. Charge policy is fixed at boot and not user-settable.",
-              ref: "docs/charging-20260917.md" },
-            { n: "Panel — Appearance & theme", s: "partial",
-              note: "Theme and wallpaper selection work from the shell; no settings surface, no font picker.",
-              ref: "docs/mobile-roadmap.md" },
-            { n: "Panel — Bluetooth & devices", s: "no", note: "Nothing to manage until Bluetooth comes up." },
+              note: "Settings Battery shows the same sysfs metrics as the shade. Charge policy is not user-settable.",
+              ref: "docs/settings-panels-20260919.md" },
+            { n: "Panel — Appearance & theme", s: "ok",
+              note: "Theme, wallpaper and font live in the Settings app.",
+              ref: "docs/settings-clipboard-20260919.md" },
+            { n: "Panel — Bluetooth & devices", s: "partial",
+              note: "Settings Bluetooth powers the radio, scans, pairs, connects, disconnects and forgets; "
+                  + "headphones pair and play. Devices that ask for a PIN (most keyboards) cannot pair yet.",
+              ref: "docs/bluetooth-20260922.md" },
             { n: "Panel — SIM & cellular", s: "no", note: "Blocked behind modem bring-up.",
               ref: "docs/modem-foundations-20260917.md" },
             { n: "Panel — Security, lock screen & fingerprint", s: "no",
               note: "Covers credential enrollment and the fingerprint reader, neither of which is enabled.",
               ref: "docs/mobile-roadmap.md" },
-            { n: "Panel — Apps & permissions", s: "no",
-              note: "Needs the app framework's manifest and permission model to have anything to show.",
-              ref: "docs/mobile-roadmap.md" },
-            { n: "Panel — Storage", s: "no", note: "Not started." },
+            { n: "Panel — Apps & permissions", s: "partial",
+              note: "Settings Apps lists installed mobile apps and can revoke a granted permission. There is "
+                  + "still no process sandbox.",
+              ref: "docs/mobile-architecture.md" },
+            { n: "Panel — Storage", s: "partial",
+              note: "Settings Storage shows free and used space. Deleting files is done in the Files app.",
+              ref: "docs/settings-panels-20260919.md" },
             { n: "Panel — Location & sensors", s: "no",
               note: "Sensor permissions for apps, GPS toggles, calibration state.", ref: "docs/pathway.md" },
             { n: "Panel — Accessibility", s: "no",
               note: "Text size, contrast, screen reader hooks. Cheap to design in early, expensive to bolt on "
                   + "later.", ref: "docs/mobile-roadmap.md" },
-            { n: "Panel — About, updates & recovery", s: "no",
-              note: "Device identity, build/kernel info, checkpoint and rollback entry points.",
-              ref: "docs/backup.md" }
+            { n: "Panel — About, updates & recovery", s: "partial",
+              note: "Settings About shows hostname, OS, kernel, slot and latest installer backup, with a copyable "
+                  + "report. Updates and rollback UI are not started.",
+              ref: "docs/settings-panels-20260919.md" }
           ]
         },
         {
           title: "Preferences plumbing",
           items: [
-            { n: "Unified persistent preferences surface", s: "no",
-              note: "Today preferences are scattered opt-in markers (weather, audio autostart, per-theme "
-                  + "wallpaper). Needs one store both shell and apps read.", ref: "docs/mobile-roadmap.md" },
-            { n: "Themed font picker", s: "no",
-              note: "On the roadmap; the font is fixed by hand today.", ref: "docs/mobile-roadmap.md" },
+            { n: "Unified persistent preferences surface", s: "partial",
+              note: "dnd and fontFamily share prefs.json; weather, wallpaper and audio autostart are still "
+                  + "separate files.", ref: "docs/settings-clipboard-20260919.md" },
+            { n: "Themed font picker", s: "ok",
+              note: "Settings → Appearance lists installed families and applies them through the theme helper.",
+              ref: "docs/settings-clipboard-20260919.md" },
             { n: "Full Omarchy theme-repository install", s: "no",
               note: "The bundled theme set works; installing upstream themes as a set is still future work.",
               ref: "docs/mobile-architecture.md" },
@@ -160,8 +191,9 @@ PAGE_SOFTWARE = {
           title: "Running today",
           items: [
             { n: "Kitty terminal", s: "ok",
-              note: "Native Wayland, opt-in touch-scroll patch, Nerd Font, Omarchy-branded Fastfetch.",
-              ref: "docs/mobile-work-20260917.md" },
+              note: "Native Wayland, opt-in touch scroll and long-press word/drag selection, copy-on-select, "
+                  + "Nerd Font, Omarchy-branded Fastfetch. Rebuild is v0.48.2-matched; a package upgrade replaces it.",
+              ref: "overlay/mobile/kitty-touch/README.md" },
             { n: "Chromium (stock, native Wayland)", s: "ok",
               note: "Sandbox enabled, running in its own restricted mobile-browser account.",
               ref: "docs/keyboard-browser-20260918.md" },
@@ -191,18 +223,20 @@ PAGE_SOFTWARE = {
             { n: "Gallery / photo viewer", s: "no",
               note: "Blocked behind the camera pipeline for capture, but a viewer over existing files is "
                   + "independent work.", ref: "docs/pathway.md" },
-            { n: "File manager", s: "no",
-              note: "Touch-first browsing, storage locations, share sheet. Also the escape hatch when an agent "
-                  + "moves something on disk.", ref: "docs/mobile-roadmap.md" },
+            { n: "File manager", s: "partial",
+              note: "Files browses, opens, creates and deletes inside the home folder after the user grants "
+                  + "files.home. It does not see the rest of the system, and there is no share sheet.",
+              ref: "docs/mobile-architecture.md" },
             { n: "Calendar", s: "no",
               note: "The shade already renders calendar data; no app, no account sync.",
               ref: "docs/notification-shade-20260918.md" },
             { n: "Weather", s: "partial",
               note: "A tile exists in the shade; a real app with locations and a forecast view does not.",
               ref: "docs/notification-shade-20260918.md" },
-            { n: "Camera", s: "no", note: "Blocked behind sensors + ISP bring-up.", ref: "docs/pathway.md" },
-            { n: "Settings application", s: "no", note: "See the Settings & configuration section.",
-              ref: "docs/mobile-roadmap.md" },
+            { n: "Camera", s: "no", note: "libcamera delivers processed 30 fps frames from the main camera and "
+                + "focus works; no camera app yet, and colour is uncalibrated.", ref: "docs/camera-20260922.md" },
+            { n: "Settings application", s: "partial", note: "See the Settings & configuration section.",
+              ref: "docs/settings-clipboard-20260919.md" },
             { n: "Further stock apps (TBD)", s: "no",
               note: "Calculator, notes, tasks, email, music… deliberately unlisted until we decide. Each one "
                   + "should be a framework exercise, not a one-off.", ref: "docs/mobile-roadmap.md" }
@@ -214,22 +248,26 @@ PAGE_SOFTWARE = {
               + "Mobile apps inherit theme, colour, font, density and touch behaviour from the base OS instead "
               + "of re-implementing them.",
           items: [
-            { n: "Framework core (shared runtime for mobile apps)", s: "no",
-              note: "Undecided stack. Quickshell/QML is already the shell's language, which makes it the obvious "
-                  + "starting point, but it is not chosen yet.", ref: "docs/mobile-architecture.md" },
+            { n: "Framework core (shared runtime for mobile apps)", s: "partial",
+              note: "OmarchyMobile supplies theme and widgets. A new app is a manifest plus an AppWindow. "
+                  + "There is no sandbox or SDK package yet.",
+              ref: "docs/mobile-architecture.md" },
             { n: "Theme inheritance from the OS", s: "partial",
-              note: "The shell reads Omarchy palettes and wallpapers, and the mobile theme layer exists — but it "
-                  + "is shell-internal, not something an app can inherit.",
-              ref: "overlay/mobile/MobileTheme.qml" },
-            { n: "Common touch widgets & layout kit", s: "no",
-              note: "Lists, sheets, pickers, handles, toolbars, keyboard-aware layout, hit targets. Building it "
-                  + "once is the only way eleven apps feel like one phone.", ref: "docs/mobile-roadmap.md" },
-            { n: "App manifest, launcher & lifecycle integration", s: "no",
-              note: "Icons, categories, single-instance rules, how an app appears in the drawer and overview, "
-                  + "suspend/resume expectations.", ref: "docs/mobile-architecture.md" },
-            { n: "Permissions & sandbox model", s: "no",
-              note: "What an app may touch: contacts, location, camera, files, notifications, and which of those "
-                  + "an agent may act on for the user.", ref: "docs/mobile-roadmap.md" },
+              note: "The kit exposes MobileTheme from Omarchy palettes. Settings and Files inherit it through AppWindow.",
+              ref: "overlay/mobile/kit/qmldir" },
+            { n: "Common touch widgets & layout kit", s: "partial",
+              note: "TouchButton, text field, page header, settings row and appearance page are shared. Lists, "
+                  + "sheets and selection handles are still ahead.",
+              ref: "docs/settings-clipboard-20260919.md" },
+            { n: "App manifest, launcher & lifecycle integration", s: "partial",
+              note: "omarchy-mobile-app reads a manifest, launches one window, and replaces that window if it is "
+                  + "opened again. Suspend and resume rules are not defined.",
+              ref: "docs/mobile-architecture.md" },
+            { n: "Permissions & sandbox model", s: "partial",
+              note: "An app declares permissions from a fixed list and the user grants them on first launch. "
+                  + "The file helper enforces files.home. There is no process sandbox, and contacts, location, "
+                  + "camera and notifications are not in the list yet.",
+              ref: "docs/mobile-architecture.md" },
             { n: "Public SDK, docs and examples", s: "no",
               note: "The point of the framework: other people building Omarchy Mobile apps without asking us.",
               ref: "docs/mobile-roadmap.md" },
@@ -247,9 +285,9 @@ PAGE_SOFTWARE = {
               ref: "docs/keyboard-browser-20260918.md" },
             { n: "In-browser touch text selection & paste", s: "no",
               note: "Depends on the same selection work as the shell.", ref: "docs/mobile-roadmap.md" },
-            { n: "Browser audio", s: "no",
-              note: "YouTube playback reported inaudible — needs a live stream capture to separate routing, "
-                  + "attenuation and connection causes.", ref: "docs/next-session.md" },
+            { n: "Browser audio", s: "ok",
+              note: "YouTube in Chromium plays clean and audible through the media volume group. Loudness stays "
+                  + "below the speaker safety cap.", ref: "docs/speakers-20260922.md" },
             { n: "Smooth web video playback", s: "no",
               note: "Streaming reported choppy; decode path (Venus vs CPU vs GPU) diagnosed separately.",
               ref: "docs/next-session.md" }

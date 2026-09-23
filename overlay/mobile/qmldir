@@ -20,6 +20,7 @@ NotificationShade 1.0 NotificationShade.qml
 TouchTextField 1.0 TouchTextField.qml
 KeyboardDismiss 1.0 KeyboardDismiss.qml
 VolumeOsd 1.0 VolumeOsd.qml
+VolumeGroupSlider 1.0 VolumeGroupSlider.qml
 QuickToggle 1.0 QuickToggle.qml
 StatsStatus 1.0 StatsStatus.qml
 NotificationGroups 1.0 NotificationGroups.qml

@@ -7,7 +7,7 @@ Rectangle {
     property int textSize: 16
     signal clicked()
     implicitHeight: 56
-    radius: 12
+    radius: MobileTheme.radius(12)
     color: tap.pressed ? MobileTheme.muted : selected ? MobileTheme.selection : MobileTheme.surface
     border.width: selected ? 1 : 0
     border.color: MobileTheme.accent

@@ -1,0 +1,68 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * WCN3990 Bluetooth on UART13 (QUP2 SE3, GPIO 43-46), applied at runtime.
+ * The stock OOS12 DTBO node is byte-identical to the 7T Pro's; this follows
+ * the 7T Pro's working mainline node (hotdog r181 patches 0025/0026), which
+ * also matches the Pixel 4 (sm8150-google-flame.dts). QUP2 is already enabled
+ * and bound for its I2C bus, so only the serial engine is switched on.
+ * The supplies are the four rails Wi-Fi already uses; there is no enable GPIO.
+ *
+ * No RX wake IRQ (the 7T Pro's interrupts-extended with tlmm 46): on 6.17 it
+ * self-deadlocks. The wake IRQ thread runtime-resumes the UART, the resume
+ * muxes GPIO 46 from the sleep state's "gpio" function back to qup13, and
+ * msm_pinmux_set_mux() then calls disable_irq() on that same IRQ, which waits
+ * for its own thread forever (out/bluetooth/first-load-20260922.log). Waking
+ * the phone from suspend on Bluetooth traffic needs another way.
+ */
+/dts-v1/;
+/plugin/;
+
+&tlmm {
+	qup_uart13_sleep: qup-uart13-sleep-state {
+		pinmux {
+			pins = "gpio43", "gpio44", "gpio45", "gpio46";
+			function = "gpio";
+		};
+
+		cts-pins {
+			pins = "gpio43";
+			drive-strength = <2>;
+			bias-disable;
+		};
+
+		rts-pins {
+			pins = "gpio44";
+			drive-strength = <2>;
+			bias-pull-down;
+		};
+
+		tx-pins {
+			pins = "gpio45";
+			drive-strength = <2>;
+			bias-pull-up;
+		};
+
+		rx-pins {
+			pins = "gpio46";
+			drive-strength = <2>;
+			bias-disable;
+		};
+	};
+};
+
+&uart13 {
+	status = "okay";
+	pinctrl-names = "default", "sleep";
+	pinctrl-1 = <&qup_uart13_sleep>;
+
+	bluetooth {
+		compatible = "qcom,wcn3990-bt";
+		/* The ROM version derives to crbtfw01/crnv01, which do not exist. */
+		firmware-name = "crnv21.bin", "crbtfw21.tlv";
+		vddio-supply = <&vreg_l1a_0p75>;
+		vddxo-supply = <&vreg_l7a_1p8>;
+		vddrf-supply = <&vreg_l2c_1p3>;
+		vddch0-supply = <&vreg_l11c_3p3>;
+		max-speed = <3200000>;
+	};
+};

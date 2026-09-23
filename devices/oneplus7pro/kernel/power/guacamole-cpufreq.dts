@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * CPU frequency scaling: the OSM hardware (qcom-cpufreq-hw, built in) with
+ * three frequency domains, already referenced by every CPU node. The minimal
+ * bring-up disabled it with many other blocks, and no failure was recorded
+ * against it. Its policies also give the CPU thermal zones their cooling
+ * devices. Applied at runtime; reboot to remove.
+ */
+/dts-v1/;
+/plugin/;
+
+&cpufreq_hw {
+	status = "okay";
+};

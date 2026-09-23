@@ -1,0 +1,7 @@
+{
+  "id": "files",
+  "name": "Files",
+  "comment": "Browse and open files in the home folder",
+  "icon": "system-file-manager",
+  "permissions": ["files.home"]
+}

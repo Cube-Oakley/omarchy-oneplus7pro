@@ -27,21 +27,28 @@ cd "$BASE"
 sha256sum -c AUDIO-SHA256SUMS >/dev/null
 [[ -d /sys/module/guacamole_volume_keys ]] || insmod ./guacamole_volume_keys.ko
 bash ./phone-audio-test.sh speakers
-pcm=$(python3 - <<'PY'
+frontend() {
+    python3 - "$1" "$2" <<'PY'
 from pathlib import Path
 import re
+import sys
+name, direction = sys.argv[1:]
 matches=[]
 for line in Path('/proc/asound/pcm').read_text().splitlines():
-    match=re.match(r'(\d+)-(\d+): MultiMedia1 .*playback', line)
+    match=re.match(rf'(\d+)-(\d+): {name} .*{direction}', line)
     if match and Path(f'/proc/asound/card{int(match[1])}/id').read_text().strip() == 'Pro':
         matches.append(str(int(match[2])))
-assert len(matches)==1, 'Expected exactly one verified playback frontend'
+assert len(matches)==1, f'Expected exactly one verified {direction} frontend'
 print(matches[0])
 PY
-)
+}
+pcm=$(frontend MultiMedia1 playback)
+mic=$(frontend MultiMedia2 capture)
 mkdir -p /etc/alsa/conf.d
 sed "s/@PCM_DEVICE@/$pcm/g" "$BASE/config/alsa-quiet.conf" > /etc/alsa/conf.d/99-guacamole-quiet.conf.tmp
 mv /etc/alsa/conf.d/99-guacamole-quiet.conf.tmp /etc/alsa/conf.d/99-guacamole-quiet.conf
+sed "s/@CAPTURE_DEVICE@/$mic/g" "$BASE/config/alsa-mic.conf" > /etc/alsa/conf.d/99-guacamole-mic.conf.tmp
+mv /etc/alsa/conf.d/99-guacamole-mic.conf.tmp /etc/alsa/conf.d/99-guacamole-mic.conf
 # Never adopt or kill an unrelated existing audio server.
 if pgrep -u 0 -x 'pipewire|pipewire-pulse|wireplumber' >/dev/null; then
     echo 'An audio server already exists; leaving it in place.'
@@ -49,12 +56,23 @@ if pgrep -u 0 -x 'pipewire|pipewire-pulse|wireplumber' >/dev/null; then
 fi
 amixer -q -c Pro cset name='Earpiece Mode' Speaker
 amixer -q -c Pro cset name='QUAT_MI2S_RX Audio Mixer MultiMedia1' 1
+# Stock handset-mic path: AMIC4 (MIC BIAS1) -> ADC4 -> DEC0 -> SLIM TX0.
+# DAPM powers the bias and ADC only while the capture PCM is open.
+amixer -q -c Pro cset name='AMIC4_5 SEL' AMIC4
+amixer -q -c Pro cset name='ADC MUX0' AMIC
+amixer -q -c Pro cset name='AMIC MUX0' ADC4
+amixer -q -c Pro cset name='ADC4 Volume' 12
+amixer -q -c Pro cset name='DEC0 Volume' 88
+amixer -q -c Pro cset name='CDC_IF TX0 MUX' DEC0
+amixer -q -c Pro cset name='AIF1_CAP Mixer SLIM TX0' 1
+amixer -q -c Pro cset name='MultiMedia2 Mixer SLIMBUS_0_TX' 1
 children=()
 cleanup() {
     trap - EXIT INT TERM
     for pid in "${children[@]}"; do kill "$pid" 2>/dev/null || true; done
     for pid in "${children[@]}"; do wait "$pid" 2>/dev/null || true; done
     amixer -q -c Pro cset name='QUAT_MI2S_RX Audio Mixer MultiMedia1' 0 || true
+    amixer -q -c Pro cset name='MultiMedia2 Mixer SLIMBUS_0_TX' 0 || true
 }
 trap cleanup EXIT
 trap 'exit 0' INT TERM
@@ -69,7 +87,7 @@ for attempt in $(seq 1 20); do
 done
 wpctl get-volume @DEFAULT_AUDIO_SINK@ | grep '^Volume:'
 for pid in "${children[@]}"; do kill -0 "$pid"; done
-echo 'AUDIO_READY: internal speakers, fixed -36 dB hardware-path attenuation'
+echo 'AUDIO_READY: internal speakers (processing sink, fixed per-speaker hardware-path cap) and microphone'
 wait -n "${children[@]}"
 echo 'An audio service exited; stopping its companion services.' >&2
 exit 1

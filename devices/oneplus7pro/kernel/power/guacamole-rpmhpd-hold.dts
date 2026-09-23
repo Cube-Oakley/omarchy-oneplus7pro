@@ -1,0 +1,24 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * One consumer of the voted RPMh power domains, for rpmhpd_hold.c. Until
+ * rpmhpd's sync_state runs, every domain is clamped to its highest corner;
+ * binding CAMCC (the last unsatisfied consumer) runs it, and releasing the
+ * modem's MSS hold that way failed suspend (docs/mss-handoff-test-20260917.md).
+ * Holding the domains that are voted before sync (MSS, MX, CX, MMCX; cmd-db
+ * corners 9, 7, 7 and 6) at the top level keeps the power state as it is.
+ * EBI, LMX, LCX and GFX carry no AP vote before sync, and a hold would only
+ * add one (the first trial pinned the GPU rail at its top corner).
+ */
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/power/qcom-rpmpd.h>
+
+&{/} {
+	rpmhpd-hold {
+		compatible = "oneplus,guacamole-rpmhpd-hold";
+		power-domains = <&rpmhpd SM8150_MSS>, <&rpmhpd SM8150_MX>,
+				<&rpmhpd SM8150_CX>, <&rpmhpd SM8150_MMCX>;
+		power-domain-names = "mss", "mx", "cx", "mmcx";
+	};
+};

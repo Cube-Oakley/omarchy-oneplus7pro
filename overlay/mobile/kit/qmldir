@@ -4,6 +4,9 @@ TouchButton 1.0 TouchButton.qml
 TouchTextField 1.0 TouchTextField.qml
 DetailRow 1.0 DetailRow.qml
 PageHeader 1.0 PageHeader.qml
+AppWindow 1.0 AppWindow.qml
+AppBack 1.0 AppBack.qml
+GrantPage 1.0 GrantPage.qml
 SettingsRow 1.0 SettingsRow.qml
 AppearancePage 1.0 AppearancePage.qml
 ThemeInstaller 1.0 ThemeInstaller.qml
@@ -15,3 +18,7 @@ SpeedTestView 1.0 SpeedTestView.qml
 SoundPage 1.0 SoundPage.qml
 BatteryPage 1.0 BatteryPage.qml
 AboutPage 1.0 AboutPage.qml
+BluetoothPage 1.0 BluetoothPage.qml
+DisplayPage 1.0 DisplayPage.qml
+StoragePage 1.0 StoragePage.qml
+AppsPage 1.0 AppsPage.qml

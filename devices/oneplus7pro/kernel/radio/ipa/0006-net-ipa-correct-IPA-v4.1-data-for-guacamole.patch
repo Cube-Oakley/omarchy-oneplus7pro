@@ -1,0 +1,63 @@
+Subject: [PATCH] net: ipa: correct IPA v4.1 data for guacamole
+
+Two values in 0001 differ from guacamole's downstream kernel
+(.work/lineage-kernel/src, 18857 DT and drivers/platform/msm/ipa/ipa_v3):
+
+- imem_addr: downstream ipa_smmu_ap maps the modem tables in IMEM at
+  0x146bd000 for 0x2000 (qcom,additional-mapping). 0001 used 0x146a8000,
+  the sc7180/IPA v4.2 value.
+- A fourth destination resource group: downstream programs
+  IPA_v4_0_DST_GROUP_MAX (4) groups for IPA_4_1, the fourth being
+  DATA_SECTORS {2,2} and DPS_DMARS {0,2}. With three declared, mainline
+  writes zero for it.
+
+Every other table in 0001 matches ipa_utils.c for IPA_4_1.
+
+---
+diff --git a/drivers/net/ipa/data/ipa_data-v4.1.c b/drivers/net/ipa/data/ipa_data-v4.1.c
+index 69ec371..dcc3529 100644
+--- a/drivers/net/ipa/data/ipa_data-v4.1.c
++++ b/drivers/net/ipa/data/ipa_data-v4.1.c
+@@ -39,6 +39,7 @@ enum ipa_rsrc_group_id {
+ 	IPA_RSRC_GROUP_DST_LWA_DL	= 0,
+ 	IPA_RSRC_GROUP_DST_UL_DL_DPL,
+ 	IPA_RSRC_GROUP_DST_UNUSED_2,
++	IPA_RSRC_GROUP_DST_UNUSED_3,
+ 	IPA_RSRC_GROUP_DST_COUNT,	/* Last; not a destination group */
+ };
+ 
+@@ -253,6 +254,12 @@ static const struct ipa_resource ipa_resource_dst[] = {
+ 		.limits[IPA_RSRC_GROUP_DST_UNUSED_2] = {
+ 			.min = 3,	.max = 3,
+ 		},
++		/* Downstream programs a fourth destination group for v4.1
++		 * (IPA_v4_0_DST_GROUP_MAX is 4); leaving it out zeroes it.
++		 */
++		.limits[IPA_RSRC_GROUP_DST_UNUSED_3] = {
++			.min = 2,	.max = 2,
++		},
+ 	},
+ 	[IPA_RESOURCE_TYPE_DST_DPS_DMARS] = {
+ 		.limits[IPA_RSRC_GROUP_DST_LWA_DL] = {
+@@ -264,6 +271,9 @@ static const struct ipa_resource ipa_resource_dst[] = {
+ 		.limits[IPA_RSRC_GROUP_DST_UNUSED_2] = {
+ 			.min = 1,	.max = 2,
+ 		},
++		.limits[IPA_RSRC_GROUP_DST_UNUSED_3] = {
++			.min = 0,	.max = 2,
++		},
+ 	},
+ };
+ 
+@@ -308,7 +318,10 @@ static const struct ipa_mem ipa_mem_local_data[] = {
+ static const struct ipa_mem_data ipa_mem_data = {
+ 	.local_count	= ARRAY_SIZE(ipa_mem_local_data),
+ 	.local		= ipa_mem_local_data,
+-	.imem_addr	= 0x146a8000,
++	/* Downstream maps the modem's tables in IMEM at 0x146bd000 for 8 KiB
++	 * (ipa_smmu_ap qcom,additional-mapping), as mainline does for sdm845.
++	 */
++	.imem_addr	= 0x146bd000,
+ 	.imem_size	= 0x00002000,
+ 	.smem_size	= 0x00002000,
+ };

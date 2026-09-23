@@ -58,9 +58,9 @@ an explicit `id` if you need a stable anchor.
 
 ## Rules for these pages
 
-1. `ok` requires the physical, user-visible result — not a successful probe. Audio is
-   the standing example: codec, amps and PipeWire all run, and it is still `partial`
-   because nobody has independently heard it.
+1. `ok` requires the physical, user-visible result — not a successful probe. Cellular
+   is the standing example: the modem answers QMI and the data interface appears, and
+   it is still `partial` because nothing has registered, called or moved data.
 2. Rows are either a component that exists in the handset, or work already written up
    in `docs/mobile-roadmap.md` / `docs/pathway.md`. Aspirational rows are allowed
    (touch apps, the app framework, the agent layer) but they are `no` or `partial`

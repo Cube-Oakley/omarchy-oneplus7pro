@@ -1,0 +1,29 @@
+ASoC: sm8150: map the ports of every SLIMbus link
+
+The slim_port_setup flag is per card but dai_init runs per link, so only the
+first SLIMbus back end got a channel map and AIF1_CAP opened no TX port.
+Map every link; keep the flag for the one-time jack registration. Same fix as
+the related-device reference patch 0045. Applies after sm8150-speakers.patch.
+
+--- a/sound/soc/qcom/sm8150.c
++++ b/sound/soc/qcom/sm8150.c
+@@ -263,7 +263,7 @@
+ 	switch (cpu_dai->id) {
+ 	case SLIMBUS_0_RX...SLIMBUS_6_TX:
+ 		/* setting up wcd multiple times for slim port is redundant */
+-		if (pdata->slim_port_setup || !link->no_pcm)
++		if (!link->no_pcm)
+ 			return 0;
+ 
+ 		for_each_rtd_codec_dais(rtd, i, codec_dai) {
+@@ -278,6 +278,10 @@
+ 			snd_soc_dai_set_sysclk(codec_dai, 0,
+ 					       WCD934X_DEFAULT_MCLK_RATE,
+ 					       SNDRV_PCM_STREAM_PLAYBACK);
++
++			/* Channel maps belong to each DAI; the jack belongs to the codec. */
++			if (pdata->slim_port_setup)
++				continue;
+ 
+ 			rval = snd_soc_component_set_jack(codec_dai->component,
+ 							  &pdata->jack, NULL);

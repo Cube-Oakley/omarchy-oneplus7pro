@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Portable NetworkManager status and explicit user-requested Wi-Fi actions."""
+import ipaddress
 import json
 import os
 import re
@@ -56,22 +57,130 @@ def networks(interface):
     return list(unique.values())
 
 
+def radio_enabled(text=None):
+    value = (nmcli('radio', 'wifi') if text is None else text).strip().split(':')[-1].strip().lower()
+    if value not in ('enabled', 'disabled'):
+        raise ValueError('Wi-Fi radio state unavailable')
+    return value == 'enabled'
+
+
+def empty_status(radio):
+    return dict(available=True, radio=radio, interface='', connected=False, connection='', uuid='',
+                ssid='', signal=None, ipv4=[], ipv6=[], gateway='', dns=[], dns_static=[],
+                dns_auto=True, ipv4_method='')
+
+
+def parse_dns(servers):
+    if servers is None:
+        return []
+    if isinstance(servers, str):
+        servers = servers.replace(',', ' ').split()
+    if not isinstance(servers, list):
+        raise ValueError('DNS servers must be a list')
+    cleaned = []
+    for value in servers:
+        if not isinstance(value, str):
+            raise ValueError('DNS server is not an address')
+        text = value.strip()
+        if not text:
+            continue
+        try:
+            ipaddress.ip_address(text)
+        except ValueError as error:
+            raise ValueError('DNS server is not an address') from error
+        cleaned.append(text)
+        if len(cleaned) > 4:
+            raise ValueError('At most four DNS servers')
+    return cleaned
+
+
+def connection_profile(name):
+    if not name:
+        return {}
+    text = nmcli('-f', 'connection.uuid,ipv4.method,ipv4.dns,ipv4.ignore-auto-dns,ipv6.method',
+                 'connection', 'show', name)
+    result = {}
+    for line in text.splitlines():
+        row = split_fields(line)
+        if len(row) >= 2:
+            result[row[0]] = ':'.join(row[1:])
+    dns = [part for part in result.get('ipv4.dns', '').replace(',', ' ').split() if part]
+    ignore = result.get('ipv4.ignore-auto-dns', '').lower() in ('yes', 'true', '1')
+    return {
+        'uuid': result.get('connection.uuid', ''),
+        'ipv4_method': result.get('ipv4.method', ''),
+        'dns_static': dns,
+        'dns_auto': not ignore,
+    }
+
+
+def wifi_uuids():
+    rows = []
+    for line in nmcli('-f', 'UUID,TYPE,NAME', 'connection', 'show').splitlines():
+        row = split_fields(line)
+        if len(row) >= 2 and row[1] == '802-11-wireless':
+            rows.append(row[0])
+    return rows
+
+
 def status():
+    try:
+        radio = radio_enabled()
+    except (OSError, ValueError, subprocess.SubprocessError):
+        radio = True
     devices = interfaces()
-    if not devices: return {'available': False}
+    if not devices:
+        status = empty_status(radio)
+        if not radio:
+            return status
+        status['available'] = False
+        return status
     states = [(i, detail(i)) for i in devices]
     interface, info = next(((i, d) for i, d in states if d.get('GENERAL.STATE', '').startswith('100')),
                            states[0])
     connected = info.get('GENERAL.STATE', '').startswith('100')
     active = next((r for r in networks(interface) if r['active']), {}) if connected else {}
     values = lambda prefix: [v for k,v in info.items() if k.startswith(prefix) and v]
-    return dict(available=True, interface=interface, connected=connected,
-                connection=info.get('GENERAL.CONNECTION', ''), ssid=active.get('ssid', ''),
-                signal=active.get('signal'), ipv4=values('IP4.ADDRESS'), ipv6=values('IP6.ADDRESS'),
-                gateway=info.get('IP4.GATEWAY', ''), dns=values('IP4.DNS') + values('IP6.DNS'))
+    connection = info.get('GENERAL.CONNECTION', '')
+    profile = connection_profile(connection) if connected else {}
+    return dict(available=True, radio=radio, interface=interface, connected=connected,
+                connection=connection, uuid=profile.get('uuid', ''),
+                ssid=active.get('ssid', ''), signal=active.get('signal'),
+                ipv4=values('IP4.ADDRESS'), ipv6=values('IP6.ADDRESS'),
+                gateway=info.get('IP4.GATEWAY', ''), dns=values('IP4.DNS') + values('IP6.DNS'),
+                dns_static=profile.get('dns_static', []), dns_auto=profile.get('dns_auto', True),
+                ipv4_method=profile.get('ipv4_method', ''))
 
 
 def action(name, request):
+    if name == 'radio':
+        if request.get('enabled') is True:
+            nmcli('radio', 'wifi', 'on', wait=10)
+        elif request.get('enabled') is False:
+            nmcli('radio', 'wifi', 'off', wait=10)
+        else:
+            raise ValueError('Wi-Fi radio request invalid')
+        return {'ok': True}
+    if name in ('dns', 'forget'):
+        uuid = request.get('uuid', '')
+        if uuid not in wifi_uuids():
+            raise ValueError('Wi-Fi connection unavailable')
+        if name == 'forget':
+            nmcli('connection', 'delete', uuid, wait=10)
+            return {'ok': True}
+        auto = request.get('auto')
+        if auto is True:
+            nmcli('connection', 'modify', uuid, 'ipv4.dns', '', 'ipv4.ignore-auto-dns', 'no', wait=10)
+        elif auto is False:
+            servers = parse_dns(request.get('servers'))
+            if not servers:
+                raise ValueError('Enter at least one DNS server')
+            nmcli('connection', 'modify', uuid, 'ipv4.dns', ' '.join(servers),
+                  'ipv4.ignore-auto-dns', 'yes', wait=10)
+        else:
+            raise ValueError('DNS request invalid')
+        nmcli('connection', 'up', uuid, wait=20)
+        return {'ok': True}
     interface = request.get('interface', '')
     if interface not in interfaces(): raise ValueError('Wi-Fi interface unavailable')
     if name in ('scan', 'list'):

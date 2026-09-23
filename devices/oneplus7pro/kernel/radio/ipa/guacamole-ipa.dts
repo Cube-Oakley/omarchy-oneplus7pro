@@ -1,0 +1,89 @@
+/dts-v1/;
+/plugin/;
+
+/* IPA v4.1 for guacamole. Boot-DTB overlay (merged at image build, as with
+ * NATIVE_EXTRA_DTS); not a live overlay: the built-in smp2p-mpss driver reads
+ * its entries only at probe, and IPA needs the "ipa" entries below. Plain dtc
+ * input, so numbers carry their binding names in comments. Evidence and open
+ * items: README.md in this directory.
+ */
+
+/* IPA carveouts at the downstream OEM addresses (18857/sm8150-oem.dtsi
+ * pil_ipa_fw_region / pil_ipa_gsi_region). Both already lie inside the old
+ * cdsp_mem no-map span. The reserved union is unchanged: cdsp_mem stops where
+ * IPA begins, the rest of its old span and the old IPA spots stay no-map.
+ * CDSP is disabled; reconcile its OEM carveout (0x99700000) before enabling.
+ * The GPU carveout stays at its working address.
+ */
+&ipa_fw_mem { reg = <0 0x99500000 0 0x10000>; };
+&ipa_gsi_mem { reg = <0 0x99510000 0 0x5000>; };
+&cdsp_mem { reg = <0 0x98d00000 0 0x800000>; };
+
+&{/reserved-memory} {
+    #address-cells = <2>;
+    #size-cells = <2>;
+    ipa-legacy-hole@98b00000 {
+        reg = <0 0x98b00000 0 0x15000>;
+        no-map;
+    };
+    cdsp-legacy-tail@99515000 {
+        reg = <0 0x99515000 0 0xbeb000>;
+        no-map;
+    };
+};
+
+/* Downstream 18857/sm8150-smp2p.dtsi smp2p_ipa_1_out/in, entry "ipa". */
+&{/smp2p-mpss} {
+    ipa_smp2p_out: ipa-ap-to-modem {
+        qcom,entry-name = "ipa";
+        #qcom,smem-state-cells = <1>;
+    };
+    ipa_smp2p_in: ipa-modem-to-ap {
+        qcom,entry-name = "ipa";
+        interrupt-controller;
+        #interrupt-cells = <2>;
+    };
+};
+
+&{/soc@0} {
+    #address-cells = <2>;
+    #size-cells = <2>;
+    ipa@1e40000 {
+        compatible = "qcom,sm8150-ipa";
+        /* Downstream ipa_smmu_ap (AP) and ipa_smmu_uc (uC) stream IDs. */
+        iommus = <&apps_smmu 0x520 0x0>, <&apps_smmu 0x522 0x0>;
+        /* Downstream "ipa-base" 0x1e00000+0x34000 split the mainline way;
+         * GSI 0x1e04000 matches downstream "gsi-base".
+         */
+        reg = <0 0x01e40000 0 0x7000>,
+              <0 0x01e47000 0 0x4000>,
+              <0 0x01e04000 0 0x2c000>;
+        reg-names = "ipa-reg", "ipa-shared", "gsi";
+        /* GIC_SPI 311 EDGE_RISING (1), GIC_SPI 432 LEVEL_HIGH (4); smp2p
+         * bits 0 and 1 EDGE_RISING.
+         */
+        interrupts-extended = <&intc 0 311 1>,
+                              <&intc 0 432 4>,
+                              <&ipa_smp2p_in 0 1>,
+                              <&ipa_smp2p_in 1 1>;
+        interrupt-names = "ipa", "gsi", "ipa-clock-query", "ipa-setup-ready";
+        /* RPMH_IPA_CLK (12). */
+        clocks = <&rpmhcc 12>;
+        clock-names = "core";
+        /* MASTER_IPA (9) -> SLAVE_EBI_CH0 (1); MASTER_IPA -> SLAVE_OCIMEM (10);
+         * MASTER_AMPSS_M0 (0) -> SLAVE_IPA_CFG (21). Downstream msm-bus paths.
+         */
+        interconnects = <&aggre2_noc 9 0 &mc_virt 1 0>,
+                        <&aggre2_noc 9 0 &system_noc 10 0>,
+                        <&gem_noc 0 0 &config_noc 21 0>;
+        interconnect-names = "memory", "imem", "config";
+        qcom,qmp = <&aoss_qmp>;
+        qcom,smem-states = <&ipa_smp2p_out 0>, <&ipa_smp2p_out 1>;
+        qcom,smem-state-names = "ipa-clock-enabled-valid", "ipa-clock-enabled";
+        /* Stock loads ipa_fws from the AP (qcom,pil-tz-generic, PAS id 15). */
+        qcom,gsi-loader = "self";
+        memory-region = <&ipa_fw_mem>;
+        firmware-name = "qcom/sm8150/oneplus/guacamole/ipa_fws.mdt";
+        status = "okay";
+    };
+};

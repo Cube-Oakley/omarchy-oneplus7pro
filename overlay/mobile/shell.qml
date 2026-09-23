@@ -111,22 +111,19 @@ ShellRoot {
     function windowsOn(id) {
         return Hyprland.toplevels.values.filter(w => w.workspace && w.workspace.id === id);
     }
-    function settingsOnScreen() {
+    function foregroundApp() {
         const tops = Hyprland.toplevels.values;
         for (let i = 0; i < tops.length; i++) {
             const window = tops[i];
-            if (!window.workspace || window.workspace.id !== 1) continue;
-            const info = window.lastIpcObject;
-            const title = info && info.title ? info.title : (window.title || "");
-            if (title === "Settings") return true;
+            if (window.workspace && window.workspace.id === 1) return true;
         }
         return false;
     }
     function requestBack() {
         if (page !== "" || shade.opened) return;
-        if (!settingsOnScreen()) return;
-        const settings = Quickshell.env("HOME") + "/.config/quickshell/omarchy-mobile-settings/shell.qml";
-        Quickshell.execDetached(["quickshell", "ipc", "-n", "-p", settings, "call", "settings", "back"]);
+        if (!foregroundApp()) return;
+        const runtime = Quickshell.env("XDG_RUNTIME_DIR") || "/tmp";
+        Quickshell.execDetached(["sh", "-c", "mkdir -p \"$1\" && printf '%s\\n' \"$(date +%s%N)\" > \"$1/back\"", "omarchy-back", runtime + "/omarchy-mobile"]);
         console.log("MOBILE_BACK");
     }
     function beginDrawer(name) {
@@ -286,8 +283,10 @@ ShellRoot {
         lastDispatch = lines.join("; ");
         openLanded = false;
         openingCard = true;
-        overview.touchWindows(incoming);
+        // Expand first: touching reorders the cards, and a reorder outside an
+        // expand rebuilds every card, blanking their pictures mid-animation.
         overview.expandCard(id);
+        overview.touchWindows(incoming);
         focusRequest.command = ["hyprctl", "--batch", lastDispatch];
         focusRequest.running = true;
         console.log("MOBILE_OPEN " + id + " " + first);
@@ -489,7 +488,7 @@ ShellRoot {
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
         Rectangle {
-            anchors.fill: parent; anchors.margins: 2; radius: 10
+            anchors.fill: parent; anchors.margins: 2; radius: MobileTheme.radius(10)
             color: MobileTheme.background; opacity: 0.95
             Rectangle { anchors.centerIn: parent; width: 54; height: 3; radius: 2; color: MobileTheme.foreground; opacity: 0.6 }
         }
@@ -633,7 +632,7 @@ ShellRoot {
                     implicitHeight: visible ? 88 : 0
                     Text { font.family: MobileTheme.fontFamily; y: 0; text: "EXPLORE"; color: MobileTheme.accent; font.pixelSize: 11; font.letterSpacing: 2.4; font.bold: true }
                     Text { font.family: MobileTheme.fontFamily; y: 23; text: "Applications"; color: MobileTheme.foreground; font.pixelSize: 34; font.bold: true }
-                    TouchButton { anchors.right: parent.right; y: 21; implicitWidth: 48; implicitHeight: 48; radius: 24; label: "×"; textSize: 26; onClicked: root.closeDrawer() }
+                    TouchButton { anchors.right: parent.right; y: 21; implicitWidth: 48; implicitHeight: 48; radius: MobileTheme.radius(24); label: "×"; textSize: 26; onClicked: root.closeDrawer() }
                 }
                 WorkspaceOverview {
                     id: overview
@@ -641,6 +640,8 @@ ShellRoot {
                     visible: root.page === "spaces"
                     active: visible
                     openness: motion.progress
+                    captureScreen: drawer.screen
+                    warmPaused: root.page !== "" || shade.opened || launchZoom.t > 0.01 || crtPower.playing || crtPower.mode === "parked"
                     Layout.fillWidth: true
                     Layout.fillHeight: visible
                     onOpenGroup: id => root.openGroup(id)
@@ -673,7 +674,7 @@ ShellRoot {
                                     Layout.fillWidth: true; Layout.preferredWidth: 1; implicitHeight: 116
                                     Rectangle {
                                         id: appTile
-                                        anchors.horizontalCenter: parent.horizontalCenter; width: 70; height: 70; radius: 21; color: appTap.pressed ? MobileTheme.selection : MobileTheme.surface
+                                        anchors.horizontalCenter: parent.horizontalCenter; width: 70; height: 70; radius: MobileTheme.radius(21); color: appTap.pressed ? MobileTheme.selection : MobileTheme.surface
                                         Image { id: appIcon; anchors.centerIn: parent; width: 40; height: 40; source: modelData.icon ? Quickshell.iconPath(modelData.icon, true) : ""; fillMode: Image.PreserveAspectFit }
                                         Text { font.family: MobileTheme.fontFamily; anchors.centerIn: parent; visible: appIcon.status !== Image.Ready; text: modelData.name.substring(0, 1); color: MobileTheme.accent; font.pixelSize: 28; font.bold: true }
                                     }
@@ -777,7 +778,7 @@ ShellRoot {
                 y: launchZoom.iy + (launchZoom.tileY - launchZoom.iy) * launchZoom.t
                 width: launchZoom.iw + (launchZoom.tileW - launchZoom.iw) * launchZoom.t
                 height: launchZoom.ih + (launchZoom.tileH - launchZoom.ih) * launchZoom.t
-                radius: 21 + (8 - 21) * launchZoom.t
+                radius: MobileTheme.radius(21) + (MobileTheme.radius(8) - MobileTheme.radius(21)) * launchZoom.t
                 color: MobileTheme.surface
                 opacity: launchZoom.fade
                 Image {

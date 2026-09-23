@@ -1,7 +1,9 @@
 {
   "scale": 3,
+  "displayMode": "1440x3120@90",
   "keyboardHeight": 280,
   "keyboardLandscapeHeight": 200,
   "workspaceCount": 8,
-  "terminalShortcut": "SUPER + Q"
+  "terminalShortcut": "SUPER + Q",
+  "bluetoothStart": "/usr/local/sbin/guacamole-bluetooth-start"
 }

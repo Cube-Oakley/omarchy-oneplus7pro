@@ -34,6 +34,79 @@ Item {
         frontReady = true;
         previewReady();
     }
+    // A recent copy of the screen, refreshed every 0.7 s while an app is in
+    // front, nothing covers it and the phone is being touched. When a swipe starts, the front card crops
+    // its app out of this copy, so the card follows the finger from the first
+    // frame instead of waiting about 100 ms for a fresh copy of the window.
+    // It copies the screen rather than the window: closing a window during a
+    // copy kills the shell, and an app can close itself at any time.
+    property var captureScreen: null
+    property bool warmPaused: false
+    // Screen rectangle of each foreground window when the copy was taken.
+    property var warmRects: ({})
+    readonly property string foregroundKey: groupKey(Hyprland.toplevels.values.filter(window => window.workspace && window.workspace.id === 1))
+    function warmSoon() {
+        // Keep a window's copy only while it is still in front, where it was
+        // copied. Dropping them all on every close meant a quick reopen found
+        // no copy and paused again. Copies stop whenever something covers the
+        // app, so a kept copy never shows the shade or the switcher.
+        const kept = {};
+        Hyprland.toplevels.values.forEach(window => {
+            const address = String(window.address);
+            const rect = warmRects[address];
+            const info = window.lastIpcObject;
+            if (rect && window.workspace && window.workspace.id === 1 && info && info.at && info.size
+                    && info.at[0] === rect.x && info.at[1] === rect.y && info.size[0] === rect.width && info.size[1] === rect.height)
+                kept[address] = rect;
+        });
+        warmRects = kept;
+        // Let an app switch or launch animation finish first.
+        warmDelay.restart();
+    }
+    // Parking the app during a swipe changes the foreground too; the copy
+    // must survive that until the switcher closes.
+    onForegroundKeyChanged: if (!active) warmSoon()
+    onWarmPausedChanged: if (!warmPaused) warmSoon()
+    readonly property var warm: warmLoader.item
+    readonly property bool warmReady: warm !== null && warm.hasContent
+    // Created once the shell window exists. A capture view made during startup
+    // sets up its buffers without a window and can then never capture.
+    Loader {
+        id: warmLoader
+        active: false
+        sourceComponent: ScreencopyView {
+            width: overview.captureScreen ? overview.captureScreen.width : 0
+            height: overview.captureScreen ? overview.captureScreen.height : 0
+            captureSource: overview.captureScreen
+            live: false
+        }
+    }
+    Timer { interval: 1000; running: true; onTriggered: warmLoader.active = true }
+    // The copy is only drawn through the cards' crops. This keeps it hidden
+    // even when no card refers to it, such as after the last app closes.
+    ShaderEffectSource { visible: false; sourceItem: overview.warm; hideSource: true }
+    // Each copy wakes the GPU, so they stop 2 s after the last touch or key,
+    // with one final copy; reading a page costs nothing.
+    IdleMonitor {
+        id: inputIdle
+        timeout: 2
+        respectInhibitors: false
+        onIsIdleChanged: if (isIdle) overview.takeWarm()
+    }
+    readonly property bool warmWanted: warm !== null && !active && !warmPaused && captureScreen !== null && foregroundKey !== ""
+    function takeWarm() {
+        if (!warmWanted) return;
+        const rects = {};
+        Hyprland.toplevels.values.forEach(window => {
+            const info = window.lastIpcObject;
+            if (!window.workspace || window.workspace.id !== 1 || !info || !info.at || !info.size) return;
+            rects[String(window.address)] = Qt.rect(info.at[0], info.at[1], info.size[0], info.size[1]);
+        });
+        warmRects = rects;
+        warm.captureFrame();
+    }
+    Timer { id: warmDelay; interval: 350; onTriggered: overview.takeWarm() }
+    Timer { interval: 700; repeat: true; running: overview.warmWanted && !inputIdle.isIdle; onTriggered: overview.takeWarm() }
     property var cardsModel: []
     property string cardsKey: ""
     property var recent: []
@@ -179,6 +252,7 @@ Item {
         if (!active) return;
         if (orderDirty) syncCards();
         index = indexForWorkspace(1);
+        if (warmReady && Object.keys(warmRects).length > 0) noteReady();
         pending = index;
         offset = 0;
     }
@@ -350,6 +424,9 @@ Item {
                         height: parent.height
                         readonly property bool front: card.index === overview.index && !overview.expandingId
                         readonly property real pose: card.expanding ? overview.lift : (front && overview.present <= 1 ? (1 - overview.present) : 0)
+                        // A card tapped off to the side slides to the middle as it
+                        // grows, landing where its window will appear.
+                        x: card.expanding ? -((card.index - overview.index) * overview.step + overview.offset) * overview.lift : 0
                         y: card.swipeOffset + overview.tileNudge(pose)
                         transformOrigin: Item.Center
                         readonly property real sx: {
@@ -385,8 +462,8 @@ Item {
                     Rectangle {
                         anchors.fill: parent
                         radius: {
-                            const tileRadius = 8;
-                            const cardRadius = 22;
+                            const tileRadius = MobileTheme.radius(8);
+                            const cardRadius = MobileTheme.radius(22);
                             if (card.expanding) return cardRadius + (tileRadius - cardRadius) * overview.lift;
                             return tileRadius + (cardRadius - tileRadius) * Math.min(1, overview.present);
                         }
@@ -419,11 +496,31 @@ Item {
                                                 // Stop copying as soon as the card is dismissed.
                                                 // Closing the window while a capture is in flight
                                                 // kills the whole shell.
-                                                opacity: card.shown ? 1 : 0
-                                                readonly property bool copying: overview.active && !card.closing && window && window.wayland
+                                                // Until its own capture has held a frame for 64 ms this
+                                                // opening (the first is often black), the pane shows the
+                                                // screen copy when its window was in front for it.
+                                                readonly property var warmRect: window ? overview.warmRects[String(window.address)] : undefined
+                                                readonly property bool warmed: overview.warmReady && warmRect !== undefined
+                                                property bool fresh: false
+                                                opacity: card.shown && (fresh || !warmed) ? 1 : 0
+                                                // Every capture is a full-resolution copy of its window, so
+                                                // starting them all with the opening animation made it stutter.
+                                                // The current app's card starts at once, the others once the
+                                                // zoom-out has nearly landed; each stays latched for this
+                                                // opening so a partial drag back does not blank them.
+                                                readonly property bool open: overview.active && !card.closing && window && window.wayland
+                                                readonly property bool due: open && (card.index === overview.index || overview.openness > 0.9)
+                                                property bool started: false
+                                                onDueChanged: if (due) started = true
+                                                onOpenChanged: if (!open) { started = false; settled = false; fresh = false; }
+                                                readonly property bool copying: open && started
+                                                // Like Android's thumbnails, a card stops copying shortly after
+                                                // its first real frame and keeps it until the next opening.
+                                                property bool settled: false
                                                 captureSource: copying ? window.wayland : null
                                                 constraintSize: Qt.size(Math.max(1, parent.width), Math.max(1, parent.height))
-                                                live: copying
+                                                live: copying && !settled
+                                                Timer { id: settle; interval: 264; onTriggered: shot.settled = true }
                                                 function publish() {
                                                     if (!hasContent || card.shown) return;
                                                     card.shown = true;
@@ -431,9 +528,9 @@ Item {
                                                 }
                                                 // The first captured frame is often black. Keep it
                                                 // hidden until a later frame has replaced it.
-                                                Component.onCompleted: if (hasContent) reveal.restart()
-                                                onHasContentChanged: if (hasContent) reveal.restart()
-                                                Timer { id: reveal; interval: 64; onTriggered: shot.publish() }
+                                                Component.onCompleted: { if (due) started = true; if (hasContent) { reveal.restart(); settle.restart(); } }
+                                                onHasContentChanged: if (hasContent) { reveal.restart(); settle.restart(); } else fresh = false
+                                                Timer { id: reveal; interval: 64; onTriggered: { shot.fresh = true; shot.publish(); } }
                                                 Timer {
                                                     interval: 700
                                                     running: overview.active && !card.shown
@@ -442,6 +539,13 @@ Item {
                                                         if (card.index === overview.index) overview.noteReady();
                                                     }
                                                 }
+                                            }
+                                            ShaderEffectSource {
+                                                anchors.fill: parent
+                                                visible: shot.warmed && !shot.fresh
+                                                sourceItem: overview.warm
+                                                sourceRect: shot.warmed ? shot.warmRect : Qt.rect(0, 0, 0, 0)
+                                                hideSource: true
                                             }
                                         }
                                     }

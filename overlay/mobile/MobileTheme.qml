@@ -5,12 +5,29 @@ import Quickshell.Io
 
 Singleton {
     id: palette
-    readonly property string fontFamily: "JetBrainsMono Nerd Font"
+    readonly property string fontFamily: state.fontFamily || "JetBrainsMono Nerd Font"
     FileView {
         id: cachedTheme
         path: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/omarchy-mobile/palette.json"
         blockLoading: true
         printErrors: false
+        // A sync anywhere (this shell, Settings, an app) rewrites this file
+        // only when something changed, so watching it applies a theme at once.
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: {
+            try { palette.apply(JSON.parse(text())); }
+            catch (e) {}
+        }
+    }
+    // A new state object re-evaluates every themed binding in the shell, which
+    // dropped animation frames every few seconds; only real changes apply.
+    property string appliedJson: ""
+    function apply(next) {
+        const json = JSON.stringify(next);
+        if (json === appliedJson) return;
+        appliedJson = json;
+        state = next;
     }
     function initialState() {
         try { return JSON.parse(cachedTheme.text()); }
@@ -24,6 +41,10 @@ Singleton {
     readonly property color accent: state.colors.accent || "#7aa2f7"
     readonly property color selection: state.colors.selection || "#292e42"
     readonly property color muted: state.colors.muted || "#414868"
+    // Omarchy's corner choice. Square is the default; rounding above zero is round.
+    readonly property int cornerRadius: state.radius === undefined ? 0 : state.radius
+    readonly property bool square: state.corners ? state.corners === "square" : cornerRadius === 0
+    function radius(size) { return square ? 0 : size; }
     property string error: ""
     property string wallpaperError: ""
     property var pendingCommand: []
@@ -42,6 +63,9 @@ Singleton {
     function nextWallpaper() {
         request(["background", "next"]);
     }
+    function selectWallpaper(name) {
+        request(["background", "set", name]);
+    }
     function select(name) {
         request(["set", name]);
     }
@@ -58,12 +82,15 @@ Singleton {
                 console.warn(palette.error);
                 return;
             }
-            try { palette.state = JSON.parse(stdout.text); palette.error = ""; }
+            try { palette.apply(JSON.parse(stdout.text)); palette.error = ""; }
             catch (e) { palette.error = "Theme could not be loaded"; }
         }
     }
+    // Only catches changes made outside the shell, such as `omarchy theme set`
+    // in a terminal. Each sync costs about 0.2 CPU-s of Python in every shell
+    // instance, so it no longer runs every 3 s.
     Timer {
-        interval: 3000; running: true; repeat: true
+        interval: 30000; running: true; repeat: true
         onTriggered: if (!update.running) { update.command = [Quickshell.env("HOME") + "/.local/bin/omarchy-mobile-theme", "sync"]; update.running = true; }
     }
 }

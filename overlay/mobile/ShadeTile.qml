@@ -7,7 +7,7 @@ Rectangle {
     property bool highlight: false
     signal clicked()
     implicitHeight: 126
-    radius: 22
+    radius: MobileTheme.radius(22)
     color: tap.pressed ? MobileTheme.muted : highlight ? MobileTheme.selection : MobileTheme.surface
     border.width: highlight ? 1 : 0
     border.color: MobileTheme.accent

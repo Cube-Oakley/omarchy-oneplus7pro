@@ -7,17 +7,19 @@ Item {
     property var sampleCommand: []
     property var eventCommand: []
     property int pollInterval: 30000
+    // An inactive probe neither samples nor polls; it samples on activation.
+    property bool active: true
     property var state: ({ available: false })
     property bool pending: false
 
     function refresh() {
+        if (!active) return;
         if (sample.running) pending = true;
         else sample.running = true;
     }
     Process {
         id: sample
         command: probe.sampleCommand
-        running: true
         stdout: StdioCollector {}
         onExited: (code, status) => {
             try { probe.state = code === 0 ? JSON.parse(stdout.text) : { available: false }; }
@@ -31,16 +33,18 @@ Item {
     Process {
         id: events
         command: probe.eventCommand
-        running: true
+        running: probe.eventCommand.length > 0
         stdout: SplitParser {
             onRead: data => { if (data.trim().length) debounce.restart(); }
         }
-        onExited: retry.start()
+        onExited: if (probe.eventCommand.length > 0) retry.start()
     }
     Timer { id: debounce; interval: 150; onTriggered: probe.refresh() }
     Timer { id: retry; interval: 10000; onTriggered: events.running = true }
     Timer {
-        interval: probe.pollInterval; running: true; repeat: true
+        interval: probe.pollInterval; running: probe.active; repeat: true
         onTriggered: probe.refresh()
     }
+    onActiveChanged: refresh()
+    Component.onCompleted: refresh()
 }

@@ -42,8 +42,14 @@ case "${1:-}" in
     modem)
         # Verify partition identities before making private lookup links.
         mkdir -p "$BASE/partitions" /var/lib/tqftpserv
-        for entry in modemst1:sdf2 modemst2:sdf3 fsg:sdf4 fsc:sdf5 oem_stanvbk:sda9 oem_dycnvbk:sda8; do
-            label=${entry%:*}; device=/dev/${entry#*:}
+        # UFS LUNs get their sdX names in probe-completion order, which changes
+        # between boots (#191's faster boot clocks moved LUN 5 from sdf to
+        # sde), so find each partition by its GPT name, which must be unique.
+        for label in modemst1 modemst2 fsg fsc oem_stanvbk oem_dycnvbk; do
+            matches=$(grep -lx "PARTNAME=$label" /sys/class/block/sd*/uevent || true)
+            [[ -n $matches && $(wc -l <<< "$matches") -eq 1 ]] ||
+                { echo "Expected exactly one partition named $label" >&2; exit 1; }
+            device=/dev/$(basename "$(dirname "$matches")")
             actual=$(blkid -p -s PART_ENTRY_NAME -o value "$device")
             [[ "$actual" == "$label" ]] || { echo "Unexpected label: $device" >&2; exit 1; }
             ln -sfn "$device" "$BASE/partitions/$label"

@@ -1,0 +1,23 @@
+/dts-v1/;
+/plugin/;
+#include <dt-bindings/sound/qcom,q6asm.h>
+
+/* Guacamole 18857 sm8150-oem.dtsi AMIC supply wiring. Pad names are not
+ * evidence of the physical microphone location; verify with real capture. */
+&sound {
+    audio-routing = "RX_BIAS", "MCLK",
+                    "AMIC1", "MIC BIAS1",
+                    "AMIC2", "MIC BIAS2",
+                    "AMIC3", "MIC BIAS4",
+                    "AMIC4", "MIC BIAS1",
+                    "AMIC5", "MIC BIAS1";
+    mm2-dai-link {
+        link-name = "MultiMedia2";
+        cpu { sound-dai = <&q6asmdai MSM_FRONTEND_DAI_MULTIMEDIA2>; };
+    };
+};
+&q6asmdai {
+    #address-cells = <1>;
+    #size-cells = <0>;
+    dai@1 { reg = <MSM_FRONTEND_DAI_MULTIMEDIA2>; };
+};

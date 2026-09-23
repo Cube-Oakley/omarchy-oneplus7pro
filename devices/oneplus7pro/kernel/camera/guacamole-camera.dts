@@ -1,0 +1,310 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Camera control interface CCI0, the camera subsystem, the PM8009 digital
+ * rails and the main rear camera (Sony IMX586), applied at runtime.
+ *
+ * Guacamole's stock (18821) camera tree is identical to the OnePlus 7T Pro's
+ * (19801) once phandles are resolved, so this follows the 7T Pro's working
+ * mainline nodes (hotdog r181: 0056, 0057, 0067/0075 interconnects, board
+ * camera section). The IMX586 wiring matches our stock sm8150-oem-camera-t0
+ * tree: CCI0 master 1 at 0x1a, CSIPHY1 as a 3-trio C-PHY, MCLK1 at 19.2 MHz,
+ * reset GPIO30, VANA switched by GPIO11 plus GPIO29 and PM8150L GPIO1, VDIG
+ * PM8009 LDO1 at 1.104 V, VIO PM8150L LDO1. The driver owns the power order
+ * (VANA, custom1, VDIG, custom2, VIO, MCLK, reset); on the 7T Pro, VDIG
+ * before VANA tripped the PMIC's undervoltage lockout.
+ *
+ * Focus: an LC898217XC at 0x72 on the same master (identified on this unit
+ * with guacamole-camera-lens-probe.dts; O-Film modules carry an AK7374
+ * instead), powered from BOB through the GPIO25 VAF switch. The sensor only
+ * completes once its lens has bound, so the lens driver loads first.
+ *
+ * Needs camcc bound first (with the RPMh hold: docs/camera-20260922.md).
+ * PM8009 LDO1/3/4 are new children of a bound regulator device; the loader
+ * rebinds it so they register.
+ */
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/clock/qcom,gcc-sm8150.h>
+#include <dt-bindings/clock/qcom,sm8150-camcc.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interconnect/qcom,sm8150.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/media/video-interfaces.h>
+#include <dt-bindings/regulator/qcom,rpmh-regulator.h>
+
+&tlmm {
+	cci0_default: cci0-default-state {
+		pins = "gpio17", "gpio18";
+		function = "cci_i2c";
+		drive-strength = <2>;
+		bias-pull-up;
+	};
+
+	cci0_sleep: cci0-sleep-state {
+		pins = "gpio17", "gpio18";
+		function = "cci_i2c";
+		drive-strength = <2>;
+		bias-pull-down;
+	};
+
+	cci1_default: cci1-default-state {
+		pins = "gpio19", "gpio20";
+		function = "cci_i2c";
+		drive-strength = <2>;
+		bias-pull-up;
+	};
+
+	cci1_sleep: cci1-sleep-state {
+		pins = "gpio19", "gpio20";
+		function = "cci_i2c";
+		drive-strength = <2>;
+		bias-pull-down;
+	};
+
+	cam_mclk1_default: cam-mclk1-default-state {
+		pins = "gpio14";
+		function = "cam_mclk";
+		drive-strength = <2>;
+		bias-disable;
+	};
+
+	cam0_vana_default: cam0-vana-default-state {
+		pins = "gpio11";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-disable;
+	};
+
+	cam0_custom1_default: cam0-custom1-default-state {
+		pins = "gpio29";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-disable;
+	};
+
+	cam0_reset_default: cam0-reset-default-state {
+		pins = "gpio30";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-disable;
+	};
+
+	cam0_vaf_default: cam0-vaf-default-state {
+		pins = "gpio25";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-disable;
+	};
+};
+
+&{/} {
+	vreg_cam0_vaf: regulator-cam0-vaf {
+		compatible = "regulator-fixed";
+		regulator-name = "cam0_vaf";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&tlmm 25 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		vin-supply = <&vreg_bob>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cam0_vaf_default>;
+	};
+};
+
+&pm8150l_gpios {
+	cam0_custom2_default: cam0-custom2-default-state {
+		pins = "gpio1";
+		function = "normal";
+		power-source = <0>;
+		output-low;
+		input-disable;
+	};
+};
+
+&{/soc@0/rsc@18200000/pm8009-rpmh-regulators} {
+	/* The IMX586 votes a 1.1 A load; without these the vote is ignored. */
+	vreg_l1f_1p1: ldo1 {
+		regulator-min-microvolt = <1104000>;
+		regulator-max-microvolt = <1104000>;
+		regulator-allow-set-load;
+		regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM RPMH_REGULATOR_MODE_HPM>;
+	};
+
+	vreg_l3f_1p05: ldo3 {
+		regulator-min-microvolt = <1056000>;
+		regulator-max-microvolt = <1056000>;
+	};
+
+	vreg_l4f_1p05: ldo4 {
+		regulator-min-microvolt = <1056000>;
+		regulator-max-microvolt = <1056000>;
+		regulator-allow-set-load;
+		regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM RPMH_REGULATOR_MODE_HPM>;
+	};
+};
+
+&soc {
+	cci0: cci@ac4a000 {
+		compatible = "qcom,sm8150-cci", "qcom,sdm845-cci";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		reg = <0 0x0ac4a000 0 0x1000>;
+		interrupts = <GIC_SPI 460 IRQ_TYPE_EDGE_RISING>;
+		power-domains = <&camcc TITAN_TOP_GDSC>;
+
+		clocks = <&camcc CAM_CC_CAMNOC_AXI_CLK>,
+			 <&camcc CAM_CC_CORE_AHB_CLK>,
+			 <&camcc CAM_CC_SLOW_AHB_CLK_SRC>,
+			 <&camcc CAM_CC_CPAS_AHB_CLK>,
+			 <&camcc CAM_CC_CCI_0_CLK>,
+			 <&camcc CAM_CC_CCI_0_CLK_SRC>;
+		clock-names = "camnoc_axi", "soc_ahb", "slow_ahb_src", "cpas_ahb", "cci", "cci_src";
+		assigned-clocks = <&camcc CAM_CC_CAMNOC_AXI_CLK>, <&camcc CAM_CC_CCI_0_CLK>;
+		assigned-clock-rates = <80000000>, <37500000>;
+
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&cci0_default &cci1_default>;
+		pinctrl-1 = <&cci0_sleep &cci1_sleep>;
+
+		cci0_i2c0: i2c-bus@0 {
+			reg = <0>;
+			clock-frequency = <1000000>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		cci0_i2c1: i2c-bus@1 {
+			reg = <1>;
+			/* The stock actuator setup on this master needs FAST mode. */
+			clock-frequency = <400000>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			imx586_vcm: lens@72 {
+				compatible = "onnn,lc898217xc";
+				reg = <0x72>;
+				vdd-supply = <&vreg_cam0_vaf>;
+				vio-supply = <&vreg_l1c_1p8>;
+				onnn,max-focus-position = <400>;
+				onnn,default-focus-position = <400>;
+			};
+
+			/* Main 48 MP rear camera. */
+			camera@1a {
+				compatible = "sony,imx586";
+				reg = <0x1a>;
+				orientation = <1>;
+				rotation = <90>;
+
+				clocks = <&camcc CAM_CC_MCLK1_CLK>;
+				assigned-clocks = <&camcc CAM_CC_MCLK1_CLK>;
+				assigned-clock-rates = <19200000>;
+
+				vio-supply = <&vreg_l1c_1p8>;
+				vana-supply = <&vreg_bob>;
+				vdig-supply = <&vreg_l1f_1p1>;
+
+				reset-gpios = <&tlmm 30 GPIO_ACTIVE_LOW>;
+				vana-enable-gpios = <&tlmm 11 GPIO_ACTIVE_HIGH>;
+				custom1-gpios = <&tlmm 29 GPIO_ACTIVE_HIGH>;
+				custom2-gpios = <&pm8150l_gpios 1 GPIO_ACTIVE_HIGH>;
+				lens-focus = <&imx586_vcm>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&cam_mclk1_default>, <&cam0_vana_default>,
+					    <&cam0_custom1_default>, <&cam0_custom2_default>,
+					    <&cam0_reset_default>;
+
+				port {
+					imx586_ep: endpoint {
+						bus-type = <MEDIA_BUS_TYPE_CSI2_CPHY>;
+						data-lanes = <0 1 2>;
+						link-frequencies = /bits/ 64 <698395833>;
+						remote-endpoint = <&csiphy1_ep>;
+					};
+				};
+			};
+		};
+	};
+
+	camss: camss@acb3000 {
+		compatible = "qcom,sm8150-camss";
+		reg = <0 0x0acb3000 0 0x1000>, <0 0x0acba000 0 0x1000>,
+		      <0 0x0ac65000 0 0x1000>, <0 0x0ac66000 0 0x1000>,
+		      <0 0x0ac67000 0 0x1000>, <0 0x0ac68000 0 0x1000>,
+		      <0 0x0acaf000 0 0x4000>, <0 0x0acb6000 0 0x4000>;
+		reg-names = "csid0", "csid1", "csiphy0", "csiphy1", "csiphy2", "csiphy3", "vfe0", "vfe1";
+		interrupts = <GIC_SPI 464 IRQ_TYPE_EDGE_RISING>, <GIC_SPI 466 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 477 IRQ_TYPE_EDGE_RISING>, <GIC_SPI 478 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 479 IRQ_TYPE_EDGE_RISING>, <GIC_SPI 448 IRQ_TYPE_EDGE_RISING>,
+			     <GIC_SPI 465 IRQ_TYPE_EDGE_RISING>, <GIC_SPI 467 IRQ_TYPE_EDGE_RISING>;
+		interrupt-names = "csid0", "csid1", "csiphy0", "csiphy1", "csiphy2", "csiphy3", "vfe0", "vfe1";
+		power-domains = <&camcc IFE_0_GDSC>, <&camcc IFE_1_GDSC>, <&camcc TITAN_TOP_GDSC>;
+		power-domain-names = "ife0", "ife1", "top";
+		clocks = <&camcc CAM_CC_CAMNOC_AXI_CLK>,
+			 <&camcc CAM_CC_CPAS_AHB_CLK>,
+			 <&camcc CAM_CC_CPHY_RX_CLK_SRC>,
+			 <&camcc CAM_CC_IFE_0_CSID_CLK>,
+			 <&camcc CAM_CC_IFE_0_CSID_CLK_SRC>,
+			 <&camcc CAM_CC_IFE_1_CSID_CLK>,
+			 <&camcc CAM_CC_IFE_1_CSID_CLK_SRC>,
+			 <&camcc CAM_CC_CSIPHY0_CLK>,
+			 <&camcc CAM_CC_CSI0PHYTIMER_CLK>,
+			 <&camcc CAM_CC_CSI0PHYTIMER_CLK_SRC>,
+			 <&camcc CAM_CC_CSIPHY1_CLK>,
+			 <&camcc CAM_CC_CSI1PHYTIMER_CLK>,
+			 <&camcc CAM_CC_CSI1PHYTIMER_CLK_SRC>,
+			 <&camcc CAM_CC_CSIPHY2_CLK>,
+			 <&camcc CAM_CC_CSI2PHYTIMER_CLK>,
+			 <&camcc CAM_CC_CSI2PHYTIMER_CLK_SRC>,
+			 <&camcc CAM_CC_CSIPHY3_CLK>,
+			 <&camcc CAM_CC_CSI3PHYTIMER_CLK>,
+			 <&camcc CAM_CC_CSI3PHYTIMER_CLK_SRC>,
+			 <&gcc GCC_CAMERA_AHB_CLK>,
+			 <&gcc GCC_CAMERA_HF_AXI_CLK>,
+			 <&camcc CAM_CC_SLOW_AHB_CLK_SRC>,
+			 <&camcc CAM_CC_CORE_AHB_CLK>,
+			 <&camcc CAM_CC_IFE_0_CLK>,
+			 <&camcc CAM_CC_IFE_0_AXI_CLK>,
+			 <&camcc CAM_CC_IFE_0_CPHY_RX_CLK>,
+			 <&camcc CAM_CC_IFE_0_CLK_SRC>,
+			 <&camcc CAM_CC_IFE_1_CLK>,
+			 <&camcc CAM_CC_IFE_1_AXI_CLK>,
+			 <&camcc CAM_CC_IFE_1_CPHY_RX_CLK>,
+			 <&camcc CAM_CC_IFE_1_CLK_SRC>;
+		clock-names = "camnoc_axi", "cpas_ahb", "cphy_rx_src",
+			      "csi0", "csi0_src", "csi1", "csi1_src",
+			      "csiphy0", "csiphy0_timer", "csiphy0_timer_src",
+			      "csiphy1", "csiphy1_timer", "csiphy1_timer_src",
+			      "csiphy2", "csiphy2_timer", "csiphy2_timer_src",
+			      "csiphy3", "csiphy3_timer", "csiphy3_timer_src",
+			      "gcc_camera_ahb", "gcc_camera_axi", "slow_ahb_src", "soc_ahb",
+			      "vfe0", "vfe0_axi", "vfe0_cphy_rx", "vfe0_src",
+			      "vfe1", "vfe1_axi", "vfe1_cphy_rx", "vfe1_src";
+		interconnects = <&gem_noc MASTER_AMPSS_M0 0 &config_noc SLAVE_CAMERA_CFG 0>,
+				<&mmss_noc MASTER_CAMNOC_HF0 0 &mc_virt SLAVE_EBI_CH0 0>,
+				<&mmss_noc MASTER_CAMNOC_SF 0 &mc_virt SLAVE_EBI_CH0 0>,
+				<&camnoc_virt MASTER_CAMNOC_HF0_UNCOMP 0 &camnoc_virt SLAVE_CAMNOC_UNCOMP 0>;
+		interconnect-names = "cam_ahb", "cam_hf_0_mnoc", "cam_sf_0_mnoc", "cam_hf_0_camnoc";
+		iommus = <&apps_smmu 0x840 0x620>, <&apps_smmu 0x860 0x620>,
+			 <&apps_smmu 0xa40 0x620>, <&apps_smmu 0xa60 0x620>,
+			 <&apps_smmu 0xc40 0x620>, <&apps_smmu 0xc60 0x620>,
+			 <&apps_smmu 0xe40 0x620>, <&apps_smmu 0xe60 0x620>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@1 {
+				reg = <1>;
+
+				csiphy1_ep: endpoint {
+					bus-type = <MEDIA_BUS_TYPE_CSI2_CPHY>;
+					data-lanes = <0 1 2>;
+					remote-endpoint = <&imx586_ep>;
+				};
+			};
+		};
+	};
+};

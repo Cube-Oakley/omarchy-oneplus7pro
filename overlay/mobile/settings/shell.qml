@@ -45,7 +45,7 @@ ShellRoot {
         onTriggered: if (!backRead.running) backRead.running = true
     }
     function openPanel(name) {
-        if (["home", "appearance", "clipboard", "network", "wifi", "sound", "battery", "about"].indexOf(name) >= 0) {
+        if (["home", "appearance", "clipboard", "network", "wifi", "sound", "battery", "about", "bluetooth", "display", "storage", "apps"].indexOf(name) >= 0) {
             speedOpen = false;
             dnsEditing = false;
             panel = name;
@@ -161,6 +161,10 @@ ShellRoot {
             } catch (e) { root.networkMessage = "Network request failed"; }
         }
     }
+    AppBack {
+        windowTitle: "Settings"
+        onBack: root.goBack()
+    }
     FloatingWindow {
         id: win
         title: "Settings"
@@ -235,7 +239,7 @@ ShellRoot {
             PageHeader {
                 Layout.fillWidth: true
                 kicker: root.panel === "home" ? "OMARCHY" : "SETTINGS"
-                title: root.speedOpen ? "Speed test" : ({home: "Settings", appearance: "Appearance", clipboard: "Clipboard", network: "Network", wifi: "Wi-Fi", sound: "Sound", battery: "Battery", about: "About"})[root.panel] || "Settings"
+                title: root.speedOpen ? "Speed test" : ({home: "Settings", appearance: "Appearance", clipboard: "Clipboard", network: "Network", wifi: "Wi-Fi", sound: "Sound", battery: "Battery", about: "About", bluetooth: "Bluetooth", display: "Display", storage: "Storage", apps: "Apps"})[root.panel] || "Settings"
                 backVisible: root.panel !== "home" || root.speedOpen
                 onBackClicked: root.goBack()
             }
@@ -251,9 +255,13 @@ ShellRoot {
                     width: parent.width
                     spacing: 12
                     SettingsRow { width: parent.width; label: "Appearance"; value: (MobileTheme.state.name || "").replace(/-/g, " "); onClicked: root.panel = "appearance" }
-                    SettingsRow { width: parent.width; label: "Network"; value: "Wi-Fi"; onClicked: root.openPanel("network") }
+                    SettingsRow { width: parent.width; label: "Display"; value: MobileTheme.square ? "Square" : "Round"; onClicked: root.panel = "display" }
                     SettingsRow { width: parent.width; label: "Sound"; value: "Volume"; onClicked: root.panel = "sound" }
+                    SettingsRow { width: parent.width; label: "Network"; value: "Wi-Fi"; onClicked: root.openPanel("network") }
+                    SettingsRow { width: parent.width; label: "Bluetooth"; onClicked: root.panel = "bluetooth" }
                     SettingsRow { width: parent.width; label: "Battery"; onClicked: root.panel = "battery" }
+                    SettingsRow { width: parent.width; label: "Storage"; onClicked: root.panel = "storage" }
+                    SettingsRow { width: parent.width; label: "Apps"; onClicked: root.panel = "apps" }
                     SettingsRow { width: parent.width; label: "Clipboard"; value: "History"; onClicked: root.panel = "clipboard" }
                     SettingsRow {
                         width: parent.width
@@ -287,6 +295,27 @@ ShellRoot {
             }
             BatteryPage {
                 visible: root.panel === "battery"
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+            }
+            BluetoothPage {
+                visible: root.panel === "bluetooth"
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+            }
+            DisplayPage {
+                visible: root.panel === "display"
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                onAppearanceRequested: root.panel = "appearance"
+            }
+            StoragePage {
+                visible: root.panel === "storage"
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+            }
+            AppsPage {
+                visible: root.panel === "apps"
                 Layout.fillWidth: true
                 Layout.fillHeight: true
             }
@@ -325,7 +354,7 @@ ShellRoot {
                     required property var modelData
                     width: ListView.view.width
                     height: clipBody.implicitHeight + 24
-                    radius: 16
+                    radius: MobileTheme.radius(16)
                     color: MobileTheme.surface
                     ColumnLayout {
                         id: clipBody
@@ -419,7 +448,7 @@ ShellRoot {
                         placeholderText: "1.1.1.1 8.8.8.8"
                         color: MobileTheme.foreground
                         placeholderTextColor: MobileTheme.secondary
-                        background: Rectangle { radius: 10; color: MobileTheme.surface; border.color: MobileTheme.muted }
+                        background: Rectangle { radius: MobileTheme.radius(10); color: MobileTheme.surface; border.color: MobileTheme.muted }
                         editing: root.dnsEditing
                         onEditingRequested: root.dnsEditing = true
                     }

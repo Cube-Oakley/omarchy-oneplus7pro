@@ -23,10 +23,17 @@ install -m755 "$source_dir/weather.py" "$HOME/.local/bin/omarchy-mobile-weather"
 install -m755 "$source_dir/wifi.py" "$HOME/.local/bin/omarchy-mobile-wifi"
 install -m755 "$source_dir/speedtest.py" "$HOME/.local/bin/omarchy-mobile-speedtest"
 install -m755 "$source_dir/volume.py" "$HOME/.local/bin/omarchy-mobile-volume"
+mkdir -p "$config/wireplumber/wireplumber.conf.d"
+install -m644 "$source_dir/wireplumber/"*.conf "$config/wireplumber/wireplumber.conf.d/"
 install -m755 "$source_dir/stats.py" "$HOME/.local/bin/omarchy-mobile-stats"
 install -m755 "$source_dir/prefs.py" "$HOME/.local/bin/omarchy-mobile-prefs"
 install -m755 "$source_dir/clipboard.py" "$HOME/.local/bin/omarchy-mobile-clipboard"
 install -m755 "$source_dir/settings.sh" "$HOME/.local/bin/omarchy-mobile-settings"
+install -m755 "$source_dir/app.py" "$HOME/.local/bin/omarchy-mobile-app"
+install -m755 "$source_dir/files.py" "$HOME/.local/bin/omarchy-mobile-files"
+install -m755 "$source_dir/bluetooth.py" "$HOME/.local/bin/omarchy-mobile-bluetooth"
+install -m755 "$source_dir/storage.py" "$HOME/.local/bin/omarchy-mobile-storage"
+install -m755 "$source_dir/display.py" "$HOME/.local/bin/omarchy-mobile-displayinfo"
 kit="$data/omarchy-mobile/qml/OmarchyMobile"
 mkdir -p "$kit" "$config/quickshell/omarchy-mobile-settings" "$data/applications"
 install -m644 "$source_dir/MobileTheme.qml" "$source_dir/TouchButton.qml" \
@@ -34,6 +41,19 @@ install -m644 "$source_dir/MobileTheme.qml" "$source_dir/TouchButton.qml" \
 install -m644 "$source_dir/kit/"*.qml "$source_dir/kit/qmldir" "$kit/"
 install -m644 "$source_dir/settings/shell.qml" "$config/quickshell/omarchy-mobile-settings/"
 install -m644 "$source_dir/settings/omarchy-mobile-settings.desktop" "$data/applications/"
+if [[ -d $source_dir/apps ]]; then
+    for app in "$source_dir/apps"/*; do
+        [[ -d $app && -f $app/manifest.json && -f $app/shell.qml ]] || continue
+        id=$(basename "$app")
+        mkdir -p "$data/omarchy-mobile/apps/$id" "$config/quickshell/omarchy-mobile-apps/$id"
+        install -m644 "$app/manifest.json" "$data/omarchy-mobile/apps/$id/manifest.json"
+        install -m644 "$app/shell.qml" "$config/quickshell/omarchy-mobile-apps/$id/shell.qml"
+        for desktop in "$app"/*.desktop; do
+            [[ -f $desktop ]] || continue
+            install -m644 "$desktop" "$data/applications/"
+        done
+    done
+fi
 install -m755 "$source_dir/theme.py" "$HOME/.local/bin/omarchy-mobile-theme"
 install -m755 "$source_dir/theme_install.py" "$HOME/.local/bin/omarchy-mobile-theme-install"
 install -m644 "$source_dir/hypr-mobile.lua" "$data/omarchy-mobile/hypr-mobile.lua"

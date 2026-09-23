@@ -32,6 +32,17 @@ class ThemeBackgroundTests(unittest.TestCase):
     def theme(self, root, name='tokyo-night'):
         return self.file(root / name / 'colors.toml', 'background = "#123456"\n')
 
+    def test_commented_rounding_is_unset_and_an_active_value_is_kept(self):
+        self.assertIsNone(self.m.corner_radius())
+        self.file(self.m.CONFIG / 'hypr/looknfeel.lua', '-- rounding = 8\n')
+        self.assertIsNone(self.m.corner_radius())
+        self.file(self.m.CONFIG / 'hypr/looknfeel.lua', 'hl.config({ decoration = { rounding = 0 } })\n')
+        self.assertEqual(self.m.corner_radius(), 0)
+        self.file(self.m.CONFIG / 'hypr/looknfeel.lua', 'hl.config({ decoration = { rounding = 8 } })\n')
+        self.assertEqual(self.m.corner_radius(), 8)
+        self.file(self.m.STATE / 'omarchy/toggles/hypr/rounded-corners.lua', 'hl.config({ decoration = { rounding = 6 } })\n')
+        self.assertEqual(self.m.corner_radius(), 6)
+
     def test_overlay_and_user_backgrounds_preserve_stock(self):
         roots = self.m.ROOTS
         self.theme(roots[1])
@@ -99,6 +110,19 @@ class ThemeBackgroundTests(unittest.TestCase):
             signals.assert_not_called()
             run.assert_not_called()
 
+    def test_device_display_mode_is_validated(self):
+        self.theme(self.m.ROOTS[0])
+        device = self.m.CONFIG / 'omarchy-mobile/device.json'
+        device.parent.mkdir(parents=True, exist_ok=True)
+        lua = self.m.CONFIG / 'hypr/mobile.lua'
+        for requested, expected in (('1440x3120@90', '1440x3120@90'),
+                                    ('1440x3120@90",scale=9})\nos.exit()', 'preferred'),
+                                    (None, 'preferred')):
+            device.write_text(json.dumps({'scale': 3, 'displayMode': requested}))
+            with patch.object(self.m, 'signal_owned'), patch.object(self.m.subprocess, 'run'):
+                self.m.sync()
+            self.assertIn(f'hl.monitor({{output="",mode="{expected}",position="auto",scale=3}})', lua.read_text())
+
     def test_device_hook_receives_changed_image_as_one_argument(self):
         self.theme(self.m.ROOTS[0])
         first = self.file(self.m.ROOTS[0] / 'tokyo-night/backgrounds/a #1.jpg')
@@ -115,6 +139,26 @@ class ThemeBackgroundTests(unittest.TestCase):
             self.m.sync()
             self.assertEqual(run.call_args.args[0], [str(hook), str(second)])
 
+    def test_wallpaper_choices_and_pick_by_name(self):
+        self.theme(self.m.ROOTS[0])
+        self.file(self.m.ROOTS[0] / 'tokyo-night/backgrounds/a.jpg')
+        b = self.file(self.m.ROOTS[0] / 'tokyo-night/backgrounds/b.jpg')
+        state = self.m.wallpaper_state('tokyo-night', None)
+        self.assertEqual([item['name'] for item in state['choices']], ['a.jpg', 'b.jpg'])
+        self.assertEqual(state['name'], 'a.jpg')
+        self.m.wallpaper_pick('tokyo-night', None, 'b.jpg')
+        self.assertEqual(self.m.wallpaper_state('tokyo-night', None)['name'], 'b.jpg')
+        self.assertEqual(self.m.wallpaper_pick('tokyo-night', None, str(b)), b.resolve())
+        with self.assertRaisesRegex(ValueError, 'Unknown wallpaper'):
+            self.m.wallpaper_pick('tokyo-night', None, 'missing.jpg')
+
+    def test_theme_previews_use_first_wallpaper(self):
+        self.theme(self.m.ROOTS[0])
+        first = self.file(self.m.ROOTS[0] / 'tokyo-night/backgrounds/a.jpg')
+        self.file(self.m.ROOTS[0] / 'tokyo-night/backgrounds/b.jpg')
+        previews = self.m.theme_previews({'tokyo-night': first})
+        self.assertIn('tokyo-night', previews)
+        self.assertIn('a.jpg', previews['tokyo-night'])
 
 if __name__ == '__main__':
     unittest.main()

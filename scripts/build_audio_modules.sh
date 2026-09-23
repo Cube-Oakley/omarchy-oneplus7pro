@@ -13,6 +13,8 @@ done
 cp "$KERNEL/sound/sound_core.c" "$WORK/sound/"
 patch -d "$WORK" -p1 < "$ROOT/devices/oneplus7pro/kernel/power/q6routing-probe-order.patch"
 patch -d "$WORK" -p1 < "$ROOT/devices/oneplus7pro/kernel/audio/sm8150-speakers.patch"
+patch -d "$WORK" -p1 < "$ROOT/devices/oneplus7pro/kernel/audio/sm8150-slimbus-every-link.patch"
+patch -d "$WORK" -p1 < "$ROOT/devices/oneplus7pro/kernel/audio/q6asm-dai-xlate-by-id.patch"
 python3 - "$WORK" <<'PY'
 from pathlib import Path
 import re,sys

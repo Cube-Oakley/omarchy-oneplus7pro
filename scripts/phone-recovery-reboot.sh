@@ -19,7 +19,13 @@ $BB sync
 if $BB grep -q '^/dev/sda19 /lib/firmware ext4 ' /proc/mounts; then
     $BB umount /lib/firmware
 fi
-$BB mount -o remount,ro /newroot
+# A process still exiting can hold the filesystem for a moment after KILL.
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+    $BB mount -o remount,ro /newroot && break
+    echo "READ_ONLY_REMOUNT_RETRY $attempt"
+    $BB sync
+    $BB sleep 1
+done
 $BB grep '^/dev/sda19 /newroot ext4 ro,' /proc/mounts
 echo 'STORAGE_READ_ONLY_REBOOT_REQUEST'
 $BB reboot -f

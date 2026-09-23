@@ -10,7 +10,11 @@ TestCase {
         onEditingRequested: { editing = true; forceActiveFocus(); }
     }
     SignalSpy { id: requested; target: field; signalName: "editingRequested" }
-    function init() { field.editing = false; field.visible = true; field.text = ""; requested.clear(); }
+    SignalSpy { id: copied; target: field; signalName: "copyRequested" }
+    function init() {
+        field.editing = false; field.selecting = false; field.visible = true;
+        field.text = ""; requested.clear(); copied.clear();
+    }
     function test_visibility_and_focus_do_not_start_editing() {
         for (let i = 0; i < 5; i++) {
             field.visible = false; wait(10); field.visible = true;
@@ -27,5 +31,27 @@ TestCase {
         field.editing = false;
         field.forceActiveFocus(); keyClick(Qt.Key_B);
         compare(field.text, "a"); compare(requested.count, 1);
+        verify(!field.selecting);
+    }
+    function test_long_press_selects_word_and_copy_emits() {
+        field.text = "hello world";
+        field.editing = true; field.forceActiveFocus();
+        touchEvent(field).press(0, field, 40, 30).commit();
+        wait(500);
+        tryCompare(field, "selecting", true);
+        verify(field.selectedText.length > 0);
+        field.copySelection();
+        tryCompare(copied, "count", 1);
+        compare(copied.signalArguments[0][0], field.selectedText);
+        touchEvent(field).release(0, field, 40, 30).commit();
+    }
+    function test_password_copy_is_disabled() {
+        field.echoMode = TextInput.Password;
+        field.text = "secret";
+        field.beginSelection(Qt.point(20, 30));
+        verify(!field.canCopy);
+        field.copySelection();
+        compare(copied.count, 0);
+        field.echoMode = TextInput.Normal;
     }
 }

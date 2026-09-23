@@ -2,9 +2,9 @@
 # Stock missing CAMCC consumer driver; temporary native5 power-handoff trial.
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-KERNEL="$ROOT/.work/linux-sm8150-codex-suspend"
+KERNEL="${KERNEL_TREE:-$ROOT/.work/linux-sm8150-codex-suspend}"
 WORK="$ROOT/.work/camcc-sleep-test"
-OUT="$ROOT/out/sleep-stats"
+OUT="${OUT_DIR:-$ROOT/out/sleep-stats}"
 mkdir -p "$WORK" "$OUT"
 cp "$KERNEL/drivers/clk/qcom/camcc-sm8150.c" "$WORK/"
 cp "$KERNEL/drivers/clk/qcom/"*.h "$WORK/"

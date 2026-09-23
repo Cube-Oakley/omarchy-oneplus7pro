@@ -1,0 +1,36 @@
+From: Robin Snyders <robin@snyders.xyz>
+Subject: [PATCH] net: ipa: describe ENDP_INIT_CTRL for IPA v4.1
+
+Subset of hotdog 0156-hotdog-integrate-validated-runtime-fixes.patch
+(drivers/net/ipa/reg/ipa_reg-v4.1.c only). The v4.1 register set in 0002 was
+derived from v4.2, which has no ENDP_INIT_CTRL, but ipa_endpoint.c programs
+that register for every version below 4.2.
+
+---
+diff --git a/drivers/net/ipa/reg/ipa_reg-v4.1.c b/drivers/net/ipa/reg/ipa_reg-v4.1.c
+index 4d28ff26cb29079f847b87e09f9a70f2f7a26163..dd196279bff258f7180541ed7dab3ad66d2ce2b9 100644
+--- a/drivers/net/ipa/reg/ipa_reg-v4.1.c
++++ b/drivers/net/ipa/reg/ipa_reg-v4.1.c
+@@ -239,6 +239,14 @@ static const u32 reg_dst_rsrc_grp_23_rsrc_type_fmask[] = {
+ REG_STRIDE_FIELDS(DST_RSRC_GRP_23_RSRC_TYPE, dst_rsrc_grp_23_rsrc_type,
+ 		  0x00000504, 0x0020);
+ 
++static const u32 reg_endp_init_ctrl_fmask[] = {
++	[ENDP_SUSPEND]					= BIT(0),
++	[ENDP_DELAY]					= BIT(1),
++						/* Bits 2-31 reserved */
++};
++
++REG_STRIDE_FIELDS(ENDP_INIT_CTRL, endp_init_ctrl, 0x00000800, 0x0070);
++
+ static const u32 reg_endp_init_cfg_fmask[] = {
+ 	[FRAG_OFFLOAD_EN]				= BIT(0),
+ 	[CS_OFFLOAD_EN]					= GENMASK(2, 1),
+@@ -441,6 +449,7 @@ static const struct reg *reg_array[] = {
+ 	[SRC_RSRC_GRP_23_RSRC_TYPE]	= &reg_src_rsrc_grp_23_rsrc_type,
+ 	[DST_RSRC_GRP_01_RSRC_TYPE]	= &reg_dst_rsrc_grp_01_rsrc_type,
+ 	[DST_RSRC_GRP_23_RSRC_TYPE]	= &reg_dst_rsrc_grp_23_rsrc_type,
++	[ENDP_INIT_CTRL]		= &reg_endp_init_ctrl,
+ 	[ENDP_INIT_CFG]			= &reg_endp_init_cfg,
+ 	[ENDP_INIT_NAT]			= &reg_endp_init_nat,
+ 	[ENDP_INIT_HDR]			= &reg_endp_init_hdr,

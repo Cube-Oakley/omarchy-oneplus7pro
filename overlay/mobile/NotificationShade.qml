@@ -30,8 +30,11 @@ PanelWindow {
     readonly property bool opened: motion.progress > 0
     readonly property var battery: MobileStatus.battery
     readonly property var wifi: MobileStatus.wifi
+    readonly property var bluetooth: MobileStatus.bluetooth
+    readonly property bool bluetoothConnected: (bluetooth.devices || []).some(d => d.connected)
     readonly property var volume: MobileStatus.volume
     readonly property var stats: MobileStatus.stats
+    Binding { target: MobileStatus; property: "statsShown"; value: shade.opened && shade.detail === "stats" }
     readonly property int notificationCount: notifications.trackedNotifications.values.length
     signal opening()
     signal arrived(var notification)
@@ -89,6 +92,12 @@ PanelWindow {
         next[key] = !next[key];
         expanded = next;
     }
+    function bluetoothPower() {
+        if (bluetoothProcess.running) return;
+        bluetoothProcess.command = [Quickshell.env("HOME") + "/.local/bin/omarchy-mobile-bluetooth",
+                                    "power", bluetooth.powered === true ? "off" : "on"];
+        bluetoothProcess.running = true;
+    }
     function networkAction(action, values) {
         if (networkProcess.running) return;
         if (action !== "radio" && !wifi.interface) return;
@@ -142,6 +151,10 @@ PanelWindow {
             } catch (e) { shade.networkMessage = "Network request failed"; }
             MobileStatus.refresh();
         }
+    }
+    Process {
+        id: bluetoothProcess
+        onExited: MobileStatus.refresh()
     }
     Process {
         id: clipProcess; stdinEnabled: true
@@ -226,6 +239,15 @@ PanelWindow {
                 }
                 QuickToggle {
                     Layout.fillWidth: true; Layout.preferredWidth: 1
+                    symbol: shade.bluetooth.powered !== true ? "󰂲" : shade.bluetoothConnected ? "󰂱" : "󰂯"
+                    // Starting the stack takes a few seconds when no controller exists yet.
+                    label: bluetoothProcess.running ? "…" : "Bluetooth"
+                    active: shade.bluetooth.powered === true
+                    enabled: (shade.bluetooth.available === true || shade.bluetooth.startable === true) && !bluetoothProcess.running
+                    onClicked: shade.bluetoothPower()
+                }
+                QuickToggle {
+                    Layout.fillWidth: true; Layout.preferredWidth: 1
                     symbol: shade.volume.muted ? "󰝟" : "󰕾"; label: shade.volume.muted ? "Muted" : "Sound"
                     active: shade.volume.available === true && !shade.volume.muted
                     enabled: shade.volume.available === true
@@ -285,7 +307,7 @@ PanelWindow {
                     readonly property bool many: modelData.items.length > 1
                     readonly property bool open: !many || shade.expanded[modelData.key] === true
                     readonly property var latest: modelData.items[0]
-                    width: notices.width; height: noticeContent.implicitHeight + 30; radius: 18; color: MobileTheme.surface
+                    width: notices.width; height: noticeContent.implicitHeight + 30; radius: MobileTheme.radius(18); color: MobileTheme.surface
                     ColumnLayout {
                         id: noticeContent; anchors { left: parent.left; right: parent.right; top: parent.top; margins: 15 } spacing: 8
                         RowLayout {
@@ -354,7 +376,7 @@ PanelWindow {
         height: Math.min(popupContent.implicitHeight + 44, parent.height - (shade.keyboardOwned ? ((MobileTheme.state.device || {}).keyboardHeight || 280) + 48 : 48))
         anchors.horizontalCenter: parent.horizontalCenter
         y: shade.selectedNetwork || locationInput.activeFocus ? 24 : Math.max(24, (parent.height - height) / 2 - 30)
-        color: MobileTheme.background; radius: 26; border.width: 1; border.color: MobileTheme.accent
+        color: MobileTheme.background; radius: MobileTheme.radius(26); border.width: 1; border.color: MobileTheme.accent
         MouseArea { anchors.fill: parent; onClicked: {} }
         Flickable {
             anchors.fill: parent; anchors.margins: 22; clip: true
@@ -412,7 +434,7 @@ PanelWindow {
                             id: password; Layout.fillWidth: true; implicitHeight: 50
                             placeholderText: "Password (blank uses a saved connection)"; echoMode: TextInput.Password
                             color: MobileTheme.foreground; placeholderTextColor: MobileTheme.secondary
-                            background: Rectangle { radius: 10; color: MobileTheme.surface; border.color: MobileTheme.muted }
+                            background: Rectangle { radius: MobileTheme.radius(10); color: MobileTheme.surface; border.color: MobileTheme.muted }
                             editing: shade.editingField === "password" && shade.detail === "wifi"
                             onEditingRequested: shade.editField("password", password)
                         }
@@ -460,7 +482,7 @@ PanelWindow {
                                 required property int index
                                 readonly property date day: new Date(shade.month.getFullYear(), shade.month.getMonth(), index - new Date(shade.month.getFullYear(), shade.month.getMonth(), 1).getDay() + 1)
                                 readonly property bool today: Qt.formatDateTime(day, "yyyy-MM-dd") === Qt.formatDateTime(clock.date, "yyyy-MM-dd")
-                                Layout.fillWidth: true; Layout.preferredWidth: 1; implicitHeight: 39; radius: 12
+                                Layout.fillWidth: true; Layout.preferredWidth: 1; implicitHeight: 39; radius: MobileTheme.radius(12)
                                 color: today ? MobileTheme.accent : "transparent"
                                 Text { font.family: MobileTheme.fontFamily; anchors.centerIn: parent; text: parent.day.getDate(); color: parent.today ? MobileTheme.background : MobileTheme.foreground; opacity: parent.day.getMonth() === shade.month.getMonth() ? 1 : 0.3; font.pixelSize: 15 }
                             }
@@ -473,7 +495,7 @@ PanelWindow {
                     RowLayout {
                         Layout.fillWidth: true; spacing: 12
                         Rectangle {
-                            Layout.fillWidth: true; implicitHeight: 92; radius: 16; color: MobileTheme.surface
+                            Layout.fillWidth: true; implicitHeight: 92; radius: MobileTheme.radius(16); color: MobileTheme.surface
                             Column {
                                 anchors.centerIn: parent; spacing: 4
                                 Text { anchors.horizontalCenter: parent.horizontalCenter; text: shade.amount(shade.stats.cpu, "%", 1); color: MobileTheme.accent; font.family: MobileTheme.fontFamily; font.pixelSize: 26; font.bold: true }
@@ -481,7 +503,7 @@ PanelWindow {
                             }
                         }
                         Rectangle {
-                            Layout.fillWidth: true; implicitHeight: 92; radius: 16; color: MobileTheme.surface
+                            Layout.fillWidth: true; implicitHeight: 92; radius: MobileTheme.radius(16); color: MobileTheme.surface
                             Column {
                                 anchors.centerIn: parent; spacing: 4
                                 Text { anchors.horizontalCenter: parent.horizontalCenter; text: shade.stats.memory && shade.stats.memory.percent !== undefined ? shade.amount(shade.stats.memory.percent, "%", 1) : "—"; color: MobileTheme.accent; font.family: MobileTheme.fontFamily; font.pixelSize: 26; font.bold: true }
@@ -495,7 +517,7 @@ PanelWindow {
                     Row {
                         Layout.fillWidth: true; spacing: 4
                         Repeater {
-                            model: shade.stats.cores || []
+                            model: shade.detail === "stats" ? (shade.stats.cores || []) : []
                             Rectangle {
                                 required property var modelData
                                 width: 18; height: 36; radius: 4; color: MobileTheme.muted
@@ -510,13 +532,13 @@ PanelWindow {
                     DetailRow { Layout.fillWidth: true; label: "Battery draw"; value: shade.amount(shade.battery.current_ma, "mA") + " · " + shade.amount(shade.battery.temperature_c, "°C", 1) }
                     Text { font.family: MobileTheme.fontFamily; text: "Temperatures"; color: MobileTheme.foreground; font.pixelSize: 16; font.bold: true }
                     Repeater {
-                        model: shade.stats.thermals || []
+                        model: shade.detail === "stats" ? (shade.stats.thermals || []) : []
                         DetailRow { required property var modelData; Layout.fillWidth: true; label: modelData.name; value: shade.amount(modelData.celsius, "°C", 1) }
                     }
                     Text { visible: !shade.stats.thermals || shade.stats.thermals.length === 0; font.family: MobileTheme.fontFamily; Layout.fillWidth: true; text: "No thermal zones exported."; color: MobileTheme.secondary; font.pixelSize: 13 }
                     Text { font.family: MobileTheme.fontFamily; text: "Using the most CPU"; color: MobileTheme.foreground; font.pixelSize: 16; font.bold: true }
                     Repeater {
-                        model: shade.stats.processes || []
+                        model: shade.detail === "stats" ? (shade.stats.processes || []) : []
                         DetailRow { required property var modelData; Layout.fillWidth: true; label: modelData.name; value: shade.amount(modelData.cpu, "%", 1) + " · " + shade.amount(modelData.rss_mb, "MB", 0) }
                     }
                     Text { font.family: MobileTheme.fontFamily; Layout.fillWidth: true; wrapMode: Text.WordWrap; color: MobileTheme.secondary; font.pixelSize: 12
@@ -542,7 +564,7 @@ PanelWindow {
                         model: shade.weather.available ? (shade.weather.daily_forecast || []) : []
                         Rectangle {
                             required property var modelData
-                            Layout.fillWidth: true; implicitHeight: 62; radius: 14; color: MobileTheme.surface
+                            Layout.fillWidth: true; implicitHeight: 62; radius: MobileTheme.radius(14); color: MobileTheme.surface
                             RowLayout {
                                 anchors.fill: parent; anchors.margins: 12; spacing: 10
                                 Text { text: WeatherIcons.glyph(modelData.kind); color: MobileTheme.accent; font.family: MobileTheme.fontFamily; font.pixelSize: 26 }
@@ -559,7 +581,7 @@ PanelWindow {
                     TouchTextField { font.family: MobileTheme.fontFamily;
                         id: locationInput; Layout.fillWidth: true; implicitHeight: 50; placeholderText: "City or postal code"
                         color: MobileTheme.foreground; placeholderTextColor: MobileTheme.secondary
-                        background: Rectangle { radius: 10; color: MobileTheme.surface; border.color: MobileTheme.muted }
+                        background: Rectangle { radius: MobileTheme.radius(10); color: MobileTheme.surface; border.color: MobileTheme.muted }
                         editing: shade.editingField === "location" && shade.detail === "weather"
                         onEditingRequested: shade.editField("location", locationInput)
                         onCopyRequested: text => shade.clipboardAction("record", {text: text})
@@ -586,7 +608,7 @@ PanelWindow {
                         model: shade.clips
                         Rectangle {
                             required property var modelData
-                            Layout.fillWidth: true; implicitHeight: clipCard.implicitHeight + 24; radius: 14; color: MobileTheme.surface
+                            Layout.fillWidth: true; implicitHeight: clipCard.implicitHeight + 24; radius: MobileTheme.radius(14); color: MobileTheme.surface
                             ColumnLayout {
                                 id: clipCard; anchors { left: parent.left; right: parent.right; top: parent.top; margins: 12 } spacing: 8
                                 Text { font.family: MobileTheme.fontFamily; Layout.fillWidth: true; text: modelData.preview; textFormat: Text.PlainText; wrapMode: Text.WordWrap; color: MobileTheme.foreground; font.pixelSize: 15 }

@@ -20,18 +20,20 @@ PAGE_HARDWARE = {
         { n: "Snapdragon 855 CPU (8 × Kryo 485)", s: "ok",
           note: "All eight cores online and individually tested.", ref: "docs/status.md" },
         { n: "CPU frequency scaling & idle states", s: "partial",
-          note: "Cores run, but the scaling policy and idle states are untouched and unmeasured — this is "
-              + "part of the unfinished battery-life work.", ref: "docs/mobile-roadmap.md" },
+          note: "schedutil scales all three clusters (up to 1.79 / 2.42 / 2.84 GHz) with energy-aware "
+              + "scheduling and CPU thermal cooling; big cores ran 3.5x faster once enabled. Loaded at boot as "
+              + "an overlay; deeper idle states remain unfinished.", ref: "docs/smoothness-20260923.md" },
         { n: "Adreno 640 GPU", s: "ok",
-          note: "Freedreno hardware rendering; Hyprland and Quickshell both run on the GPU (renderD128).",
-          ref: "docs/cpu-gpu-work-20260916.md" },
+          note: "Freedreno hardware rendering; Hyprland and Quickshell both run on the GPU (renderD128). "
+              + "Frequency scaling works (257–585 MHz, simple_ondemand).", ref: "docs/smoothness-20260923.md" },
         { n: "RAM (8 GB)", s: "ok", note: "In normal use; memory and swap policy not yet tuned for mobile." },
         { n: "UFS storage (256 GB)", s: "ok",
           note: "Persistent Arch Linux ARM rootfs on UFS. Full-LUN backup/restore helpers exist for recovery.",
           ref: "docs/backup.md" },
         { n: "A/B slots + stock OnePlus ABL boot", s: "ok",
-          note: "Direct Linux boot through the OOS12 ABL on slot B; slot A stays a working Android fallback.",
-          ref: "docs/pathway.md" },
+          note: "Direct Linux boot through the OOS12 ABL on slot B; slot A stays a working Android fallback. "
+              + "Each boot marks slot B successful, so ABL's retry counter no longer runs out into the "
+              + "\"boot image destroyed\" screen.", ref: "docs/microphone-20260922.md" },
         { n: "Hexagon ADSP (audio DSP)", s: "ok",
           note: "ADSP firmware loads and runs; it carries the audio path today.",
           ref: "docs/audio-bringup-20260918.md" },
@@ -48,9 +50,9 @@ PAGE_HARDWARE = {
         { n: "Deepest idle power states", s: "no",
           note: "CX/MX/MMCX/MSS sleep votes still held; one isolated MSS release wedged modem resume.",
           ref: "docs/mss-handoff-test-20260917.md" },
-        { n: "Thermal sensing & throttling policy", s: "no",
-          note: "Thermal zones and governors untouched; sustained-load behaviour (games, video, a local model) "
-              + "has never been measured on this build.", ref: "docs/mobile-roadmap.md" },
+        { n: "Thermal sensing & throttling policy", s: "partial",
+          note: "September 22: 25 thermal zones and one cooling device exposed; plausible temperatures read. Trip points, cooling action and sustained-load behavior remain unverified.",
+          ref: "docs/hardware-plan-20260922.md" },
         { n: "RTC and alarms", s: "ok",
           note: "RTC binds under its correct SPMI parent; a five-second alarm fired while awake. RTC wake from "
               + "suspend is still to be proven.", ref: "docs/status.md" },
@@ -60,6 +62,9 @@ PAGE_HARDWARE = {
         { n: "Volume up / down keys", s: "partial",
           note: "Both keys enumerate cleanly after the SPMI-parent fix; physical press-and-hold behaviour not "
               + "yet confirmed by the user.", ref: "docs/audio-bringup-20260918.md" },
+        { n: "Three-position alert slider", s: "no",
+          note: "Guacamole wiring and physical events need verification, followed by ring/vibrate/silent policy.",
+          ref: "docs/hardware-plan-20260922.md" },
         { n: "Battery gauge (TI bq27541)", s: "ok",
           note: "Standard power_supply class: capacity, voltage, current and temperature, live while unplugged.",
           ref: "docs/battery-gauge-20260917.md" },
@@ -88,13 +93,15 @@ PAGE_HARDWARE = {
         { n: "AMOLED panel, 1440 × 3120 DSC (DSI)", s: "ok",
           note: "Native DPU/DSI scanout at 60 Hz, correct colours, stable output. No ABL leftover framebuffer.",
           ref: "docs/native-display-work-20260917.md" },
-        { n: "90 Hz refresh mode", s: "no", note: "Panel runs 60 Hz; the 90 Hz mode is not enabled yet." },
+        { n: "90 Hz refresh mode", s: "partial",
+          note: "Kernel #191 offers 60 and 90 Hz and the shell runs at 90 Hz: 89.8 Hz measured, no missed "
+              + "refreshes. Stock's per-rate gamma is not applied yet.", ref: "docs/smoothness-20260923.md" },
         { n: "Panel power off / wake", s: "ok",
           note: "Blank and restore driven by the power key, charging preserved.",
           ref: "docs/power-button-policy-20260917.md" },
-        { n: "Backlight / brightness control", s: "no",
-          note: "Fixed vendor brightness override (320/1023); no user-visible brightness path.",
-          ref: "docs/mobile-roadmap.md" },
+        { n: "Backlight / brightness control", s: "partial",
+          note: "Backlight sysfs interface exists and reads 320/1023. Physical brightness changes and Settings control remain untested; no value was changed during investigation.",
+          ref: "docs/hardware-plan-20260922.md" },
         { n: "Always-on / ambient display (panel doze)", s: "no", note: "Not attempted." },
         { n: "Multitouch (Samsung S6SY761)", s: "ok",
           note: "User-tested including five-finger input; survives suspend/resume.",
@@ -117,26 +124,32 @@ PAGE_HARDWARE = {
               + "been exercised, so only the playback side has any evidence.",
           ref: "docs/audio-bringup-20260918.md" },
         { n: "Main loudspeaker (TFA9874, lower amp)", s: "partial",
-          note: "Amp identified (rev 0c74), clock lock achieved on isolated quiet tests, both amps return to "
-              + "power-down afterwards. Independent acoustic confirmation still pending.",
-          ref: "docs/audio-bringup-20260918.md" },
+          note: "Works after the user reseated the bottom board. S16 output is capped at -18 dBFS, where a "
+              + "1 kHz tone reaches about 5% distortion, behind a leveler and limiter. No speaker protection "
+              + "yet.", ref: "docs/speakers-20260922.md" },
         { n: "Earpiece receiver (TFA9874, upper amp)", s: "partial",
-          note: "Stock-derived receiver profile wired up and clocking; one initial tone was heard by the user, "
-              + "location uncertain. A hard prerequisite for calls.", ref: "docs/audio-bringup-20260918.md" },
-        { n: "Stereo playback (speaker + receiver together)", s: "no",
-          note: "Dual-output mixing and channel assignment untested; nothing has been heard from both at once.",
-          ref: "docs/audio-bringup-20260918.md" },
-        { n: "Application playback (PipeWire)", s: "partial",
-          note: "PipeWire/PipeWire-Pulse/WirePlumber expose an internal speakers sink with a fixed −36 dB cap. "
-              + "YouTube playback has been reported inaudible.", ref: "docs/audio-bringup-20260918.md" },
+          note: "Left channel; heard at the ear and measured by the top mic. Distorts far earlier than the "
+              + "bottom speaker, so media reaches it capped at -42 dBFS. A hard prerequisite for calls.",
+          ref: "docs/speakers-20260922.md" },
+        { n: "Stereo playback (speaker + receiver together)", s: "partial",
+          note: "Both play a mono mix, verified at the mic; the earpiece is about 17 dB quieter at its cap, "
+              + "so true stereo is not used.", ref: "docs/speakers-20260922.md" },
+        { n: "Application playback (PipeWire)", s: "ok",
+          note: "YouTube plays clean and audible through the volume groups and a processing sink (400 Hz "
+              + "high-pass, leveler, limiter). An 8-period buffer fixed silent and ticking playback.",
+          ref: "docs/speakers-20260922.md" },
         { n: "DSP speaker protection / calibration", s: "no",
-          note: "No OTP/MTP programming or calibration run; the conservative output cap stays until this exists.",
+          note: "No OTP/MTP programming or calibration run; the per-speaker output cap stays until this exists.",
           ref: "docs/audio-bringup-20260918.md" },
-        { n: "Primary microphone", s: "no", note: "Capture path untested; no recording has ever been produced.",
-          ref: "docs/audio-bringup-20260918.md" },
-        { n: "Secondary / noise-cancelling microphones", s: "no",
-          note: "Number, placement and routing on this unit are not yet verified. Needed for speakerphone and "
-              + "video, and for anything voice-driven.", ref: "docs/mobile-roadmap.md" },
+        { n: "Primary microphone", s: "partial",
+          note: "AMIC4, the stock handset mic, records through PipeWire as Internal microphone and starts with "
+              + "the audio stack after reboot. Recordings of music played nearby were confirmed clean by ear. "
+              + "Not yet tested across suspend; gain is a fixed conservative default.",
+          ref: "docs/microphone-20260922.md" },
+        { n: "Secondary / noise-cancelling microphones", s: "partial",
+          note: "AMIC1 and AMIC3 also respond to room sound (+27 and +36 dB over quiet) and sound clean. AMIC3 is "
+              + "the top mic; AMIC1 is probably near the rear cameras. Not exposed to applications yet.",
+          ref: "docs/microphone-20260922.md" },
         { n: "Speakerphone audio path", s: "no",
           note: "Route switching between receiver, speaker and headset is the part a call actually depends on.",
           ref: "docs/mobile-roadmap.md" },
@@ -154,18 +167,22 @@ PAGE_HARDWARE = {
         { n: "Wi-Fi (WCN3990 / ath10k_snoc)", s: "ok",
           note: "NetworkManager connect, saved-network reconnect, internet access, and recovery after suspend.",
           ref: "docs/wifi-20260917.md" },
-        { n: "Bluetooth", s: "no", note: "Not brought up. Same WCN3990 package as Wi-Fi.",
-          ref: "docs/mobile-roadmap.md" },
+        { n: "Bluetooth", s: "partial",
+          note: "WCN3990 loads its stock firmware, scans and pairs; OnePlus Bullets headphones play A2DP "
+              + "(aptX HD) and Wi-Fi keeps working. Starts after the desktop (just enabled, not yet rebooted). Calls (HFP), PIN "
+              + "keyboards and waking from suspend are untested.", ref: "docs/bluetooth-20260922.md" },
         { n: "Cellular modem subsystem (QMI / QRTR)", s: "partial",
           note: "QMP attached, handover issued, QMI/QRTR queries answered, no daemon crashes. A running "
               + "remoteproc is not a usable modem.", ref: "docs/modem-foundations-20260917.md" },
         { n: "SIM detection & SIM PIN handling", s: "no",
-          note: "Both SIM slots report absent; no SIM has been tested under Linux. The global SKU has one "
-              + "nano-SIM tray.", ref: "docs/modem-foundations-20260917.md" },
+          note: "Both reported slots are absent; no SIM tested under Linux. Verify physical tray capacity and slot mapping before provisioning.",
+          ref: "docs/cellular-plan-20260922.md" },
         { n: "RF front end, EFS & calibration (IMEI)", s: "partial",
           note: "EFS LUN backed up for recovery and never flashed from another device. IMEI validity and "
               + "antenna behaviour under Linux are unverified.", ref: "docs/backup.md" },
-        { n: "Cellular data (LTE)", s: "no", note: "IPA data path not validated; no registration, no bearer.",
+        { n: "Cellular data (LTE)", s: "partial",
+          note: "IPA v4.1 binds on kernel #189 and the modem data interface appears; an rmnet link can be "
+              + "created. No SIM yet, so no registration or bearer.",
           ref: "docs/mobile-roadmap.md" },
         { n: "SMS / texting", s: "no", note: "No tested cellular service yet, so no end-to-end SMS.",
           ref: "README.md" },
@@ -188,7 +205,8 @@ PAGE_HARDWARE = {
         { n: "Gyroscope", s: "no", note: "Not brought up.", ref: "docs/pathway.md" },
         { n: "Magnetometer (magnetic field / compass)", s: "no", note: "Not brought up." },
         { n: "Barometric pressure", s: "no",
-          note: "Present on this handset (reported in its Android sensor list); not brought up.", ref: "docs/pathway.md" },
+          note: "Earlier checklist claimed an Android pressure sensor; recheck the actual stock inventory and physical part before selecting a driver.",
+          ref: "docs/hardware-plan-20260922.md" },
         { n: "Ambient light sensor", s: "no", note: "Not brought up; required for auto-brightness." },
         { n: "Proximity sensor (ear-away / call detection)", s: "no",
           note: "Required before the screen can switch off against a face during a call.",
@@ -208,16 +226,19 @@ PAGE_HARDWARE = {
            + "a missing derived sensor is never mistaken for a missing chip. Worth re-reading the list off the "
            + "device from Android before we commit to what we reproduce.",
       items: [
-        { n: "Gravity", s: "no", note: "Derived: accelerometer with tilt removed. No separate hardware." },
+        { n: "Gravity", s: "no",
+          note: "Derived estimate of gravitational acceleration. No separate hardware.",
+          ref: "docs/hardware-plan-20260922.md" },
         { n: "Linear acceleration", s: "no", note: "Derived: accelerometer minus gravity. No separate hardware." },
         { n: "Rotation vector", s: "no",
           note: "Fused accelerometer + gyroscope + magnetometer; the useful one for stable orientation. Needs "
               + "all three physical sensors and their calibration data." },
         { n: "Geomagnetic rotation vector", s: "no",
-          note: "Fused variant that tolerates a badly biased magnetometer. Derived, no separate hardware." },
+          note: "Orientation derived from accelerometer and magnetometer; depends on magnetic calibration. No separate hardware.",
+          ref: "docs/hardware-plan-20260922.md" },
         { n: "Game rotation vector", s: "no",
-          note: "Accelerometer + gyroscope without the magnetometer, so it does not drift with magnetic "
-              + "interference but has no absolute heading. What games and AR use." },
+          note: "Accelerometer and gyroscope without magnetic heading; avoids magnetic interference but can accumulate yaw drift. No separate hardware.",
+          ref: "docs/hardware-plan-20260922.md" },
         { n: "Orientation (pitch / roll / azimuth)", s: "no",
           note: "Euler angles from the rotation vector. What auto-rotate and a compass UI consume." },
         { n: "Uncalibrated accelerometer / gyro / magnetic field", s: "no",
@@ -241,17 +262,23 @@ PAGE_HARDWARE = {
       id: "cameras",
       title: "Cameras",
       items: [
-        { n: "Rear wide — 48 MP Sony IMX586 (OIS)", s: "no", note: "Not brought up; libcamera path planned.",
-          ref: "docs/pathway.md" },
-        { n: "Rear ultra-wide — 16 MP", s: "no", note: "Not brought up." },
-        { n: "Rear telephoto — 8 MP (OIS)", s: "no", note: "Not brought up." },
+        { n: "Rear wide — 48 MP Sony IMX586 (OIS)", s: "partial",
+          note: "Streams 4000x3000 raw over its C-PHY; libcamera's software ISP gives processed frames at "
+              + "30 fps, and the LC898217XC focus motor brings a room into sharp focus. Colour tuning, "
+              + "autofocus and an app are next.",
+          ref: "docs/camera-20260922.md" },
+        { n: "Rear ultra-wide — 16 MP", s: "no",
+          note: "Sony IMX481 on CCI1 / CSIPHY3, per the stock tree. Not powered yet.", ref: "docs/camera-20260922.md" },
+        { n: "Rear telephoto — 8 MP (OIS)", s: "no",
+          note: "Samsung S5K3M5 on CCI0 / CSIPHY0, per the stock tree. Not powered yet.", ref: "docs/camera-20260922.md" },
         { n: "Pop-up front camera — 16 MP Sony IMX471", s: "no", note: "Not brought up." },
         { n: "Pop-up camera motor & lifecycle", s: "no",
           note: "Unique to the 7 Pro / 7T Pro. Motor control, endstops and safe retraction (drop detection) "
               + "still to do.", ref: "docs/pathway.md" },
         { n: "ISP / image pipeline (IPE)", s: "no",
-          note: "Sensors without the ISP give raw frames only. This is the long pole for usable photos, video "
-              + "and any future scanning/QR features.", ref: "docs/pathway.md" },
+          note: "Raw capture through CAMSS (CSIPHY, CSID, VFE raw path) works. No processing yet: libcamera's "
+              + "software ISP is next, as on the related port; the hardware ISP is unverified.",
+          ref: "docs/hardware-plan-20260922.md" },
         { n: "Video codec (Venus: hardware encode / decode)", s: "no",
           note: "Not brought up. Likely part of why web video is choppy, though that is not proven.",
           ref: "docs/next-session.md" },

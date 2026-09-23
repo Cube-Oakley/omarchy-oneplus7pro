@@ -120,7 +120,7 @@ Item {
         editing: installer.searching
         onEditingRequested: { installer.searching = true; installer.urlEditing = false; installer.keyboardRequested(true); }
         onTextChanged: installer.query = text
-        background: Rectangle { radius: 14; color: MobileTheme.surface; border.color: MobileTheme.muted }
+        background: Rectangle { radius: MobileTheme.radius(14); color: MobileTheme.surface; border.color: MobileTheme.muted }
     }
     RowLayout {
         Layout.fillWidth: true
@@ -135,7 +135,7 @@ Item {
             font.pixelSize: 15
             editing: installer.urlEditing
             onEditingRequested: { installer.urlEditing = true; installer.searching = false; installer.keyboardRequested(true); }
-            background: Rectangle { radius: 14; color: MobileTheme.surface; border.color: MobileTheme.muted }
+            background: Rectangle { radius: MobileTheme.radius(14); color: MobileTheme.surface; border.color: MobileTheme.muted }
         }
         TouchButton {
             label: "Install"
@@ -177,7 +177,7 @@ Item {
             Rectangle {
                 anchors.fill: parent
                 anchors.margins: 6
-                radius: 14
+                radius: MobileTheme.radius(14)
                 color: MobileTheme.surface
                 clip: true
                 Image {
@@ -228,7 +228,7 @@ Item {
             anchors.centerIn: parent
             width: Math.min(parent.width - 28, 420)
             height: cardColumn.implicitHeight + 36
-            radius: 22
+            radius: MobileTheme.radius(22)
             color: MobileTheme.surface
             border.color: MobileTheme.muted
             TapHandler { onTapped: {} }
