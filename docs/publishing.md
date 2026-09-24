@@ -93,3 +93,6 @@ Scan the lines the sync adds (`git diff public main`, excluding the Pages files)
   modules, hexagonrpcd patches, the SEE client and checks) after the same
   checks, which found nothing to remove. No firmware, registry or persist
   data is included; those stay in `out/` and `.work/`.
+- September 24, afternoon: synced the sensors' boot start, iio-sensor-proxy
+  integration, automatic brightness and the rotate button after the same
+  checks, which found nothing to remove.
