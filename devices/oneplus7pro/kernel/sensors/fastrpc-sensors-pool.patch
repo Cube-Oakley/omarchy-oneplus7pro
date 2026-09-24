@@ -1,0 +1,26 @@
+misc: fastrpc: allocate the sensors domain's messages from the reserved pool
+
+From the OnePlus 7T Pro port (Robin Snyders, hotdog-linux-bringup, 0148), less
+its per-invoke dev_info trace, which filled 98% of the log there. The sensors
+protection domain does not reach the message buffer through its SMMU context
+bank: given a mapped buffer it addressed memory that was not there, first
+faulting on the session id folded into the upper bits and, once that was
+corrected, stalling the interconnect until the watchdog reset the SoC.
+
+--- a/drivers/misc/fastrpc.c
++++ b/drivers/misc/fastrpc.c
+@@ -954,7 +954,13 @@
+ 
+ 	ctx->msg_sz = pkt_size;
+ 
+-	if (ctx->fl->sctx->sid)
++	/*
++	 * The sensors domain reaches the message buffer directly rather than
++	 * through its context bank, so it needs one from the reserved pool.
++	 * A context-bank mapping leaves it addressing memory that is not
++	 * there, which stalls the interconnect rather than faulting.
++	 */
++	if (ctx->fl->sctx->sid && ctx->fl->pd != SENSORS_PD)
+ 		err = fastrpc_buf_alloc(ctx->fl, dev, pkt_size, &ctx->buf);
+ 	else
+ 		err = fastrpc_remote_heap_alloc(ctx->fl, dev, pkt_size, &ctx->buf);

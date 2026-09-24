@@ -40,9 +40,13 @@ PAGE_HARDWARE = {
         { n: "Hexagon NPU (cDSP / AI engine)", s: "no",
           note: "Not mainlined for SM8150. Anything we run locally today has to fall back to CPU or GPU.",
           ref: "docs/pathway.md" },
-        { n: "SLPI / SSC sensor subsystem", s: "no",
-          note: "The sensor hub the physical sensors hang off. The related 7T Pro work drives it through "
-              + "libssc → SEE rather than raw IIO; that is the likely path here too.", ref: "docs/pathway.md" },
+        { n: "SLPI / SSC sensor subsystem", s: "partial",
+          note: "Runs: kernel #193 moves the firmware carve-outs to the OEM map, a runtime module starts SLPI "
+              + "with this phone's OxygenOS 10 SLPI firmware (00083; the OxygenOS 12 image leaves out the motion "
+              + "sensors, as on the 7T Pro), and hexagonrpcd serves it the stock configuration and a copy of the "
+              + "persist registry. 42 sensor types register and the physical ones stream. Nothing starts it at "
+              + "boot yet; libssc and iio-sensor-proxy come next.",
+          ref: "docs/sensors-20260924.md" },
         { n: "s2idle suspend / resume", s: "partial",
           note: "Repeated suspend cycles pass with touch, Wi-Fi, modem and charging recovering cleanly. The SoC "
               + "never reaches its deepest states (AOSD/CXSD/DDR residency stays zero).",
@@ -204,19 +208,33 @@ PAGE_HARDWARE = {
     {
       id: "sensors",
       title: "Sensors — physical silicon",
-      blurb: "The parts actually wired to the SLPI/SSC sensor subsystem. Nothing here is enabled yet.",
+      blurb: "The parts actually wired to the SLPI/SSC sensor subsystem. The SLPI runs and every sensor "
+           + "below except proximity, the Hall sensor and fingerprint reader streams to a test client; none reaches "
+           + "Linux's sensor service (iio-sensor-proxy) yet.",
       items: [
-        { n: "Accelerometer", s: "no", note: "Not brought up; blocks auto-rotate and every motion sensor.",
-          ref: "docs/pathway.md" },
-        { n: "Gyroscope", s: "no", note: "Not brought up.", ref: "docs/pathway.md" },
-        { n: "Magnetometer (magnetic field / compass)", s: "no", note: "Not brought up." },
+        { n: "Accelerometer", s: "partial",
+          note: "LSM6DSM on the sensor DSP's SPI bus, with the OxygenOS 10 SLPI firmware: streams at 25 Hz, and "
+              + "checked in four positions: its axes are Android's device frame. Not fed to Linux yet, so no "
+              + "auto-rotate.", ref: "docs/sensors-20260924.md" },
+        { n: "Gyroscope", s: "partial",
+          note: "Same LSM6DSM: streams, about 0 rad/s at rest once its start-up sample passes. Not fed to Linux yet.",
+          ref: "docs/sensors-20260924.md" },
+        { n: "Magnetometer (magnetic field / compass)", s: "partial",
+          note: "MMC5603: streams about 59 µT in the room, a plausible Earth field. Not fed to Linux yet.",
+          ref: "docs/sensors-20260924.md" },
         { n: "Barometric pressure", s: "no",
           note: "Earlier checklist claimed an Android pressure sensor; recheck the actual stock inventory and physical part before selecting a driver.",
           ref: "docs/hardware-plan-20260922.md" },
-        { n: "Ambient light sensor", s: "no", note: "Not brought up; required for auto-brightness." },
+        { n: "Ambient light sensor", s: "partial",
+          note: "STK2232 under the display, through the sensor DSP: streams about five readings a second and "
+              + "responds (about 111 in the room, 15 face down). Not yet fed to Linux, so no auto-brightness yet.",
+          ref: "docs/sensors-20260924.md" },
         { n: "Proximity sensor (ear-away / call detection)", s: "no",
-          note: "Required before the screen can switch off against a face during a call.",
-          ref: "docs/mobile-roadmap.md" },
+          note: "The STK2232's proximity channel registers but never reads near, even face down. Android's "
+              + "sensor HAL lists an Elliptic Labs ultrasound proximity sensor, as on the 7T Pro, where it runs "
+              + "on the audio DSP: most likely the real one here, and not started. Required before the screen can "
+              + "switch off against a face during a call.",
+          ref: "docs/sensors-20260924.md" },
         { n: "Hall sensor (pop-up camera endstops)", s: "no",
           note: "Bounds the pop-up selfie mechanism; nothing enabled yet.", ref: "docs/pathway.md" },
         { n: "In-display optical fingerprint reader", s: "no",
@@ -232,35 +250,36 @@ PAGE_HARDWARE = {
            + "a missing derived sensor is never mistaken for a missing chip. Worth re-reading the list off the "
            + "device from Android before we commit to what we reproduce.",
       items: [
-        { n: "Gravity", s: "no",
-          note: "Derived estimate of gravitational acceleration. No separate hardware.",
+        { n: "Gravity", s: "partial",
+          note: "Registers on the sensor DSP (SEE); not read yet. Derived estimate of gravitational acceleration. No separate hardware.",
           ref: "docs/hardware-plan-20260922.md" },
         { n: "Linear acceleration", s: "no", note: "Derived: accelerometer minus gravity. No separate hardware." },
-        { n: "Rotation vector", s: "no",
-          note: "Fused accelerometer + gyroscope + magnetometer; the useful one for stable orientation. Needs "
+        { n: "Rotation vector", s: "partial",
+          note: "Registers on the sensor DSP (SEE); not read yet. Fused accelerometer + gyroscope + magnetometer; the useful one for stable orientation. Needs "
               + "all three physical sensors and their calibration data." },
-        { n: "Geomagnetic rotation vector", s: "no",
-          note: "Orientation derived from accelerometer and magnetometer; depends on magnetic calibration. No separate hardware.",
+        { n: "Geomagnetic rotation vector", s: "partial",
+          note: "Registers on the sensor DSP (SEE); not read yet. Orientation derived from accelerometer and magnetometer; depends on magnetic calibration. No separate hardware.",
           ref: "docs/hardware-plan-20260922.md" },
-        { n: "Game rotation vector", s: "no",
-          note: "Accelerometer and gyroscope without magnetic heading; avoids magnetic interference but can accumulate yaw drift. No separate hardware.",
+        { n: "Game rotation vector", s: "partial",
+          note: "Registers on the sensor DSP (SEE); not read yet. Accelerometer and gyroscope without magnetic heading; avoids magnetic interference but can accumulate yaw drift. No separate hardware.",
           ref: "docs/hardware-plan-20260922.md" },
-        { n: "Orientation (pitch / roll / azimuth)", s: "no",
-          note: "Euler angles from the rotation vector. What auto-rotate and a compass UI consume." },
+        { n: "Orientation (pitch / roll / azimuth)", s: "partial",
+          note: "Registers on the sensor DSP (SEE); not read yet. Euler angles from the rotation vector. What auto-rotate and a compass UI consume." },
         { n: "Uncalibrated accelerometer / gyro / magnetic field", s: "no",
           note: "Same silicon, raw output with the estimated bias reported alongside. Only matters if we do our "
               + "own sensor fusion instead of using the SLPI's." },
-        { n: "Step detector", s: "no",
-          note: "Activity recognition derived from the accelerometer; low-power versions want the sensor hub." },
-        { n: "Step counter", s: "no",
-          note: "Same source as the step detector, counted. Cheap to keep on the hub, expensive on the CPU." },
-        { n: "Significant motion", s: "no",
-          note: "Fires when the handset is actually moved, deliberately ignoring small vibrations. Useful for a "
+        { n: "Step detector", s: "partial",
+          note: "Registers on the sensor DSP (SEE); not read yet. Activity recognition derived from the accelerometer; low-power versions want the sensor hub." },
+        { n: "Step counter", s: "partial",
+          note: "Registers on the sensor DSP (SEE); not read yet. Same source as the step detector, counted. Cheap to keep on the hub, expensive on the CPU." },
+        { n: "Significant motion", s: "partial",
+          note: "Registers on the sensor DSP (SEE); not read yet. Fires when the handset is actually moved, deliberately ignoring small vibrations. Useful for a "
               + "phone that should know it changed hands or moved — and cheap to do on the sensor hub." },
         { n: "Sensor service for Linux (iio-sensor-proxy or SSI)", s: "no",
-          note: "The layer every consumer (rotation, auto-brightness, compass apps, agents) reads. Decide "
-              + "between raw IIO upstream and the SLPI unified-sensor interface before we build on it.",
-          ref: "docs/pathway.md" }
+          note: "The layer every consumer (rotation, auto-brightness, compass apps, agents) reads. The sensors sit "
+              + "on the sensor DSP's own buses, so it has to go through SEE: libssc and an SSC-capable "
+              + "iio-sensor-proxy, as on the 7T Pro. Not built yet.",
+          ref: "docs/sensors-20260924.md" }
       ]
     },
 

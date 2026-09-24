@@ -1,5 +1,19 @@
 # Checkpoint — 2026-09-17
 
+**September 24 sensors:** [SLPI](sensors-20260924.md). Kernel #193 (slot B,
+rollback #192) moves the firmware carve-outs to the OEM map and adds a 16 MiB
+FastRPC pool; everything else runs as on #192. A runtime module starts the
+sensor DSP with this phone's own firmware: it publishes the Snapdragon Sensor
+Core service over QRTR, `/dev/fastrpc-sdsp` exists, and it survives suspend.
+With hexagonrpcd serving the stock configuration and a copy of the persist
+registry, and OxygenOS 10's SLPI firmware (00083; the OxygenOS 12 image left
+out the motion sensors, as on the 7T Pro), 42 sensor types register and the
+accelerometer (axes checked by hand), gyroscope, magnetometer and light
+sensor stream to a test client. Proximity is most likely Elliptic ultrasound
+on the audio DSP, as on the 7T Pro: the light chip's proximity half never
+reads near. Nothing starts it at boot yet, and Linux's sensor service
+(libssc, iio-sensor-proxy) is next.
+
 **September 22 cellular groundwork:** [baseline](cellular-baseline-20260922.md).
 Read-only PDC probe works: 25 resident EU profiles, active `Free-VoLTE`, no
 T-Mobile resident; `Commercial-TMO` (PDC ID `cb45c810…`) is in the firmware

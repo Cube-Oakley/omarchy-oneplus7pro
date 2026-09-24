@@ -1,0 +1,17 @@
+soc: qcom: pd-mapper: add the SM8150 sensor DSP's protection domains
+
+The SM8150 table lists the ADSP, CDSP and modem domains but not the SLPI's,
+so the sensor DSP's root and sensor domains were never announced. SM8250's
+entries (instance 90) apply unchanged.
+
+--- a/drivers/soc/qcom/qcom_pd_mapper.c
++++ b/drivers/soc/qcom/qcom_pd_mapper.c
+@@ -504,6 +504,8 @@
+ 	&cdsp_root_pd,
+ 	&mpss_root_pd_gps,
+ 	&mpss_wlan_pd,
++	&slpi_root_pd,
++	&slpi_sensor_pd,
+ 	NULL,
+ };
+ 

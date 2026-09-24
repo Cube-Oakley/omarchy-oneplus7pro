@@ -1,6 +1,6 @@
 /* Site-wide copy shared by all pages. */
 SITE = {
-  meta: ["updated 2026-09-24", "kernel #192 · slot B", "audio + Bluetooth working · SIM pending"],
+  meta: ["updated 2026-09-24", "kernel #193 · slot B", "audio + Bluetooth working · SIM pending"],
 
   landing: {
     eyebrow: "Project plan · overview",
@@ -8,7 +8,7 @@ SITE = {
     blurb: "Arch Linux ARM + Hyprland + Quickshell on guacamole (Snapdragon 855 / Adreno 640), "
          + "shaped into a touch phone we can actually reprogram. Three pages: the hardware inside the "
          + "handset, the software you touch, and how the phone talks to a desktop.",
-    meta: ["updated 2026-09-24", "kernel #192 · slot B", "audio + Bluetooth working · SIM pending", "3 pages"]
+    meta: ["updated 2026-09-24", "kernel #193 · slot B", "audio + Bluetooth working · SIM pending", "3 pages"]
   },
 
   howTo: [
@@ -34,8 +34,9 @@ SITE = {
     + "(input, chrome/UI, windowing, media) is undecided.",
     "<b>AI surface.</b> What the default agent is, what the on-device model is for, and exactly what the "
     + "phone-control API exposes to an agent — including how an agent action gets confirmed — is open.",
-    "<b>Sensor path.</b> Raw IIO upstream versus the SLPI unified-sensor interface (the 7T Pro work drives "
-    + "sensors through libssc → SEE). Worth deciding before anything is built on top of either. See "
+    "<b>Sensor path.</b> Largely settled by the hardware: the sensors sit on the sensor DSP's own buses and "
+    + "stream through its SEE interface, so Linux reads them with libssc and iio-sensor-proxy, as on the 7T "
+    + "Pro. Open: what the shell and agents consume beyond rotation and brightness. See "
     + "<b>Hardware → Sensors</b>.",
     "<b>Integration transport.</b> USB, LAN or relay; which existing protocols we evaluate before writing "
     + "anything; and how pairing, per-feature permissions and end-to-end privacy are framed. See "

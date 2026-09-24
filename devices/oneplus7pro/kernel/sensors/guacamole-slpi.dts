@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * The sensor DSP (SLPI), applied at runtime on kernel #193 or later, whose
+ * boot DTB puts SLPI's 20 MiB at the OEM address 0x98100000 and carries the
+ * 16 MiB FastRPC pool below 4 GB (scripts/build_kernel193.sh).
+ *
+ * Follows the OnePlus 7T Pro port (0125, 0126): the firmware is this phone's
+ * own split image; the FastRPC node takes the pool, and the pool is assigned
+ * to HLOS, SSC_Q6 and ADSP_Q6 (VMIDs 3, 5, 6) as the downstream driver
+ * does. Without that assignment the hypervisor refuses the DSP's accesses,
+ * and a refused access stalls the interconnect until the watchdog resets
+ * the SoC. The PAS driver boots SLPI as soon as the node is enabled.
+ */
+/dts-v1/;
+/plugin/;
+
+&remoteproc_slpi {
+	firmware-name = "qcom/sm8150/oneplus/guacamole/slpi.mdt";
+	status = "okay";
+
+	glink-edge {
+		fastrpc {
+			memory-region = <&fastrpc_mem>;
+			qcom,vmids = <0x3 0x5 0x6>;
+		};
+	};
+};
