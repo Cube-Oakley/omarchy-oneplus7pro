@@ -84,3 +84,6 @@ Scan the lines the sync adds (`git diff public main`, excluding the Pages files)
 - September 23, later: synced again (Omarchy Camera's burst merge and photo
   renderer, libcamera-guacamole 0.7.2-7, the camera theme) after the same
   checks; the only address added is the USB link's 172.16.42.1.
+- September 23, night: synced the brightness, vibration, flashlight and alert
+  slider controls after the same checks; the only address added is the
+  upstream author's, already public in the 7T Pro patches.
