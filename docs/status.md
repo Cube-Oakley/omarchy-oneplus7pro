@@ -9,9 +9,10 @@ With hexagonrpcd serving the stock configuration and a copy of the persist
 registry, and OxygenOS 10's SLPI firmware (00083; the OxygenOS 12 image left
 out the motion sensors, as on the 7T Pro), 42 sensor types register and the
 accelerometer (axes checked by hand), gyroscope, magnetometer and light
-sensor stream to a test client. Proximity is most likely Elliptic ultrasound
-on the audio DSP, as on the 7T Pro: the light chip's proximity half never
-reads near. It all starts at boot after the radio, with Arch's
+sensor stream to a test client. Proximity is the light chip's, which reads
+near once its threshold is lowered for the display in front of it (a
+registry patch); factory calibration comes with the persist copy. It all
+starts at boot after the radio, with Arch's
 iio-sensor-proxy (libssc) on top: the shell has automatic brightness (the sun
 icon by the slider) and Android's rotate button, both checked by hand.
 

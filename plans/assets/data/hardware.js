@@ -209,8 +209,9 @@ PAGE_HARDWARE = {
       id: "sensors",
       title: "Sensors — physical silicon",
       blurb: "The parts actually wired to the SLPI/SSC sensor subsystem. The SLPI runs; the accelerometer "
-           + "and light sensor reach the shell through iio-sensor-proxy, the gyroscope and magnetometer stream "
-           + "to a test client, and proximity, the Hall sensor and fingerprint reader do not work yet.",
+           + "and light sensor reach the shell through iio-sensor-proxy, proximity reaches it too but nothing "
+           + "uses it yet, the gyroscope and magnetometer stream to a test client, and the Hall sensor and "
+           + "fingerprint reader do not work yet.",
       items: [
         { n: "Accelerometer", s: "ok",
           note: "LSM6DSM on the sensor DSP's SPI bus, with the OxygenOS 10 SLPI firmware, read through libssc "
@@ -229,11 +230,10 @@ PAGE_HARDWARE = {
           note: "STK2232 under the display, through the sensor DSP and iio-sensor-proxy: drives automatic "
               + "brightness, which discounts the panel's own light (about 190 lux at full brightness).",
           ref: "docs/sensors-20260924.md" },
-        { n: "Proximity sensor (ear-away / call detection)", s: "no",
-          note: "The STK2232's proximity channel registers but never reads near, even face down. Android's "
-              + "sensor HAL lists an Elliptic Labs ultrasound proximity sensor, as on the 7T Pro, where it runs "
-              + "on the audio DSP: most likely the real one here, and not started. Required before the screen can "
-              + "switch off against a face during a call.",
+        { n: "Proximity sensor (ear-away / call detection)", s: "partial",
+          note: "The STK2232 under the display, factory-calibrated: with its near threshold lowered from the "
+              + "default 250 to 100 (a registry patch; the panel absorbs most of the infrared), a palm reads near "
+              + "and far, and iio-sensor-proxy offers it. Thresholds still to tune with a face in a call.",
           ref: "docs/sensors-20260924.md" },
         { n: "Hall sensor (pop-up camera endstops)", s: "no",
           note: "Bounds the pop-up selfie mechanism; nothing enabled yet.", ref: "docs/pathway.md" },
@@ -278,10 +278,10 @@ PAGE_HARDWARE = {
           note: "Registers on the sensor DSP (SEE); not read yet. Fires when the handset is actually moved, deliberately ignoring small vibrations. Useful for a "
               + "phone that should know it changed hands or moved — and cheap to do on the sensor hub." },
         { n: "Sensor service for Linux (iio-sensor-proxy or SSI)", s: "partial",
-          note: "Arch's iio-sensor-proxy 3.9 with libssc 0.4.4 reads SEE directly and serves the accelerometer "
-              + "and light sensor on D-Bus (net.hadess.SensorProxy); a udev rule adds the accelerometer and its "
-              + "mount matrix. The compass is untried and proximity is left out. Its clients wait until it has "
-              + "opened a sensor: 3.9 loses a claim that arrives earlier.",
+          note: "Arch's iio-sensor-proxy 3.9 with libssc 0.4.4 reads SEE directly and serves the accelerometer, "
+              + "light and proximity sensors on D-Bus (net.hadess.SensorProxy); a udev rule adds the accelerometer, "
+              + "its mount matrix and proximity. The compass is untried. Its clients wait until it has opened a "
+              + "sensor: 3.9 loses a claim that arrives earlier.",
           ref: "docs/sensors-20260924.md" }
       ]
     },

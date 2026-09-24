@@ -8,8 +8,9 @@
 #           SLPI cannot be restarted. Reboot to stop.
 #   tree    build the tree hexagonrpcd serves the sensor DSP: the stock vendor
 #           files (scripts/build_sensor_vendor.sh, copied to vendor-tree/), a
-#           writable copy of persist's registry (persist is only read), and
-#           socinfo as Android shows it. Keeps a pristine copy.
+#           writable copy of persist's registry (persist is only read), with
+#           the fields in registry-patches.json changed, and socinfo as
+#           Android shows it. Keeps a pristine copy.
 #   serve   start hexagonrpcd once: its first attach creates the sensors
 #           domain, which cannot be attached again until a reboot.
 #   firmware SET
@@ -97,6 +98,22 @@ case "${1:-}" in
             debugfs -R "dump /sensors/registry/$f $SERVED.new/sensors/$f" "$persist" 2>&1 | grep -v '^debugfs' || true
             [[ -e $SERVED.new/sensors/$f ]]
         done
+        # Changed fields (registry-patches.json, no per-device values) go into
+        # the served copy only; the DSP keeps a field whose version is above
+        # its configuration's.
+        if [[ -f $BASE/registry-patches.json ]]; then
+            python3 - "$BASE/registry-patches.json" "$SERVED.new/sensors/registry" <<'PY'
+import json, sys
+from pathlib import Path
+patches, registry = json.loads(Path(sys.argv[1]).read_text()), Path(sys.argv[2])
+for group, fields in patches.items():
+    path = registry / group
+    entry = json.loads(path.read_text())
+    entry[group].update(fields)
+    path.write_text(json.dumps(entry))
+    print('registry patch: %s (%s)' % (group, ', '.join(sorted(fields))))
+PY
+        fi
         printf 'MTP\n' > "$SERVED.new/socinfo/hw_platform"
         printf 'Unknown\n' > "$SERVED.new/socinfo/platform_subtype"
         printf '0\n' > "$SERVED.new/socinfo/platform_subtype_id"

@@ -1,0 +1,7 @@
+{
+  "stk2232_0_platform.ps.fac_cal": {
+    "near_threshold": {"type": "flt", "ver": "2", "data": "100.000000"},
+    "far_threshold": {"type": "flt", "ver": "2", "data": "80.000000"},
+    "offset2": {"type": "flt", "ver": "1002", "data": "0.000000"}
+  }
+}
