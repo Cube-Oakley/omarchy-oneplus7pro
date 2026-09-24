@@ -89,3 +89,7 @@ Scan the lines the sync adds (`git diff public main`, excluding the Pages files)
   upstream author's, already public in the 7T Pro patches.
 - September 24: synced kernel #192 (crash handling) after the same checks,
   which found nothing to remove.
+- September 24, later: synced the sensor work (kernel #193, the SLPI
+  modules, hexagonrpcd patches, the SEE client and checks) after the same
+  checks, which found nothing to remove. No firmware, registry or persist
+  data is included; those stay in `out/` and `.work/`.
