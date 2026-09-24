@@ -81,3 +81,6 @@ Scan the lines the sync adds (`git diff public main`, excluding the Pages files)
 - September 23: `public` synced to development `main` (Settings kit, audio and
   microphones, Bluetooth, camera, IPA, CPU scaling, 90 Hz, switcher smoothness)
   after the checks above found nothing private.
+- September 23, later: synced again (Omarchy Camera's burst merge and photo
+  renderer, libcamera-guacamole 0.7.2-7, the camera theme) after the same
+  checks; the only address added is the USB link's 172.16.42.1.
