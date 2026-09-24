@@ -81,6 +81,59 @@ class ControlsTests(unittest.TestCase):
         self.controls.main(['torch', 'toggle'])
         self.assertFalse(self.controls.status()['torch']['on'])
 
+    def test_auto_brightness_starts_from_the_current_level(self):
+        auto = self.controls.AutoBrightness()
+        self.assertIsNone(auto.light(100.0, 0.09, 30, now=0.0))
+        # The same room a moment later: nothing to change.
+        self.assertIsNone(auto.light(100.0, 0.09, 30, now=5.0))
+
+    def test_auto_brightness_follows_the_room_rarely(self):
+        auto = self.controls.AutoBrightness()
+        panel = [30]
+
+        def run(lux, times):
+            changes = []
+            for t in times:
+                level = auto.light(lux, (panel[0] / 100) ** 2, panel[0], now=t)
+                if level is not None:
+                    panel[0] = level
+                    changes.append((t, level))
+            return changes
+        run(100.0, [0.0])
+        # Much brighter (daylight): one higher level, not a ramp of small ones.
+        bright = run(5000.0, [0.5, 1.0, 1.5, 2.0, 2.5])
+        self.assertEqual(len(bright), 1)
+        self.assertGreater(bright[0][1], 34)
+        # Darker again: it comes down, never twice within the change interval.
+        dark = run(1.0, [3.0 + i / 5 for i in range(200)])
+        self.assertTrue(dark)
+        self.assertLess(dark[-1][1], 30)
+        gaps = [b[0] - a[0] for a, b in zip(bright + dark, (bright + dark)[1:])]
+        self.assertTrue(all(gap >= 2.0 for gap in gaps))
+
+    def test_auto_brightness_discounts_the_panel_light(self):
+        dim, bright = self.controls.AutoBrightness(offset=0), self.controls.AutoBrightness(offset=0)
+        dim.light(113.0, 0.01, 10, now=0.0)
+        bright.light(301.0, 1.0, 100, now=0.0)
+        self.assertEqual(dim.target(), bright.target())
+
+    def test_auto_brightness_learns_the_slider(self):
+        auto = self.controls.AutoBrightness()
+        auto.light(100.0, 0.09, 30, now=0.0)
+        before = auto.target()
+        # A drag in progress is left alone ...
+        self.assertIsNone(auto.light(100.0, 0.36, 60, now=1.0))
+        # ... and its final level becomes the preference in this light.
+        auto.user_set(60)
+        self.assertEqual(auto.target(), 60)
+        self.assertGreater(auto.target(), before)
+
+    def test_auto_toggle_is_remembered(self):
+        self.assertFalse(self.controls.status()['auto'])
+        self.assertTrue(self.controls.main(['auto', 'on'])['auto'])
+        self.assertTrue(self.controls.load_state()['auto_brightness'])
+        self.assertFalse(self.controls.main(['auto', 'off'])['auto'])
+
     def test_missing_hardware_is_reported_not_guessed(self):
         empty = tempfile.TemporaryDirectory()
         self.addCleanup(empty.cleanup)

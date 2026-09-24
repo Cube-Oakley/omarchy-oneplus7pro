@@ -66,6 +66,20 @@ Singleton {
         running: true
     }
     Timer { id: brightnessRefresh; interval: 100; onTriggered: controlsProbe.refresh() }
+    // Automatic brightness (the shade's sun icon): a resident follower of the
+    // light sensor while it is on. Each change it makes moves the slider
+    // through a status refresh; the slider's final level teaches it.
+    readonly property bool autoBrightness: controlsProbe.state.auto === true
+    onAutoBrightnessChanged: autoFollower.running = autoBrightness
+    Process {
+        id: autoFollower
+        command: [Quickshell.env("HOME") + "/.local/bin/omarchy-mobile-controls", "auto-run"]
+        stdout: SplitParser {
+            onRead: data => { if (data.trim().length) brightnessRefresh.restart(); }
+        }
+        onExited: if (status.autoBrightness) autoRetry.start()
+    }
+    Timer { id: autoRetry; interval: 10000; onTriggered: autoFollower.running = status.autoBrightness }
     StatusProbe {
         id: controlsProbe
         sampleCommand: [Quickshell.env("HOME") + "/.local/bin/omarchy-mobile-controls", "status"]

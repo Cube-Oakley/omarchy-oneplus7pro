@@ -50,7 +50,8 @@ PAGE_SOFTWARE = {
           ref: "docs/shell-controls-20260918.md" },
         { n: "Quick-setting toggles (brightness, Bluetooth, DND…)", s: "partial",
           note: "Wi-Fi radio, Bluetooth, mute, Do Not Disturb, the flashlight and a brightness slider are in "
-              + "the shade; Bluetooth starts its stack when needed. No rotation lock or hotspot yet.",
+              + "the shade; the sun icon beside the slider switches automatic brightness. Bluetooth starts its "
+              + "stack when needed. No hotspot yet.",
           ref: "docs/controls-20260923.md" },
         { n: "Performance panel", s: "ok",
           note: "CPU/RAM chip opens CPU, memory, load, thermal zones, battery draw and top CPU processes. Process "
@@ -68,7 +69,11 @@ PAGE_SOFTWARE = {
               + "selection is unchanged. Desktop sync is not enabled.",
           ref: "docs/settings-clipboard-20260919.md" },
         { n: "Touch window resize / move", s: "no", note: "Not implemented." },
-        { n: "Auto-rotate", s: "no", note: "Depends on the accelerometer and a sensor service; nothing yet." },
+        { n: "Auto-rotate", s: "ok",
+          note: "Android's rotate button, by choice: the screen keeps its orientation, and when the phone is "
+              + "held another way a button offers to follow it. Both landscape directions checked by hand, touch "
+              + "rotating with the picture; upside-down portrait not tried. The accelerometer is released while "
+              + "the screen is off.", ref: "docs/sensors-20260924.md" },
         { n: "Lock screen, PIN / biometric unlock", s: "no", note: "Not implemented.",
           ref: "docs/mobile-architecture.md" }
       ]

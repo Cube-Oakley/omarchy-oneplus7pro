@@ -44,8 +44,8 @@ PAGE_HARDWARE = {
           note: "Runs: kernel #193 moves the firmware carve-outs to the OEM map, a runtime module starts SLPI "
               + "with this phone's OxygenOS 10 SLPI firmware (00083; the OxygenOS 12 image leaves out the motion "
               + "sensors, as on the 7T Pro), and hexagonrpcd serves it the stock configuration and a copy of the "
-              + "persist registry. 42 sensor types register and the physical ones stream. Nothing starts it at "
-              + "boot yet; libssc and iio-sensor-proxy come next.",
+              + "persist registry. 42 sensor types register. It all starts at boot after the radio, with "
+              + "iio-sensor-proxy on top.",
           ref: "docs/sensors-20260924.md" },
         { n: "s2idle suspend / resume", s: "partial",
           note: "Repeated suspend cycles pass with touch, Wi-Fi, modem and charging recovering cleanly. The SoC "
@@ -208,14 +208,14 @@ PAGE_HARDWARE = {
     {
       id: "sensors",
       title: "Sensors — physical silicon",
-      blurb: "The parts actually wired to the SLPI/SSC sensor subsystem. The SLPI runs and every sensor "
-           + "below except proximity, the Hall sensor and fingerprint reader streams to a test client; none reaches "
-           + "Linux's sensor service (iio-sensor-proxy) yet.",
+      blurb: "The parts actually wired to the SLPI/SSC sensor subsystem. The SLPI runs; the accelerometer "
+           + "and light sensor reach the shell through iio-sensor-proxy, the gyroscope and magnetometer stream "
+           + "to a test client, and proximity, the Hall sensor and fingerprint reader do not work yet.",
       items: [
-        { n: "Accelerometer", s: "partial",
-          note: "LSM6DSM on the sensor DSP's SPI bus, with the OxygenOS 10 SLPI firmware: streams at 25 Hz, and "
-              + "checked in four positions: its axes are Android's device frame. Not fed to Linux yet, so no "
-              + "auto-rotate.", ref: "docs/sensors-20260924.md" },
+        { n: "Accelerometer", s: "ok",
+          note: "LSM6DSM on the sensor DSP's SPI bus, with the OxygenOS 10 SLPI firmware, read through libssc "
+              + "and iio-sensor-proxy: drives the shell's rotate button, checked by hand in both landscape "
+              + "directions.", ref: "docs/sensors-20260924.md" },
         { n: "Gyroscope", s: "partial",
           note: "Same LSM6DSM: streams, about 0 rad/s at rest once its start-up sample passes. Not fed to Linux yet.",
           ref: "docs/sensors-20260924.md" },
@@ -225,9 +225,9 @@ PAGE_HARDWARE = {
         { n: "Barometric pressure", s: "no",
           note: "Earlier checklist claimed an Android pressure sensor; recheck the actual stock inventory and physical part before selecting a driver.",
           ref: "docs/hardware-plan-20260922.md" },
-        { n: "Ambient light sensor", s: "partial",
-          note: "STK2232 under the display, through the sensor DSP: streams about five readings a second and "
-              + "responds (about 111 in the room, 15 face down). Not yet fed to Linux, so no auto-brightness yet.",
+        { n: "Ambient light sensor", s: "ok",
+          note: "STK2232 under the display, through the sensor DSP and iio-sensor-proxy: drives automatic "
+              + "brightness, which discounts the panel's own light (about 190 lux at full brightness).",
           ref: "docs/sensors-20260924.md" },
         { n: "Proximity sensor (ear-away / call detection)", s: "no",
           note: "The STK2232's proximity channel registers but never reads near, even face down. Android's "
@@ -264,7 +264,9 @@ PAGE_HARDWARE = {
           note: "Registers on the sensor DSP (SEE); not read yet. Accelerometer and gyroscope without magnetic heading; avoids magnetic interference but can accumulate yaw drift. No separate hardware.",
           ref: "docs/hardware-plan-20260922.md" },
         { n: "Orientation (pitch / roll / azimuth)", s: "partial",
-          note: "Registers on the sensor DSP (SEE); not read yet. Euler angles from the rotation vector. What auto-rotate and a compass UI consume." },
+          note: "Screen orientation works: iio-sensor-proxy derives it from the accelerometer for the rotate "
+              + "button. The DSP's own fused angles (rotation vector, device_orient) register but are not read yet; "
+              + "a compass UI would want them." },
         { n: "Uncalibrated accelerometer / gyro / magnetic field", s: "no",
           note: "Same silicon, raw output with the estimated bias reported alongside. Only matters if we do our "
               + "own sensor fusion instead of using the SLPI's." },
@@ -275,10 +277,11 @@ PAGE_HARDWARE = {
         { n: "Significant motion", s: "partial",
           note: "Registers on the sensor DSP (SEE); not read yet. Fires when the handset is actually moved, deliberately ignoring small vibrations. Useful for a "
               + "phone that should know it changed hands or moved — and cheap to do on the sensor hub." },
-        { n: "Sensor service for Linux (iio-sensor-proxy or SSI)", s: "no",
-          note: "The layer every consumer (rotation, auto-brightness, compass apps, agents) reads. The sensors sit "
-              + "on the sensor DSP's own buses, so it has to go through SEE: libssc and an SSC-capable "
-              + "iio-sensor-proxy, as on the 7T Pro. Not built yet.",
+        { n: "Sensor service for Linux (iio-sensor-proxy or SSI)", s: "partial",
+          note: "Arch's iio-sensor-proxy 3.9 with libssc 0.4.4 reads SEE directly and serves the accelerometer "
+              + "and light sensor on D-Bus (net.hadess.SensorProxy); a udev rule adds the accelerometer and its "
+              + "mount matrix. The compass is untried and proximity is left out. Its clients wait until it has "
+              + "opened a sensor: 3.9 loses a claim that arrives earlier.",
           ref: "docs/sensors-20260924.md" }
       ]
     },

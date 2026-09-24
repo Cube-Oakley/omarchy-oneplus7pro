@@ -26,6 +26,12 @@ if [[ -x /usr/local/sbin/guacamole-controls-start &&
     nohup /usr/local/sbin/guacamole-controls-start \
         >> /root/controls-bringup/startup.log 2>&1 < /dev/null &
 fi
+# The sensor DSP and its file service, once per boot after the radio (pd-mapper).
+if [[ -x /usr/local/sbin/guacamole-sensors-start &&
+      -f /root/sensors-bringup/autostart-enabled ]]; then
+    nohup /usr/local/sbin/guacamole-sensors-start \
+        >> /root/sensors-bringup/startup.log 2>&1 < /dev/null &
+fi
 if [[ -x /usr/local/sbin/guacamole-bluetooth-start &&
       -f /root/bluetooth-bringup/autostart-enabled ]]; then
     nohup /usr/local/sbin/guacamole-bluetooth-start \

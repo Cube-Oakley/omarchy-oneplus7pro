@@ -75,7 +75,7 @@ case "${1:-}" in
         done
         echo "SLPI state: $(cat "$slpi/state")"
         ls -la /dev/fastrpc-* 2>&1 || true
-        dmesg | grep -iE 'slpi|dsps|2400000|fastrpc|pd.mapper|remoteproc|qcom_q6v5' | tail -30
+        dmesg | grep -iE 'slpi|dsps|2400000|fastrpc|pd.mapper|remoteproc|qcom_q6v5' | tail -30 || true
         ;;
     tree)
         [[ ! -e $ATTACHED ]] || { echo 'hexagonrpcd has attached this boot; its tree is in use' >&2; exit 1; }
@@ -129,7 +129,7 @@ case "${1:-}" in
         echo "SLPI state: $(cat "$slpi/state")"
         wc -l < "$log"
         grep -v -E '^(open|read|write|close|stat|seek)' "$log" | tail -15 || true
-        dmesg | grep -iE 'slpi|dsps|fastrpc|smmu|remoteproc2' | tail -15
+        dmesg | grep -iE 'slpi|dsps|fastrpc|smmu|remoteproc2' | tail -15 || true
         ;;
     firmware)
         set=${2:?firmware set}

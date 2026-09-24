@@ -1,0 +1,9 @@
+# The sensor DSP's accelerometer for iio-sensor-proxy through libssc
+# (docs/sensors-20260924.md). The stock rule, 80-iio-sensor-proxy.rules, gives
+# the FastRPC nodes only light and the compass. Proximity is left out: the
+# light chip's proximity half never reads near on this phone.
+SUBSYSTEM=="misc", KERNEL=="fastrpc-sdsp*", ENV{IIO_SENSOR_PROXY_TYPE}+="ssc-accel"
+# SEE reports Android's device frame (+x right edge, +y top edge, +z out of
+# the screen, measured by hand); iio-sensor-proxy's orientation expects x and
+# y the other way round (upright portrait read as bottom-up), as on the 7T Pro.
+SUBSYSTEM=="misc", KERNEL=="fastrpc-sdsp*", ENV{ACCEL_MOUNT_MATRIX}="-1, 0, 0; 0, -1, 0; 0, 0, 1"

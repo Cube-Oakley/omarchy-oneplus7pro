@@ -12,13 +12,21 @@ shell works on any phone that has them.
   watch                  print a line per alert slider change, until killed
   serve                  apply "brightness N" lines from standard input at
                          once, and "remember N" as the final level of a drag
+  auto on|off            automatic brightness from the light sensor
+  auto-run               follow the light sensor while automatic brightness
+                         is on: a JSON line per change, until killed
 """
 import fcntl
 import json
+import math
 import os
 from pathlib import Path
+import re
 import select
+import shutil
+import signal
 import struct
+import subprocess
 import sys
 import time
 
@@ -36,6 +44,65 @@ TORCH_SHARE = 0.5
 ABS_SND_PROFILE = 0x22
 PROFILES = {0: 'silent', 1: 'vibrate', 2: 'ring'}
 EV_ABS, EV_FF, FF_RUMBLE = 0x03, 0x15, 0x50
+# The OnePlus 7 Pro's light sensor sits under the panel, which adds about
+# 190 lux at full output (the room's 110 lux read 113 at 5%, 301 at 100%).
+PANEL_LUX = 190.0
+
+
+class AutoBrightness:
+    """Brightness from ambient light: a log curve in the slider's (perceptual)
+    scale, shifted by the user's own preference, which is learnt whenever
+    they set the slider. Changes are rare on purpose: each is a panel command,
+    and one can flicker."""
+    STEP = 4          # slider points before a change is worth making
+    INTERVAL = 2.0    # seconds between changes
+    SETTLE = 5.0      # seconds a slider drag is left alone
+
+    def __init__(self, offset=None):
+        self.offset = offset
+        self.level = None      # filtered log10(lux + 1)
+        self.applied = None
+        self.written = 0.0
+        self.manual_since = None
+
+    @staticmethod
+    def base(level):
+        return 10 + 17 * level
+
+    def target(self):
+        return min(100, max(1, round(self.base(self.level) + self.offset)))
+
+    def user_set(self, percent):
+        """The slider's final level: learn it as the preference here."""
+        if self.level is not None:
+            self.offset = percent - self.base(self.level)
+        self.applied = percent
+        self.manual_since = None
+
+    def light(self, lux, share, current, now):
+        """A sensor reading: lux, the panel's current output share (0-1) and
+        slider percent. Returns a percent to apply, or None."""
+        ambient = max(0.0, lux - PANEL_LUX * share)
+        level = math.log10(ambient + 1)
+        if self.level is None:
+            self.level = level
+        else:  # brighten quickly, darken slowly
+            self.level += (0.35 if level > self.level else 0.12) * (level - self.level)
+        if self.offset is None:  # first use: keep the level the user has now
+            self.offset = current - self.base(self.level)
+        if self.applied is None:
+            self.applied = current
+        if abs(current - self.applied) > 1:  # someone is moving the slider
+            if self.manual_since is None:
+                self.manual_since = now
+            if now - self.manual_since < self.SETTLE:
+                return None
+            self.user_set(current)
+        wanted = self.target()
+        if abs(wanted - self.applied) < self.STEP or now - self.written < self.INTERVAL:
+            return None
+        self.applied, self.written = wanted, now
+        return wanted
 
 
 def ioc(direction, number, size):
@@ -134,6 +201,8 @@ def status():
                   'on': any((read_int(led / 'brightness') or 0) > 0 for led in leds)},
         'haptics': bool(input_devices('ff', FF_RUMBLE)),
         'slider': slider_position(),
+        'auto': load_state().get('auto_brightness') is True,
+        'light': shutil.which('monitor-sensor') is not None,
     }
 
 
@@ -219,6 +288,76 @@ def serve():
             print(json.dumps({'error': str(error)}), flush=True)
 
 
+def die_with_parent():
+    """For a child: end with this process even if it is killed outright."""
+    import ctypes
+    ctypes.CDLL(None, use_errno=True).prctl(1, signal.SIGTERM)  # PR_SET_PDEATHSIG
+
+
+def sensor_ready(has):
+    """Whether iio-sensor-proxy has opened a sensor (HasAccelerometer,
+    HasAmbientLight). Version 3.9 takes its D-Bus name before opening its
+    sensors, and a claim in between is counted but never started, so its
+    clients wait for this, and start again whenever the daemon restarts."""
+    try:
+        out = subprocess.run(['busctl', '--system', 'get-property', 'net.hadess.SensorProxy',
+                              '/net/hadess/SensorProxy', 'net.hadess.SensorProxy', has],
+                             capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return out.strip() == 'b true'
+
+
+def auto_run():
+    """Follow the light sensor through iio-sensor-proxy (monitor-sensor) while
+    automatic brightness is on; the slider's final levels, which serve
+    remembers, teach it the user's preference."""
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    state = load_state()
+    if state.get('auto_brightness') is not True:
+        return
+    auto = AutoBrightness(state.get('auto_offset'))
+    remembered = state.get('brightness')
+    pattern = re.compile(r'Light changed: ([0-9.]+)')
+    while True:
+        if not sensor_ready('HasAmbientLight'):
+            time.sleep(3)
+            continue
+        try:
+            proc = subprocess.Popen(['stdbuf', '-oL', 'monitor-sensor', '--light'],
+                                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+                                    preexec_fn=die_with_parent)
+        except OSError:
+            time.sleep(30)
+            continue
+        try:
+            for line in proc.stdout:
+                if 'vanished' in line:
+                    break  # the daemon restarted: wait until it is ready again
+                match = pattern.search(line)
+                light = backlight()
+                if not match or light is None:
+                    continue
+                _, raw, maximum = light
+                state = load_state()
+                if state.get('auto_brightness') is not True:
+                    return
+                if state.get('brightness') != remembered:
+                    remembered = state.get('brightness')
+                    if isinstance(remembered, int):
+                        auto.user_set(remembered)
+                        state['auto_offset'] = auto.offset
+                        save_state(state)
+                wanted = auto.light(float(match.group(1)), raw / maximum,
+                                    percent_for(raw, maximum), time.monotonic())
+                if wanted is not None:
+                    set_brightness(wanted, remember=False)
+                    print(json.dumps({'auto': {'lux': float(match.group(1)), 'percent': wanted}}), flush=True)
+        finally:
+            proc.terminate()
+        time.sleep(1)
+
+
 def main(args):
     action = args[0] if args else 'status'
     if action == 'status' and len(args) == 1 or not args:
@@ -242,6 +381,14 @@ def main(args):
         sys.exit(0)
     if action == 'serve' and len(args) == 1:
         serve()
+        sys.exit(0)
+    if action == 'auto' and len(args) == 2 and args[1] in ('on', 'off'):
+        state = load_state()
+        state['auto_brightness'] = args[1] == 'on'
+        save_state(state)
+        return status()
+    if action == 'auto-run' and len(args) == 1:
+        auto_run()
         sys.exit(0)
     raise ValueError(__doc__.strip().split('\n\n', 1)[1])
 

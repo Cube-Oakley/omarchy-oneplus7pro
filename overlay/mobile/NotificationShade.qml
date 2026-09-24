@@ -271,7 +271,21 @@ PanelWindow {
             RowLayout {
                 Layout.fillWidth: true; spacing: 12
                 visible: !!MobileStatus.controls.backlight
-                Text { font.family: MobileTheme.fontFamily; text: "󰃞"; color: MobileTheme.secondary; font.pixelSize: 20 }
+                // Tap for automatic brightness, where there is a light sensor.
+                Item {
+                    readonly property bool auto: MobileStatus.controls.auto === true
+                    implicitWidth: 40; implicitHeight: 40
+                    Text {
+                        anchors.centerIn: parent
+                        font.family: MobileTheme.fontFamily; font.pixelSize: 20
+                        text: parent.auto ? "󰃡" : "󰃞"
+                        color: parent.auto ? MobileTheme.accent : MobileTheme.secondary
+                    }
+                    TapHandler {
+                        enabled: MobileStatus.controls.light === true
+                        onTapped: MobileStatus.control(["auto", parent.auto ? "off" : "on"])
+                    }
+                }
                 Slider {
                     id: brightness
                     Layout.fillWidth: true

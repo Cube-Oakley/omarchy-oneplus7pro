@@ -385,6 +385,7 @@ ShellRoot {
     }
     SystemClock { id: clock; precision: SystemClock.Minutes }
     VolumeOsd { id: volumeOsd }
+    RotateButton {}
     // The alert slider sets the ring group, as on Android: muted in Vibrate
     // and Silent, heard in Ring, with a short buzz on reaching Vibrate. Only
     // movements count; the position the session starts with is left alone.

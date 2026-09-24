@@ -35,6 +35,7 @@ install -m755 "$source_dir/bluetooth.py" "$HOME/.local/bin/omarchy-mobile-blueto
 install -m755 "$source_dir/storage.py" "$HOME/.local/bin/omarchy-mobile-storage"
 install -m755 "$source_dir/display.py" "$HOME/.local/bin/omarchy-mobile-displayinfo"
 install -m755 "$source_dir/controls.py" "$HOME/.local/bin/omarchy-mobile-controls"
+install -m755 "$source_dir/rotation.py" "$HOME/.local/bin/omarchy-mobile-rotation"
 kit="$data/omarchy-mobile/qml/OmarchyMobile"
 mkdir -p "$kit" "$config/quickshell/omarchy-mobile-settings" "$data/applications"
 install -m644 "$source_dir/MobileTheme.qml" "$source_dir/TouchButton.qml" \

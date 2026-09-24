@@ -11,8 +11,9 @@ out the motion sensors, as on the 7T Pro), 42 sensor types register and the
 accelerometer (axes checked by hand), gyroscope, magnetometer and light
 sensor stream to a test client. Proximity is most likely Elliptic ultrasound
 on the audio DSP, as on the 7T Pro: the light chip's proximity half never
-reads near. Nothing starts it at boot yet, and Linux's sensor service
-(libssc, iio-sensor-proxy) is next.
+reads near. It all starts at boot after the radio, with Arch's
+iio-sensor-proxy (libssc) on top: the shell has automatic brightness (the sun
+icon by the slider) and Android's rotate button, both checked by hand.
 
 **September 22 cellular groundwork:** [baseline](cellular-baseline-20260922.md).
 Read-only PDC probe works: 25 resident EU profiles, active `Free-VoLTE`, no
