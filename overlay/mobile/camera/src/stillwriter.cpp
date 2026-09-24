@@ -37,14 +37,21 @@ QString deviceModel()
     return model;
 }
 
-QString uniquePath(const QString &folder, const QDateTime &when)
+// Opens a new file for the photo, named after the time, as <name>.part: it
+// becomes the photo only once complete, so nothing reads a partial file.
+QString reservePath(const QString &folder, const QDateTime &when, QFile *part)
 {
     const QString stem = folder + QStringLiteral("/IMG_") +
                          when.toString(QStringLiteral("yyyyMMdd_HHmmss"));
-    QString path = stem + QStringLiteral(".jpg");
-    for (int n = 1; QFileInfo::exists(path); ++n)
-        path = stem + QStringLiteral("_%1.jpg").arg(n);
-    return path;
+    for (int n = 0; n < 100; ++n) {
+        const QString path = n ? stem + QStringLiteral("_%1.jpg").arg(n) : stem + QStringLiteral(".jpg");
+        if (QFileInfo::exists(path))
+            continue;
+        part->setFileName(path + QStringLiteral(".part"));
+        if (part->open(QIODevice::WriteOnly | QIODevice::NewOnly))
+            return path;
+    }
+    return {};
 }
 
 #ifdef HAVE_EXIV2
@@ -101,17 +108,30 @@ QString write(const QImage &frame, const StillInfo &info, const QString &folder,
     upright = upright.convertToFormat(QImage::Format_RGB888);
 
     const QDateTime when = QDateTime::currentDateTime();
-    const QString path = uniquePath(folder, when);
-    QImageWriter writer(path, "jpeg");
+    QFile part;
+    const QString path = reservePath(folder, when, &part);
+    if (path.isEmpty()) {
+        *error = QStringLiteral("Could not create a file in %1").arg(folder);
+        return {};
+    }
+    QImageWriter writer(&part, "jpeg");
     writer.setQuality(kJpegQuality);
-    if (!writer.write(upright)) {
+    const bool written = writer.write(upright);
+    part.close();
+    if (!written) {
         *error = writer.errorString();
+        part.remove();
         return {};
     }
 
 #ifdef HAVE_EXIV2
-    writeExif(path, info, when);
+    writeExif(part.fileName(), info, when);
 #endif
+    if (!part.rename(path)) {
+        *error = part.errorString();
+        part.remove();
+        return {};
+    }
     return path;
 }
 

@@ -265,9 +265,9 @@ PAGE_HARDWARE = {
         { n: "Rear wide — 48 MP Sony IMX586 (OIS)", s: "partial",
           note: "Streams 4000x3000 raw over its C-PHY. A patched libcamera (the 7T Pro's IMX586 helper and "
               + "contrast autofocus, plus our statistics, lens-timing and memory fixes) runs it through the GPU "
-              + "software ISP: 30 fps previews, full 3992x3000 at 15 fps. GNOME Snapshot shows it through "
-              + "PipeWire, autofocus lands, and photos save. Image quality is still modest. Two crashes came "
-              + "under full CPU load with the camera stack loaded; the cause is open.",
+              + "software ISP: 30 fps previews with up to three stops of highlight headroom, and raw frames "
+              + "alongside for merged stills in Omarchy Camera; autofocus lands. Three crashes came with the "
+              + "camera stack loaded, two under full CPU load and one on a clean reboot; the cause is open.",
           ref: "docs/camera-20260922.md" },
         { n: "Rear ultra-wide — 16 MP", s: "no",
           note: "Sony IMX481 on CCI1 / CSIPHY3, per the stock tree. Not powered yet.", ref: "docs/camera-20260922.md" },

@@ -1,0 +1,61 @@
+libcamera: software_isp: keep highlights clipped in every channel white
+
+The GPU debayer applies the white balance gains to each channel and then
+saturates it at the sensor range. Under warm light the red gain falls below
+1 (0.72 under a salt lamp on the OnePlus 7 Pro), so a lamp clipped in all
+three channels came out (0.72, 1, 1): cyan. Where every channel clipped the
+colour is unknown, so it now stays white at the brightest balanced level,
+blending in as the last channel nears clipping so there is no edge. The CPU
+debayer, which applies the gains through lookup tables, is unchanged.
+
+---
+diff --git a/src/libcamera/shaders/bayer_1x_packed.frag b/src/libcamera/shaders/bayer_1x_packed.frag
+index 87a8b6b..ad6bf38 100644
+--- a/src/libcamera/shaders/bayer_1x_packed.frag
++++ b/src/libcamera/shaders/bayer_1x_packed.frag
+@@ -255,8 +255,18 @@ void main(void)
+ 	 */
+ 	rgb = (rgb - blacklevel) / (1.0 - blacklevel);
+ 
+-	/* Apply AWB gains, and saturate each channel at sensor range */
+-	rgb = clamp(rgb * awb, vec3(0.0), vec3(1.0));
++	/*
++	 * Apply AWB gains, and saturate each channel at sensor range. Where the
++	 * sensor clipped every channel the colour is unknown, so it stays white
++	 * whatever the gains: under warm light a red gain below 1 would turn a
++	 * clipped lamp cyan. The blend starts as the last channel nears clipping,
++	 * so there is no edge.
++	 */
++	vec3 balanced = rgb * awb;
++	float least = min(rgb.r, min(rgb.g, rgb.b));
++	float brightest = max(balanced.r, max(balanced.g, balanced.b));
++	balanced = mix(balanced, vec3(brightest), smoothstep(0.85, 0.98, least));
++	rgb = clamp(balanced, vec3(0.0), vec3(1.0));
+ 
+ 	/* Colour Correction Matrix */
+ 	rgb = ccm * rgb;
+diff --git a/src/libcamera/shaders/bayer_unpacked.frag b/src/libcamera/shaders/bayer_unpacked.frag
+index 25d2f0e..575e313 100644
+--- a/src/libcamera/shaders/bayer_unpacked.frag
++++ b/src/libcamera/shaders/bayer_unpacked.frag
+@@ -158,8 +158,18 @@ void main(void) {
+      */
+     rgb = (rgb - blacklevel) / (1.0 - blacklevel);
+ 
+-    /* Apply AWB gains, and saturate each channel at sensor range */
+-    rgb = clamp(rgb * awb, vec3(0.0), vec3(1.0));
++    /*
++     * Apply AWB gains, and saturate each channel at sensor range. Where the
++     * sensor clipped every channel the colour is unknown, so it stays white
++     * whatever the gains: under warm light a red gain below 1 would turn a
++     * clipped lamp cyan. The blend starts as the last channel nears clipping,
++     * so there is no edge.
++     */
++    vec3 balanced = rgb * awb;
++    float least = min(rgb.r, min(rgb.g, rgb.b));
++    float brightest = max(balanced.r, max(balanced.g, balanced.b));
++    balanced = mix(balanced, vec3(brightest), smoothstep(0.85, 0.98, least));
++    rgb = clamp(balanced, vec3(0.0), vec3(1.0));
+ 
+     /* Colour Correction Matrix */
+     rgb = ccm * rgb;

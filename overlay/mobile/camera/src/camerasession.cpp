@@ -2,7 +2,9 @@
 #include "stillwriter.h"
 
 #include <QDir>
+#include <QFile>
 #include <QStandardPaths>
+#include <QTextStream>
 #include <QtConcurrent/QtConcurrentRun>
 
 #include <linux/dma-buf.h>
@@ -12,6 +14,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstring>
 
 using namespace libcamera;
 
@@ -133,6 +136,17 @@ CameraSession::CameraSession(QObject *parent)
                    const QString &model) {
                 writeStill(image, StillInfo{ rotation, exposureUs, gain, model });
             });
+    connect(worker_, &CameraWorker::stillFailed, this, [this](const QString &message) {
+        pending_ = std::max(0, pending_ - 1);
+        Q_EMIT pendingChanged();
+        Q_EMIT photoFailed(message);
+    });
+    worker_->burstDone = [this](std::shared_ptr<std::vector<RawFrame>> frames, RawLayout layout,
+                                int rotation, QString model) {
+        QMetaObject::invokeMethod(this, [this, frames, layout, rotation, model] {
+            mergeBurst(frames, layout, rotation, model);
+        }, Qt::QueuedConnection);
+    };
 
     thread_.setObjectName(QStringLiteral("camera"));
     thread_.start();
@@ -224,9 +238,11 @@ void CameraSession::resetFocus()
 
 void CameraSession::capture()
 {
-    if (state_ != QLatin1String("preview"))
+    // At most two photos in flight: each merge holds several raw frames.
+    if (state_ != QLatin1String("preview") || pending_ >= 2)
         return;
-    setState(QStringLiteral("capturing"));
+    ++pending_;
+    Q_EMIT pendingChanged();
     CameraWorker *worker = worker_;
     QMetaObject::invokeMethod(worker, [worker] { worker->capture(); });
 }
@@ -247,15 +263,50 @@ void CameraSession::writeStill(QImage image, StillInfo info)
         QString error;
         const QString path = StillWriter::write(image, info, folder, &error);
         return path.isEmpty() ? QStringLiteral("!") + error : path;
-    }).then(this, [this](const QString &result) {
-        if (result.startsWith(QLatin1Char('!'))) {
-            Q_EMIT photoFailed(result.mid(1));
-            return;
-        }
-        lastPhoto_ = result;
-        Q_EMIT lastPhotoChanged();
-        Q_EMIT photoSaved(result);
-    });
+    }).then(this, [this](const QString &result) { finishPhoto(result); });
+}
+
+void CameraSession::mergeBurst(std::shared_ptr<std::vector<RawFrame>> frames, RawLayout layout,
+                               int rotation, QString model)
+{
+    const QString folder = photoFolder_;
+    QtConcurrent::run([frames, layout, rotation, model, folder]() {
+        MergeReport report;
+        const QImage image = RawMerge::process(*frames, layout, &report);
+        QStringList shifts;
+        for (size_t i = 0; i < report.shifts.size(); ++i)
+            shifts << QStringLiteral("%1,%2 (%3% left out)")
+                          .arg(report.shifts[i][0]).arg(report.shifts[i][1])
+                          .arg(qRound(report.rejected[i] * 100));
+        QStringList sharpness;
+        for (double value : report.sharpness)
+            sharpness << QString::number(value, 'f', 2);
+        qInfo().noquote() << "Merged" << report.frames << "frames in" << report.milliseconds
+                          << "ms on frame" << report.reference << "(sharpness"
+                          << sharpness.join(QStringLiteral(" ")) + QStringLiteral("); shifts")
+                          << shifts.join(QStringLiteral("; "));
+        if (image.isNull())
+            return QStringLiteral("!The photo could not be processed");
+        const RawFrame &first = frames->front();
+        const StillInfo info{ rotation, first.exposureUs,
+                              first.analogueGain * first.digitalGain, model };
+        QString error;
+        const QString path = StillWriter::write(image, info, folder, &error);
+        return path.isEmpty() ? QStringLiteral("!") + error : path;
+    }).then(this, [this](const QString &result) { finishPhoto(result); });
+}
+
+void CameraSession::finishPhoto(const QString &result)
+{
+    pending_ = std::max(0, pending_ - 1);
+    Q_EMIT pendingChanged();
+    if (result.startsWith(QLatin1Char('!'))) {
+        Q_EMIT photoFailed(result.mid(1));
+        return;
+    }
+    lastPhoto_ = result;
+    Q_EMIT lastPhotoChanged();
+    Q_EMIT photoSaved(result);
 }
 
 CameraWorker::CameraWorker(FrameQueue *frames)
@@ -330,10 +381,12 @@ void CameraWorker::close()
     manager_.reset();
 }
 
-bool CameraWorker::configure(StreamRole role, QSize size, unsigned int buffers)
+bool CameraWorker::configure(StreamRole role, QSize size, unsigned int buffers, bool withRaw)
 {
-    config_ = camera_->generateConfiguration({ role });
-    if (!config_ || config_->empty())
+    rawStream_ = nullptr;
+    config_ = withRaw ? camera_->generateConfiguration({ role, StreamRole::Raw })
+                      : camera_->generateConfiguration({ role });
+    if (!config_ || config_->empty() || (withRaw && config_->size() < 2))
         return false;
 
     StreamConfiguration &cfg = config_->at(0);
@@ -350,6 +403,9 @@ bool CameraWorker::configure(StreamRole role, QSize size, unsigned int buffers)
         cfg.size = Size(size.width(), size.height());
     cfg.bufferCount = buffers;
 
+    if (withRaw)
+        config_->at(1).bufferCount = buffers;
+
     if (config_->validate() == CameraConfiguration::Invalid ||
         camera_->configure(config_.get()))
         return false;
@@ -358,16 +414,30 @@ bool CameraWorker::configure(StreamRole role, QSize size, unsigned int buffers)
     streamSize_ = QSize(cfg.size.width, cfg.size.height);
     stride_ = cfg.stride;
     fourcc_ = cfg.pixelFormat.fourcc();
+    if (withRaw) {
+        const StreamConfiguration &raw = config_->at(1);
+        if (!RawLayout::fromName(QString::fromStdString(raw.pixelFormat.toString()),
+                                 QSize(raw.size.width, raw.size.height), raw.stride,
+                                 &rawLayout_))
+            return false;
+        rawStream_ = raw.stream();
+    }
 
     allocator_ = std::make_unique<FrameBufferAllocator>(camera_);
-    if (allocator_->allocate(stream_) < 0)
+    if (allocator_->allocate(stream_) < 0 || (rawStream_ && allocator_->allocate(rawStream_) < 0))
         return false;
 
     requests_.clear();
-    for (const std::unique_ptr<FrameBuffer> &buffer : allocator_->buffers(stream_)) {
+    const auto &frames = allocator_->buffers(stream_);
+    for (size_t i = 0; i < frames.size(); ++i) {
         std::unique_ptr<Request> request = camera_->createRequest();
-        if (!request || request->addBuffer(stream_, buffer.get()))
+        if (!request || request->addBuffer(stream_, frames[i].get()))
             return false;
+        if (rawStream_) {
+            const auto &raws = allocator_->buffers(rawStream_);
+            if (i >= raws.size() || request->addBuffer(rawStream_, raws[i].get()))
+                return false;
+        }
         requests_.push_back(std::move(request));
     }
     return true;
@@ -397,11 +467,14 @@ void CameraWorker::stopStream()
         return;
     camera_->stop();
     ++generation_;
+    burstWanted_ = 0;
+    burst_.reset();
     frames_->clear();
     requests_.clear();
     allocator_.reset();
     config_.reset();
     stream_ = nullptr;
+    rawStream_ = nullptr;
 }
 
 void CameraWorker::startPreview(QSize size)
@@ -409,7 +482,10 @@ void CameraWorker::startPreview(QSize size)
     if (!camera_ || mode_ == Preview)
         return;
     previewSize_ = size;
-    if (!configure(StreamRole::Viewfinder, size, kPreviewBuffers)) {
+    // With the raw stream where the pipeline offers it; otherwise stills
+    // reconfigure to full resolution.
+    if (!configure(StreamRole::Viewfinder, size, kPreviewBuffers, true) &&
+        !configure(StreamRole::Viewfinder, size, kPreviewBuffers, false)) {
         Q_EMIT failed(QStringLiteral("The camera could not be set up"));
         return;
     }
@@ -491,8 +567,14 @@ void CameraWorker::requeue(const CameraFrame &frame)
 
 void CameraWorker::capture()
 {
-    if (mode_ != Preview)
+    if (mode_ != Preview) {
+        Q_EMIT stillFailed(QStringLiteral("The camera is not ready"));
         return;
+    }
+    if (rawStream_ && rawRenderable_ && !burst_) {
+        captureBurst();
+        return;
+    }
 
     // Keep the focus the preview found: the still is a new configuration,
     // and continuous autofocus would otherwise scan again.
@@ -501,9 +583,9 @@ void CameraWorker::capture()
     mode_ = Still;
     Q_EMIT streamingChanged(QStringLiteral("still"));
 
-    if (!configure(StreamRole::StillCapture, QSize(), kStillBuffers)) {
+    if (!configure(StreamRole::StillCapture, QSize(), kStillBuffers, false)) {
         mode_ = Off;
-        Q_EMIT failed(QStringLiteral("The camera could not take a photo"));
+        Q_EMIT stillFailed(QStringLiteral("The camera could not take a photo"));
         startPreview(previewSize_);
         return;
     }
@@ -518,9 +600,104 @@ void CameraWorker::capture()
     }
     if (!startStream(initial)) {
         mode_ = Off;
-        Q_EMIT failed(QStringLiteral("The camera could not take a photo"));
+        Q_EMIT stillFailed(QStringLiteral("The camera could not take a photo"));
         startPreview(previewSize_);
     }
+}
+
+void CameraWorker::captureBurst()
+{
+    // The next frames, as many as the light needs: one in good light, up to
+    // eight in the dark. The preview keeps running throughout.
+    const int count = RawMerge::framesForGain(totalGain_);
+    auto frames = std::make_shared<std::vector<RawFrame>>();
+    frames->reserve(count);
+    burst_ = frames;
+    burstWanted_ = count;
+    Q_EMIT burstStarted();
+}
+
+void CameraWorker::keepBurstFrame(Request *request, const FrameBuffer *raw)
+{
+    // libcamera's thread.
+    std::shared_ptr<std::vector<RawFrame>> frames = burst_;
+    if (!frames || raw->planes().empty())
+        return;
+
+    const FrameBuffer::Plane &plane = raw->planes()[0];
+    const size_t bytes = size_t(rawLayout_.stride) * rawLayout_.size.height();
+    const size_t length = plane.offset + plane.length;
+    void *map = mmap(nullptr, length, PROT_READ, MAP_SHARED, plane.fd.get(), 0);
+    if (map == MAP_FAILED)
+        return;
+
+    RawFrame frame;
+    frame.data.resize(bytes);
+    dma_buf_sync sync = { DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ };
+    ioctl(plane.fd.get(), DMA_BUF_IOCTL_SYNC, &sync);
+    std::memcpy(frame.data.data(), static_cast<const uint8_t *>(map) + plane.offset,
+                std::min<size_t>(bytes, plane.length));
+    sync.flags = DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ;
+    ioctl(plane.fd.get(), DMA_BUF_IOCTL_SYNC, &sync);
+    munmap(map, length);
+
+    const ControlList &metadata = request->metadata();
+    frame.exposureUs = metadata.get(controls::ExposureTime).value_or(0);
+    frame.analogueGain = metadata.get(controls::AnalogueGain).value_or(1.0f);
+    frame.digitalGain = metadata.get(controls::DigitalGain).value_or(1.0f);
+    if (const auto gains = metadata.get(controls::ColourGains))
+        frame.colourGains = { (*gains)[0], (*gains)[1] };
+    if (const auto ccm = metadata.get(controls::ColourCorrectionMatrix))
+        std::copy(ccm->begin(), ccm->end(), frame.ccm.begin());
+    frame.saturation = metadata.get(controls::Saturation).value_or(1.0f);
+    frame.contrast = metadata.get(controls::Contrast).value_or(1.0f);
+    frame.gamma = metadata.get(controls::Gamma).value_or(2.2f);
+    if (const auto black = metadata.get(controls::SensorBlackLevels))
+        frame.blackLevel16 = (*black)[0];
+    if (frames->empty())
+        dumpBurstFrame(request, frame);
+    frames->push_back(std::move(frame));
+
+    if (--burstWanted_ == 0) {
+        burst_.reset();
+        if (burstDone)
+            burstDone(frames, rawLayout_, rotation_, model_);
+    }
+}
+
+void CameraWorker::dumpBurstFrame(Request *request, const RawFrame &frame)
+{
+    // For tuning: OMARCHY_CAMERA_DUMP=<folder> keeps the first raw frame of
+    // each burst, its settings, and the image processor's own rendering of it.
+    const QString folder = qEnvironmentVariable("OMARCHY_CAMERA_DUMP");
+    if (folder.isEmpty() || !QDir().mkpath(folder))
+        return;
+    QFile raw(folder + QStringLiteral("/raw.bin"));
+    if (raw.open(QIODevice::WriteOnly))
+        raw.write(reinterpret_cast<const char *>(frame.data.data()), qint64(frame.data.size()));
+    QFile info(folder + QStringLiteral("/raw.txt"));
+    if (info.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream out(&info);
+        out << "size " << rawLayout_.size.width() << ' ' << rawLayout_.size.height() << '\n'
+            << "stride " << rawLayout_.stride << '\n'
+            << "bits " << rawLayout_.bits << '\n'
+            << "packed " << int(rawLayout_.csi2Packed) << '\n'
+            << "red " << rawLayout_.redX << ' ' << rawLayout_.redY << '\n'
+            << "exposure " << frame.exposureUs << '\n'
+            << "analogue " << frame.analogueGain << '\n'
+            << "digital " << frame.digitalGain << '\n'
+            << "gains " << frame.colourGains[0] << ' ' << frame.colourGains[1] << '\n'
+            << "ccm";
+        for (float v : frame.ccm)
+            out << ' ' << v;
+        out << '\n'
+            << "saturation " << frame.saturation << '\n'
+            << "contrast " << frame.contrast << '\n'
+            << "gamma " << frame.gamma << '\n'
+            << "black " << frame.blackLevel16 << '\n';
+    }
+    if (const FrameBuffer *buffer = request->findBuffer(stream_))
+        copyFrame(buffer, streamSize_, stride_, fourcc_).save(folder + QStringLiteral("/isp.png"));
 }
 
 void CameraWorker::onRequestCompleted(Request *request)
@@ -537,9 +714,18 @@ void CameraWorker::onRequestCompleted(Request *request)
     if (const auto lens = metadata.get(controls::LensPosition); lens && mode_ == Preview)
         lensPosition_ = *lens;
 
-    if (request->buffers().empty())
+    if (const auto gain = metadata.get(controls::AnalogueGain))
+        totalGain_ = *gain * metadata.get(controls::DigitalGain).value_or(1.0f);
+    rawRenderable_ = metadata.contains(controls::ColourGains.id()) &&
+                     metadata.contains(controls::ColourCorrectionMatrix.id());
+
+    const FrameBuffer *buffer = stream_ ? request->findBuffer(stream_) : nullptr;
+    if (!buffer)
         return;
-    const FrameBuffer *buffer = request->buffers().begin()->second;
+    if (mode_ == Preview && rawStream_ && burstWanted_ > 0) {
+        if (const FrameBuffer *raw = request->findBuffer(rawStream_))
+            keepBurstFrame(request, raw);
+    }
 
     if (mode_ == Still) {
         handleStill(request, buffer);

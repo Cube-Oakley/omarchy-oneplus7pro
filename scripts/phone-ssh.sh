@@ -8,6 +8,8 @@ IDENTITY=${PHONE_SSH_IDENTITY:-$HOME/.ssh/id_ed25519}
     echo 'Missing pinned phone host key; provision SSH over the trusted USB link first.' >&2
     exit 1
 }
+# PHONE_HOST reaches the phone another way (its Wi-Fi address when USB is
+# down); the host key is still checked against the one pinned over USB.
 exec ssh -F /dev/null -i "$IDENTITY" -o IdentitiesOnly=yes \
     -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$KNOWN_HOSTS" \
-    -o ConnectTimeout=5 root@172.16.42.1 "$@"
+    -o HostKeyAlias=172.16.42.1 -o ConnectTimeout=5 root@"${PHONE_HOST:-172.16.42.1}" "$@"

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "framequeue.h"
+#include "rawmerge.h"
 
 #include <QImage>
 #include <QObject>
@@ -14,6 +15,7 @@
 
 #include <array>
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -47,6 +49,8 @@ class CameraSession : public QObject
     Q_PROPERTY(QPointF focusPoint READ focusPoint NOTIFY focusChanged)
     Q_PROPERTY(QString photoFolder READ photoFolder WRITE setPhotoFolder NOTIFY photoFolderChanged)
     Q_PROPERTY(QString lastPhoto READ lastPhoto NOTIFY lastPhotoChanged)
+    // Photos taken but still being merged and saved.
+    Q_PROPERTY(int pending READ pending NOTIFY pendingChanged)
 
 public:
     explicit CameraSession(QObject *parent = nullptr);
@@ -66,6 +70,7 @@ public:
     QString photoFolder() const { return photoFolder_; }
     void setPhotoFolder(const QString &folder);
     QString lastPhoto() const { return lastPhoto_; }
+    int pending() const { return pending_; }
 
     FrameQueue *frames() { return &frames_; }
 
@@ -82,6 +87,7 @@ Q_SIGNALS:
     void focusChanged();
     void photoFolderChanged();
     void lastPhotoChanged();
+    void pendingChanged();
     void frameReady();
     void photoSaved(const QString &path);
     void photoFailed(const QString &reason);
@@ -89,6 +95,9 @@ Q_SIGNALS:
 private:
     void setState(const QString &state, const QString &error = {});
     void writeStill(QImage image, StillInfo info);
+    void mergeBurst(std::shared_ptr<std::vector<RawFrame>> frames, RawLayout layout,
+                    int rotation, QString model);
+    void finishPhoto(const QString &result);
 
     FrameQueue frames_;
     QThread thread_;
@@ -105,6 +114,7 @@ private:
     QPointF focusPoint_{-1, -1};
     QString photoFolder_;
     QString lastPhoto_;
+    int pending_ = 0;
 };
 
 // Owns libcamera. Every libcamera call except queueRequest() happens on this
@@ -125,6 +135,9 @@ public:
     void capture();
     void requeue(const CameraFrame &frame);
 
+    // Called on libcamera's thread with a finished burst.
+    std::function<void(std::shared_ptr<std::vector<RawFrame>>, RawLayout, int, QString)> burstDone;
+
 Q_SIGNALS:
     void opened(const QString &name, int rotation, bool canFocus);
     void failed(const QString &message);
@@ -133,11 +146,13 @@ Q_SIGNALS:
     void focusStateChanged(const QString &state);
     void stillCaptured(const QImage &image, int rotation, qint64 exposureUs,
                        double gain, const QString &model);
+    void burstStarted();
+    void stillFailed(const QString &message);
 
 private:
     enum Mode { Off, Preview, Still };
 
-    bool configure(libcamera::StreamRole role, QSize size, unsigned int buffers);
+    bool configure(libcamera::StreamRole role, QSize size, unsigned int buffers, bool withRaw);
     bool startStream(const libcamera::ControlList &initial);
     void stopStream();
     void queue(libcamera::Request *request);
@@ -145,6 +160,9 @@ private:
     void handleStill(libcamera::Request *request, const libcamera::FrameBuffer *buffer);
     void finishStill(const QImage &image, qint64 exposureUs, double gain);
     libcamera::ControlList focusControls() const;
+    void captureBurst();
+    void keepBurstFrame(libcamera::Request *request, const libcamera::FrameBuffer *raw);
+    void dumpBurstFrame(libcamera::Request *request, const RawFrame &frame);
 
     FrameQueue *frames_;
     std::unique_ptr<libcamera::CameraManager> manager_;
@@ -153,6 +171,10 @@ private:
     std::unique_ptr<libcamera::FrameBufferAllocator> allocator_;
     std::vector<std::unique_ptr<libcamera::Request>> requests_;
     libcamera::Stream *stream_ = nullptr;
+    // The sensor's raw frames, alongside the preview where the pipeline
+    // offers them, for merged stills without reconfiguring.
+    libcamera::Stream *rawStream_ = nullptr;
+    RawLayout rawLayout_;
     libcamera::ControlList pending_;
     bool pendingSet_ = false;
 
@@ -161,6 +183,13 @@ private:
     std::atomic<bool> stillTaken_{false};
     std::atomic<float> lensPosition_{-1.0f};
     std::atomic<int> focusState_{-1};
+    std::atomic<double> totalGain_{1.0};
+    // Whether frames carry the white balance and colour matrix the merge
+    // needs to render raw frames the way the image processor does.
+    std::atomic<bool> rawRenderable_{false};
+    std::atomic<int> burstWanted_{0};
+    // Burst frames, filled on libcamera's thread while burstWanted_ counts down.
+    std::shared_ptr<std::vector<RawFrame>> burst_;
 
     // Still capture, touched only from libcamera's thread while streaming.
     int stillFrames_ = 0;

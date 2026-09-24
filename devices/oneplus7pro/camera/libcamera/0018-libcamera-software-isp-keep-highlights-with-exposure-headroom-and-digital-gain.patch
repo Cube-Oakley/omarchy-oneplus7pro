@@ -1,0 +1,377 @@
+libcamera: software_isp: keep highlights with exposure headroom and digital gain
+
+The exposure loop only knew the scene average, so a bright lamp in a dim room
+clipped to white. The loop now measures the brightest pixels, all but 0.5%,
+and keeps them below 90% of the sensor range by exposing the sensor up to
+three stops darker than its own solution, taking the stops off the analogue
+gain first. It judges exposure on the histogram as the digital gain will
+show it, so a scene already at the exposure limit still gets the headroom.
+The image processor gives the stops back as digital gain after colour
+correction, with a rational shoulder above half of white that brings the
+sensor range to white, following the brightest channel so hues hold; at a
+gain of 1 it changes nothing. Frames report the gain as DigitalGain.
+
+On the OnePlus 7 Pro, a salt lamp in a dim room went from a white blob to
+visible texture: analogue gain 32 became 8 with a digital gain of 4. Two
+stops still left most of the lamp's shade clipped in red and green; the
+third is for stills merged from bursts, which average the extra noise away.
+
+---
+diff --git a/include/libcamera/internal/software_isp/debayer_params.h b/include/libcamera/internal/software_isp/debayer_params.h
+index 6772b43..41fb176 100644
+--- a/include/libcamera/internal/software_isp/debayer_params.h
++++ b/include/libcamera/internal/software_isp/debayer_params.h
+@@ -25,6 +25,8 @@ struct DebayerParams {
+ 	float gamma = 1.0;
+ 	float contrastExp = 1.0;
+ 	RGB<float> gains = RGB<float>({ 1.0, 1.0, 1.0 });
++	/* Applied after colour correction, with a shoulder near white. */
++	float digitalGain = 1.0;
+ };
+ 
+ } /* namespace libcamera */
+diff --git a/src/ipa/simple/algorithms/agc.cpp b/src/ipa/simple/algorithms/agc.cpp
+index 1ccbbe8..5852a83 100644
+--- a/src/ipa/simple/algorithms/agc.cpp
++++ b/src/ipa/simple/algorithms/agc.cpp
+@@ -64,6 +64,19 @@ static constexpr float kExpMaxStep = 0.40;
+ /* Sensor exposure and gain controls can take up to three frames to apply. */
+ static constexpr unsigned int kAgcUpdateInterval = 2;
+ 
++/*
++ * Highlight headroom. The brightest pixels, all but this share of them, are
++ * kept below kHighlightTarget of the sensor's range by exposing the sensor up
++ * to kMaxHeadroom stops darker than the loop's exposure; the image processor
++ * applies the same stops back as digital gain, with a shoulder that brings the
++ * sensor's full range to white. A bright lamp in a dim room then keeps its
++ * texture instead of clipping.
++ */
++static constexpr double kHighlightShare = 0.005;
++static constexpr double kHighlightTarget = 0.9;
++static constexpr double kMaxHeadroom = 3.0;
++static constexpr double kHeadroomStep = 0.25;
++
+ Agc::Agc()
+ {
+ }
+@@ -128,8 +141,7 @@ bool Agc::updateExposure(IPAContext &context, IPAFrameContext &frameContext,
+ 
+ 	context.activeState.agc.exposure = exposure;
+ 	context.activeState.agc.again = again;
+-	frameContext.sensor.exposure = exposure;
+-	frameContext.sensor.gain = again;
++	applyHeadroom(context, frameContext);
+ 
+ 	LOG(IPASoftExposure, Debug)
+ 		<< "exposureMSV " << exposureMSV
+@@ -139,6 +151,55 @@ bool Agc::updateExposure(IPAContext &context, IPAFrameContext &frameContext,
+ 	return exposure != oldExposure || again != oldAgain;
+ }
+ 
++void Agc::applyHeadroom(const IPAContext &context, IPAFrameContext &frameContext) const
++{
++	/* Take the headroom off the analogue gain first, then the exposure. */
++	const auto &agc = context.activeState.agc;
++	const auto &limits = context.configuration.agc;
++	const double digitalGain = std::exp2(agc.headroom);
++	const double again = std::clamp(agc.again / digitalGain, limits.againMin, limits.againMax);
++	const double exposure = agc.exposure * agc.again / digitalGain / again;
++	frameContext.sensor.exposure =
++		std::clamp(static_cast<int32_t>(std::lround(exposure)), limits.exposureMin,
++			   limits.exposureMax);
++	frameContext.sensor.gain = again;
++}
++
++void Agc::updateHeadroom(IPAContext &context, const SwIspStats::Histogram &histogram,
++			 unsigned int first, unsigned int size)
++{
++	uint64_t total = 0;
++	for (unsigned int i = 0; i < size; i++)
++		total += histogram[first + i];
++	if (!total)
++		return;
++
++	/* Find the bin holding the brightest pixels but kHighlightShare. */
++	const uint64_t allowed = static_cast<uint64_t>(total * kHighlightShare);
++	uint64_t above = 0;
++	unsigned int top = size;
++	while (top > 0 && above + histogram[first + top - 1] <= allowed)
++		above += histogram[first + --top];
++
++	double &headroom = context.activeState.agc.headroom;
++	if (top >= size) {
++		/* They reach the top bin, where the sensor may clip them. */
++		headroom = std::min(kMaxHeadroom, headroom + kHeadroomStep);
++	} else {
++		/* Their level at the loop's exposure, without the headroom. */
++		const double level = static_cast<double>(top) / size * std::exp2(headroom);
++		const double needed = std::clamp(std::log2(level / kHighlightTarget), 0.0,
++						 kMaxHeadroom);
++		headroom += kHeadroomStep * (needed - headroom);
++	}
++}
++
++void Agc::prepare(IPAContext &context, [[maybe_unused]] const uint32_t frame,
++		  [[maybe_unused]] IPAFrameContext &frameContext, DebayerParams *params)
++{
++	params->digitalGain = std::exp2(context.activeState.agc.headroom);
++}
++
+ void Agc::process(IPAContext &context,
+ 		  const uint32_t frame,
+ 		  IPAFrameContext &frameContext,
+@@ -149,6 +210,8 @@ void Agc::process(IPAContext &context,
+ 		context.configuration.agc.lineDuration * frameContext.sensor.exposure;
+ 	metadata.set(controls::ExposureTime, exposureTime.get<std::micro>());
+ 	metadata.set(controls::AnalogueGain, frameContext.sensor.gain);
++	metadata.set(controls::DigitalGain,
++		     static_cast<float>(std::exp2(context.activeState.agc.headroom)));
+ 
+ 	if (!context.activeState.agc.valid) {
+ 		/*
+@@ -157,6 +220,7 @@ void Agc::process(IPAContext &context,
+ 		 */
+ 		context.activeState.agc.exposure = frameContext.sensor.exposure;
+ 		context.activeState.agc.again = frameContext.sensor.gain;
++		context.activeState.agc.headroom = 0.0;
+ 		context.activeState.agc.stableSamples = 0;
+ 		context.activeState.agc.validSamples = 0;
+ 		context.activeState.agc.valid = true;
+@@ -167,8 +231,7 @@ void Agc::process(IPAContext &context,
+ 		 * Use the new exposure and gain values calculated the last time
+ 		 * there were valid stats.
+ 		 */
+-		frameContext.sensor.exposure = context.activeState.agc.exposure;
+-		frameContext.sensor.gain = context.activeState.agc.again;
++		applyHeadroom(context, frameContext);
+ 		return;
+ 	}
+ 
+@@ -178,8 +241,7 @@ void Agc::process(IPAContext &context,
+ 	 * traversed the delayed-control pipeline.
+ 	 */
+ 	if (frame % kAgcUpdateInterval) {
+-		frameContext.sensor.exposure = context.activeState.agc.exposure;
+-		frameContext.sensor.gain = context.activeState.agc.again;
++		applyHeadroom(context, frameContext);
+ 		return;
+ 	}
+ 
+@@ -205,8 +267,17 @@ void Agc::process(IPAContext &context,
+ 		return;
+ 	}
+ 
++	/*
++	 * Judge the exposure as it will look after the digital gain: the loop
++	 * aims the displayed image at the target, while the sensor keeps the
++	 * headroom.
++	 */
++	updateHeadroom(context, histogram, blackLevelHistIdx, histogramSize);
++	const double digitalGain = std::exp2(context.activeState.agc.headroom);
+ 	for (unsigned int i = 0; i < histogramSize; i++) {
+-		unsigned int idx = (i - (i / yHistValsPerBinMod)) / yHistValsPerBin;
++		const unsigned int gained = std::min<unsigned int>(
++			histogramSize - 1, static_cast<unsigned int>(std::lround(i * digitalGain)));
++		unsigned int idx = (gained - (gained / yHistValsPerBinMod)) / yHistValsPerBin;
+ 		exposureBins[idx] += histogram[blackLevelHistIdx + i];
+ 	}
+ 
+diff --git a/src/ipa/simple/algorithms/agc.h b/src/ipa/simple/algorithms/agc.h
+index c72f158..0fa3b74 100644
+--- a/src/ipa/simple/algorithms/agc.h
++++ b/src/ipa/simple/algorithms/agc.h
+@@ -19,6 +19,9 @@ public:
+ 	Agc();
+ 	~Agc() = default;
+ 
++	void prepare(IPAContext &context, const uint32_t frame,
++		     IPAFrameContext &frameContext,
++		     DebayerParams *params) override;
+ 	void process(IPAContext &context, const uint32_t frame,
+ 		     IPAFrameContext &frameContext,
+ 		     const SwIspStats *stats,
+@@ -27,6 +30,9 @@ public:
+ private:
+ 	bool updateExposure(IPAContext &context, IPAFrameContext &frameContext,
+ 			    double exposureMSV);
++	void updateHeadroom(IPAContext &context, const SwIspStats::Histogram &histogram,
++			    unsigned int first, unsigned int size);
++	void applyHeadroom(const IPAContext &context, IPAFrameContext &frameContext) const;
+ };
+ 
+ } /* namespace ipa::soft::algorithms */
+diff --git a/src/ipa/simple/ipa_context.h b/src/ipa/simple/ipa_context.h
+index 7956dba..f60b2d3 100644
+--- a/src/ipa/simple/ipa_context.h
++++ b/src/ipa/simple/ipa_context.h
+@@ -44,8 +44,14 @@ struct IPASessionConfiguration {
+ 
+ struct IPAActiveState {
+ 	struct {
++		/*
++		 * The exposure and gain the loop settles on. The sensor gets
++		 * them divided by the digital gain of the highlight headroom.
++		 */
+ 		int32_t exposure;
+ 		double again;
++		/* Stops the sensor is exposed below them to keep highlights. */
++		double headroom;
+ 		unsigned int stableSamples;
+ 		unsigned int validSamples;
+ 		bool valid;
+diff --git a/src/libcamera/shaders/bayer_1x_packed.frag b/src/libcamera/shaders/bayer_1x_packed.frag
+index 0b641a5..87a8b6b 100644
+--- a/src/libcamera/shaders/bayer_1x_packed.frag
++++ b/src/libcamera/shaders/bayer_1x_packed.frag
+@@ -70,6 +70,29 @@ uniform mat3 ccm;
+ uniform vec3 blacklevel;
+ uniform float gamma;
+ uniform float contrastExp;
++uniform float digitalGain;
++
++/*
++ * Digital gain gives back the stops the exposure algorithm took off the sensor
++ * to keep highlights. Above half of white a rational shoulder brings the
++ * sensor's full range to exactly white instead of clipping it, following the
++ * brightest channel so colours keep their hue. At a gain of 1 it does nothing.
++ */
++vec3 apply_digital_gain(vec3 rgb)
++{
++	if (digitalGain <= 1.0)
++		return rgb;
++	float peak = max(rgb.r, max(rgb.g, rgb.b));
++	if (peak <= 0.0)
++		return rgb;
++	float x = peak * digitalGain;
++	if (x > 0.5) {
++		float s0 = (digitalGain - 0.5) / 0.5;
++		float t = (x - 0.5) / (digitalGain - 0.5);
++		x = 0.5 + 0.5 * s0 * t / (1.0 + (s0 - 1.0) * t);
++	}
++	return rgb * (x / peak);
++}
+ 
+ float apply_contrast(float value)
+ {
+@@ -238,6 +261,8 @@ void main(void)
+ 	/* Colour Correction Matrix */
+ 	rgb = ccm * rgb;
+ 
++	rgb = apply_digital_gain(rgb);
++
+ 	/*
+ 	 * Contrast
+ 	 * contrastExp 0..2 contrast to 0..infinity; avoid actual infinity at tan(pi/2)
+diff --git a/src/libcamera/shaders/bayer_unpacked.frag b/src/libcamera/shaders/bayer_unpacked.frag
+index 10c5e94..25d2f0e 100644
+--- a/src/libcamera/shaders/bayer_unpacked.frag
++++ b/src/libcamera/shaders/bayer_unpacked.frag
+@@ -29,6 +29,29 @@ uniform mat3            ccm;
+ uniform vec3            blacklevel;
+ uniform float           gamma;
+ uniform float           contrastExp;
++uniform float           digitalGain;
++
++/*
++ * Digital gain gives back the stops the exposure algorithm took off the sensor
++ * to keep highlights. Above half of white a rational shoulder brings the
++ * sensor's full range to exactly white instead of clipping it, following the
++ * brightest channel so colours keep their hue. At a gain of 1 it does nothing.
++ */
++vec3 apply_digital_gain(vec3 rgb)
++{
++	if (digitalGain <= 1.0)
++		return rgb;
++	float peak = max(rgb.r, max(rgb.g, rgb.b));
++	if (peak <= 0.0)
++		return rgb;
++	float x = peak * digitalGain;
++	if (x > 0.5) {
++		float s0 = (digitalGain - 0.5) / 0.5;
++		float t = (x - 0.5) / (digitalGain - 0.5);
++		x = 0.5 + 0.5 * s0 * t / (1.0 + (s0 - 1.0) * t);
++	}
++	return rgb * (x / peak);
++}
+ 
+ float apply_contrast(float value)
+ {
+@@ -141,6 +164,8 @@ void main(void) {
+     /* Colour Correction Matrix */
+     rgb = ccm * rgb;
+ 
++    rgb = apply_digital_gain(rgb);
++
+     /*
+      * Contrast
+      */
+diff --git a/src/libcamera/software_isp/debayer_cpu.cpp b/src/libcamera/software_isp/debayer_cpu.cpp
+index 49382b4..0156e4c 100644
+--- a/src/libcamera/software_isp/debayer_cpu.cpp
++++ b/src/libcamera/software_isp/debayer_cpu.cpp
+@@ -981,10 +981,23 @@ void DebayerCpu::updateGammaTable(const DebayerParams &params)
+ {
+ 	const float gamma = params.gamma;
+ 	const float contrastExp = params.contrastExp;
++	const float digitalGain = params.digitalGain;
+ 
+ 	const float divisor = gammaTable_.size() - 1.0;
+ 	for (auto [i, value] : utils::enumerate(gammaTable_)) {
+ 		float normalized = i / divisor;
++		/*
++		 * Digital gain with a shoulder above half of white, as the GPU
++		 * path applies it, though per channel here.
++		 */
++		if (digitalGain > 1.0f) {
++			normalized *= digitalGain;
++			if (normalized > 0.5f) {
++				const float s0 = (digitalGain - 0.5f) / 0.5f;
++				const float t = (normalized - 0.5f) / (digitalGain - 0.5f);
++				normalized = 0.5f + 0.5f * s0 * t / (1.0f + (s0 - 1.0f) * t);
++			}
++		}
+ 		/* Convert 0..2 to 0..infinity; avoid actual inifinity at tan(pi/2) */
+ 		/* Apply simple S-curve */
+ 		if (normalized < 0.5)
+@@ -1000,7 +1013,8 @@ void DebayerCpu::updateLookupTables(const DebayerParams &params)
+ 	const bool gammaUpdateNeeded =
+ 		params.gamma != params_.gamma ||
+ 		params.blackLevel != params_.blackLevel ||
+-		params.contrastExp != params_.contrastExp;
++		params.contrastExp != params_.contrastExp ||
++		params.digitalGain != params_.digitalGain;
+ 	if (gammaUpdateNeeded)
+ 		updateGammaTable(params);
+ 
+diff --git a/src/libcamera/software_isp/debayer_egl.cpp b/src/libcamera/software_isp/debayer_egl.cpp
+index 4bd3ee2..97e6323 100644
+--- a/src/libcamera/software_isp/debayer_egl.cpp
++++ b/src/libcamera/software_isp/debayer_egl.cpp
+@@ -121,6 +121,7 @@ int DebayerEGL::getShaderVariableLocations(void)
+ 	blackLevelUniformDataIn_ = glGetUniformLocation(programId_, "blacklevel");
+ 	gammaUniformDataIn_ = glGetUniformLocation(programId_, "gamma");
+ 	contrastExpUniformDataIn_ = glGetUniformLocation(programId_, "contrastExp");
++	digitalGainUniformDataIn_ = glGetUniformLocation(programId_, "digitalGain");
+ 
+ 	textureUniformStep_ = glGetUniformLocation(programId_, "tex_step");
+ 	textureUniformSize_ = glGetUniformLocation(programId_, "tex_size");
+@@ -513,6 +514,7 @@ void DebayerEGL::setShaderVariableValues(eGLImage &eglImageIn, const DebayerPara
+ 	 * Contrast
+ 	 */
+ 	glUniform1f(contrastExpUniformDataIn_, params.contrastExp);
++	glUniform1f(digitalGainUniformDataIn_, params.digitalGain);
+ 	LOG(Debayer, Debug) << " contrastExpUniformDataIn_ " << contrastExpUniformDataIn_ << " data " << params.contrastExp;
+ 
+ 	return;
+diff --git a/src/libcamera/software_isp/debayer_egl.h b/src/libcamera/software_isp/debayer_egl.h
+index d6223f3..d4ba146 100644
+--- a/src/libcamera/software_isp/debayer_egl.h
++++ b/src/libcamera/software_isp/debayer_egl.h
+@@ -110,6 +110,7 @@ private:
+ 
+ 	/* Contrast */
+ 	GLint contrastExpUniformDataIn_;
++	GLint digitalGainUniformDataIn_;
+ 
+ 	Size nativeOutputSize_;
+ 	Rectangle window_;

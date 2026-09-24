@@ -24,6 +24,7 @@ qt_add_qml_module(omarchycamera
         src/camerasession.h src/camerasession.cpp
         src/viewfinder.h src/viewfinder.cpp
         src/stillwriter.h src/stillwriter.cpp
+        src/rawmerge.h src/rawmerge.cpp
 )
 
 target_link_libraries(omarchycamera PRIVATE

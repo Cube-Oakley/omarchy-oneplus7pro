@@ -74,7 +74,7 @@ ShellRoot {
         title: "Camera"
         implicitWidth: 480
         implicitHeight: 1040
-        color: "black"
+        color: MobileTheme.background
         onClosed: Qt.quit()
         onBackingWindowVisibleChanged: if (!backingWindowVisible) Qt.quit()
 
@@ -104,12 +104,13 @@ ShellRoot {
             visible: root.allowed
 
             // The sensor is 4:3; upright on a portrait screen that is 3:4.
-            Item {
+            Rectangle {
                 id: frame
                 width: parent.width
                 height: Math.round(width * 4 / 3)
                 y: Math.max(0, Math.round((parent.height - height - controls.height) / 2))
                 clip: true
+                color: "black"
 
                 Viewfinder {
                     session: camera
@@ -127,10 +128,11 @@ ShellRoot {
                     NumberAnimation on opacity { id: flashAnim; from: 0.7; to: 0; duration: 220; running: false }
                 }
 
+                // Theme accent once focused; dimmed if focus failed.
                 Rectangle {
                     id: ring
-                    readonly property color tint: camera.focusState === "focused" ? "#8ee08e"
-                        : camera.focusState === "failed" ? "#ff7a7a" : "white"
+                    readonly property color tint: camera.focusState === "focused" ? MobileTheme.accent
+                        : camera.focusState === "failed" ? MobileTheme.muted : "white"
                     width: 76
                     height: 76
                     radius: 38
@@ -160,7 +162,7 @@ ShellRoot {
                     wrapMode: Text.WordWrap
                     visible: camera.state === "starting" || camera.state === "error"
                     text: camera.state === "error" ? camera.error : "Starting the camera"
-                    color: "white"
+                    color: MobileTheme.foreground
                     font.family: MobileTheme.fontFamily
                     font.pixelSize: 16
                 }
@@ -182,9 +184,9 @@ ShellRoot {
                     anchors.verticalCenter: shutter.verticalCenter
                     anchors.left: parent.left
                     anchors.leftMargin: 40
-                    color: "#222"
+                    color: MobileTheme.surface
                     border.width: 2
-                    border.color: "white"
+                    border.color: MobileTheme.accent
                     clip: true
                     visible: root.latest.length > 0
                     Image {
@@ -208,19 +210,19 @@ ShellRoot {
                     radius: 42
                     color: "transparent"
                     border.width: 4
-                    border.color: "white"
-                    opacity: camera.state === "preview" ? 1 : 0.5
+                    border.color: MobileTheme.accent
+                    opacity: camera.state === "preview" && camera.pending < 2 ? 1 : 0.5
                     Rectangle {
                         anchors.centerIn: parent
                         width: press.pressed ? 60 : 68
                         height: width
                         radius: width / 2
-                        color: "white"
+                        color: press.pressed ? MobileTheme.accent : MobileTheme.foreground
                         Behavior on width { NumberAnimation { duration: 80 } }
                     }
                     TapHandler {
                         id: press
-                        enabled: camera.state === "preview"
+                        enabled: camera.state === "preview" && camera.pending < 2
                         onTapped: {
                             flashAnim.restart();
                             camera.capture();
@@ -234,12 +236,12 @@ ShellRoot {
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.top: shutter.bottom
                     anchors.topMargin: 16
-                    text: camera.state === "capturing" ? "Taking the photo" : ""
-                    color: "white"
-                    opacity: 0.8
+                    text: camera.state === "capturing" ? "Taking the photo"
+                        : camera.pending > 0 ? "Processing" : ""
+                    color: MobileTheme.secondary
                     font.family: MobileTheme.fontFamily
                     font.pixelSize: 14
-                    Timer { id: hide; interval: 3000; onTriggered: status.text = Qt.binding(() => camera.state === "capturing" ? "Taking the photo" : "") }
+                    Timer { id: hide; interval: 3000; onTriggered: status.text = Qt.binding(() => camera.state === "capturing" ? "Taking the photo" : camera.pending > 0 ? "Processing" : "") }
                 }
             }
         }
@@ -248,7 +250,7 @@ ShellRoot {
         // keeps running underneath, so going back is instant.
         Rectangle {
             anchors.fill: parent
-            color: "black"
+            color: MobileTheme.background
             visible: root.viewing >= 0
             onVisibleChanged: if (visible) gallery.positionViewAtIndex(root.viewing, ListView.Beginning)
             ListView {
@@ -274,15 +276,24 @@ ShellRoot {
                     }
                 }
             }
-            Text {
+            Rectangle {
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.bottom: parent.bottom
                 anchors.bottomMargin: 32
-                text: (gallery.currentIndex + 1) + " / " + photos.count
-                color: "white"
-                opacity: 0.7
-                font.family: MobileTheme.fontFamily
-                font.pixelSize: 14
+                width: count.implicitWidth + 28
+                height: 32
+                radius: MobileTheme.radius(16)
+                color: MobileTheme.surface
+                border.width: 1
+                border.color: MobileTheme.muted
+                Text {
+                    id: count
+                    anchors.centerIn: parent
+                    text: (gallery.currentIndex + 1) + " / " + photos.count
+                    color: MobileTheme.secondary
+                    font.family: MobileTheme.fontFamily
+                    font.pixelSize: 14
+                }
             }
             TapHandler { onTapped: root.viewing = -1 }
         }

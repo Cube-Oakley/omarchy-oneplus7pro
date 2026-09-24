@@ -235,8 +235,11 @@ PAGE_SOFTWARE = {
               ref: "docs/notification-shade-20260918.md" },
             { n: "Camera", s: "partial", note: "Omarchy Camera, our own app on libcamera's public API so it "
                 + "carries to other phones: GPU preview with no CPU copies, tap to focus, 12 MP stills in "
-                + "about 0.6 s, and a swipeable gallery. Highlights still blow out, video is not done yet, and "
-                + "only the main camera works.",
+                + "about 1 s, and a swipeable gallery. Exposure keeps up to two stops of highlight headroom, so a "
+                + "bright lamp keeps its texture. In dim light a still merges up to eight raw frames, leaving "
+                + "out whatever moved, on the sharpest frame; our own renderer takes off lens glare, tone-maps "
+                + "locally and keeps night looking like night, close to a Pixel 9 Pro's. Themed with Omarchy; "
+                + "the test camera apps are gone. No video yet, and only the main camera works.",
               ref: "docs/camera-20260922.md" },
             { n: "Settings application", s: "partial", note: "See the Settings & configuration section.",
               ref: "docs/settings-clipboard-20260919.md" },
