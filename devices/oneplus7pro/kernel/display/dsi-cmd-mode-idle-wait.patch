@@ -1,0 +1,56 @@
+DSI: wait for the command-mode frame to finish before sending a command.
+
+Dragging the brightness slider flickered the panel: each backlight DCS
+command that landed during a frame transfer failed with DSI timeout and FIFO
+errors (dsi_err_worker status 5 and 4) at 90 Hz. The downstream driver polls
+DSI_STATUS.CMD_MODE_MDP_BUSY before every command transfer
+(dsi_ctrl_hw_cmn_wait_for_cmd_mode_mdp_idle); mainline has a TODO there.
+See docs/controls-20260923.md.
+
+--- a/drivers/gpu/drm/msm/dsi/dsi_host.c
++++ b/drivers/gpu/drm/msm/dsi/dsi_host.c
+@@ -8,6 +8,7 @@
+ #include <linux/dma-mapping.h>
+ #include <linux/err.h>
+ #include <linux/interrupt.h>
++#include <linux/iopoll.h>
+ #include <linux/mfd/syscon.h>
+ #include <linux/of.h>
+ #include <linux/of_graph.h>
+@@ -2101,12 +2102,6 @@
+ 	struct msm_dsi_host *msm_host = to_msm_dsi_host(host);
+ 	const struct msm_dsi_cfg_handler *cfg_hnd = msm_host->cfg_hnd;
+ 
+-	/* TODO: make sure dsi_cmd_mdp is idle.
+-	 * Since DSI6G v1.2.0, we can set DSI_TRIG_CTRL.BLOCK_DMA_WITHIN_FRAME
+-	 * to ask H/W to wait until cmd mdp is idle. S/W wait is not needed.
+-	 * How to handle the old versions? Wait for mdp cmd done?
+-	 */
+-
+ 	/*
+ 	 * mdss interrupt is generated in mdp core clock domain
+ 	 * mdp clock need to be enabled to receive dsi interrupt
+@@ -2115,6 +2110,23 @@
+ 	cfg_hnd->ops->link_clk_set_rate(msm_host);
+ 	cfg_hnd->ops->link_clk_enable(msm_host);
+ 
++	/*
++	 * A command mode panel takes frames and commands over the same link.
++	 * DSI6G v1.2.0 and later set DSI_TRIG_CTRL.BLOCK_DMA_WITHIN_FRAME, yet
++	 * on SM8150 at 90 Hz a command sent while the MDP is transferring a
++	 * frame still fails with timeout and FIFO errors and flickers the
++	 * panel. Wait for the frame to finish first, as the downstream driver
++	 * does before every command transfer.
++	 */
++	if (!(msm_host->mode_flags & MIPI_DSI_MODE_VIDEO)) {
++		u32 status;
++
++		if (readl_poll_timeout(msm_host->ctrl_base + REG_DSI_STATUS0, status,
++				       !(status & DSI_STATUS0_CMD_MODE_MDP_BUSY),
++				       100, 50000))
++			DBG("command mode MDP still busy");
++	}
++
+ 	/* TODO: vote for bus bandwidth */
+ 
+ 	if (!(msg->flags & MIPI_DSI_MSG_USE_LPM))

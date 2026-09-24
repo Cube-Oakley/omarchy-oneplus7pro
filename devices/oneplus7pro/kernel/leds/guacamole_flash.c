@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* Enables PM8150L's second slave id and its flash block (guacamole-flash.dts),
- * then registers the SPMI device for that slave id, as the SPMI core does for
- * each enabled PMIC when the bus starts: the slave id was disabled then, and
- * the bus does not watch for later changes. The PMIC driver then creates the
- * flash device for leds-qcom-flash. Reboot to remove. */
+/* Enables PM8150L's second slave id and its flash block (guacamole-flash.dts).
+ * Kernel #192 enables the slave id at boot, so its PMIC device already exists
+ * and creates the flash device when the overlay enables it. On earlier
+ * kernels the slave id was disabled when the SPMI bus started, and the bus
+ * does not watch for later changes, so this registers the SPMI device itself,
+ * as the SPMI core does for each enabled PMIC at boot. Reboot to remove. */
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/of.h>
@@ -13,6 +14,7 @@
 #define PMIC_BASE "/soc@0/spmi@c440000/pmic@4"
 #define PMIC_FLASH "/soc@0/spmi@c440000/pmic@5"
 #define PMIC_FLASH_SID 5
+#define FLASH_LED PMIC_FLASH "/led-controller@d300/led-0"
 
 static int overlay_id = -1;
 
@@ -25,15 +27,14 @@ static int __init flash_init(void)
     if (!of_machine_is_compatible("oneplus,guacamole"))
         return -ENODEV;
 
-    node = of_find_node_by_path(PMIC_FLASH);
-    if (!node)
-        return -ENODEV;
-    sdev = spmi_find_device_by_of_node(node);
-    if (sdev) {
-        put_device(&sdev->dev);
+    node = of_find_node_by_path(FLASH_LED);
+    if (node) {
         of_node_put(node);
         return -EEXIST;
     }
+    node = of_find_node_by_path(PMIC_FLASH);
+    if (!node)
+        return -ENODEV;
 
     /* The first slave id's device leads to the controller. */
     base = of_find_node_by_path(PMIC_BASE);
@@ -51,6 +52,11 @@ static int __init flash_init(void)
         goto out;
     }
 
+    sdev = spmi_find_device_by_of_node(node);
+    if (sdev) {
+        put_device(&sdev->dev);
+        goto out;
+    }
     sdev = spmi_device_alloc(sibling->ctrl);
     if (!sdev) {
         ret = -ENOMEM;

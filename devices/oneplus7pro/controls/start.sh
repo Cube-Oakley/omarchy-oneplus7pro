@@ -10,9 +10,20 @@ M=/root/controls-bringup/modules
 exec 8>/run/guacamole-controls.lock
 flock -w 60 8
 (cd "$M" && sha256sum -c --quiet SHA256SUMS)
-# The flash's loader registers PM8150L slave id 5 on the SPMI bus.
-for m in guacamole_alert_slider guacamole_haptics aw8697-haptics leds-qcom-flash guacamole_flash; do
-    if [[ ! -d /sys/module/${m//-/_} ]]; then
-        insmod "$M/$m.ko" && echo "loaded $m" || echo "$m failed to load" >&2
+load() {
+    if [[ ! -d /sys/module/${1//-/_} ]]; then
+        insmod "$M/$1.ko" && echo "loaded $1" || echo "$1 failed to load" >&2
     fi
+}
+load guacamole_alert_slider
+load guacamole_haptics
+load aw8697-haptics
+# The flash's loader reaches the SPMI bus through PM8150L's first slave id,
+# which exists only once the boot power overlay has started the bus, some
+# 20 s after the desktop.
+for i in $(seq 1 240); do
+    compgen -G '/sys/bus/spmi/devices/*-04' > /dev/null && break
+    sleep 0.5
 done
+load leds-qcom-flash
+load guacamole_flash

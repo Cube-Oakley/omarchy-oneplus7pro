@@ -82,8 +82,10 @@ PAGE_HARDWARE = {
           note: "Keymaster/keystore class of hardware. Needed eventually for screen-lock credentials, "
               + "pairing keys and any app that wants hardware-backed secrets.", ref: "docs/pathway.md" },
         { n: "Bring-up recovery path (Sahara/crashdump, guarded flash)", s: "ok",
-          note: "Read-only Sahara dumps and guarded flashing helpers with serial, hash and slot checks.",
-          ref: "scripts/" }
+          note: "Guarded flashing helpers with serial, hash and slot checks. Since kernel #192 a crash reboots "
+              + "the phone by itself instead of stopping in crash-dump mode; lockup detectors panic on a stuck "
+              + "CPU. The crash log does not survive the reset yet.",
+          ref: "docs/kernel192-20260923.md" }
       ]
     },
 
@@ -102,7 +104,8 @@ PAGE_HARDWARE = {
           ref: "docs/power-button-policy-20260917.md" },
         { n: "Backlight / brightness control", s: "partial",
           note: "User-confirmed changes; a shade slider sets and remembers the level. Dragging it can flicker "
-              + "the screen: panel commands collide with frame transfers at 90 Hz. No automatic brightness yet.",
+              + "the screen: a panel command collides with the next frame at 90 Hz; stock sends it inside the "
+              + "display commit. No automatic brightness yet.",
           ref: "docs/controls-20260923.md" },
         { n: "Always-on / ambient display (panel doze)", s: "no", note: "Not attempted." },
         { n: "Multitouch (Samsung S6SY761)", s: "ok",
