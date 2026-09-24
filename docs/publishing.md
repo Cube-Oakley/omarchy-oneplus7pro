@@ -96,3 +96,5 @@ Scan the lines the sync adds (`git diff public main`, excluding the Pages files)
 - September 24, afternoon: synced the sensors' boot start, iio-sensor-proxy
   integration, automatic brightness and the rotate button after the same
   checks, which found nothing to remove.
+- September 24, later: synced the proximity fix (a registry patch without
+  per-device values) after the same checks, which found nothing to remove.
