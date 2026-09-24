@@ -5,6 +5,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Hyprland
+import Quickshell.Services.Notifications
 
 ShellRoot {
     id: root
@@ -384,6 +385,38 @@ ShellRoot {
     }
     SystemClock { id: clock; precision: SystemClock.Minutes }
     VolumeOsd { id: volumeOsd }
+    // The alert slider sets the ring group, as on Android: muted in Vibrate
+    // and Silent, heard in Ring, with a short buzz on reaching Vibrate. Only
+    // movements count; the position the session starts with is left alone.
+    property string sliderPosition: ""
+    Connections {
+        target: MobileStatus
+        function onControlsChanged() {
+            const position = MobileStatus.controls.slider || "";
+            if (!position || position === root.sliderPosition) return;
+            const moved = root.sliderPosition !== "";
+            root.sliderPosition = position;
+            if (!moved) return;
+            root.applySliderMute();
+            if (position === "vibrate") MobileStatus.control(["vibrate", "80", "80"]);
+        }
+    }
+    // A move made while the last one is still applying is applied after it.
+    function applySliderMute() {
+        if (sliderMute.running) return;
+        sliderMute.applied = root.sliderPosition;
+        sliderMute.command = [Quickshell.env("HOME") + "/.local/bin/omarchy-mobile-volume",
+                              "mute", "ring", sliderMute.applied === "ring" ? "off" : "on"];
+        sliderMute.running = true;
+    }
+    Process {
+        id: sliderMute
+        property string applied: ""
+        onExited: {
+            if (applied !== root.sliderPosition) root.applySliderMute();
+            else MobileStatus.refresh();
+        }
+    }
     Process {
         id: clipboardWatch
         command: ["wl-paste", "--watch", Quickshell.env("HOME") + "/.local/bin/omarchy-mobile-clipboard", "ingest"]
@@ -401,7 +434,14 @@ ShellRoot {
         id: shade
         topInset: statusBar.height
         onOpening: { root.closeDrawer(); root.keyboard("hide"); toast.dismiss(); }
-        onArrived: notification => toast.offer(notification)
+        onArrived: notification => {
+            toast.offer(notification);
+            // A buzz as on Android: not in Do Not Disturb or Silent, and not
+            // for low-urgency notifications.
+            if (!MobileStatus.dnd && MobileStatus.controls.haptics === true && root.sliderPosition !== "silent"
+                    && notification.urgency !== NotificationUrgency.Low)
+                MobileStatus.control(["vibrate", "150", "70"]);
+        }
         onKeyboardRequested: action => root.keyboard(action)
         onVolumeRequested: action => { volumeOsd.adjust(action); MobileStatus.refresh(); }
         onSettingsRequested: panel => { shade.close(); root.openSettings(panel); }

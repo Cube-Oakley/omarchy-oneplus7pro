@@ -11,9 +11,10 @@ Media volume is per output, as on Android. Bluetooth headphones have their own
 media group means their volume and the media loopback is held at 100%; the
 speaker level is remembered and comes back when they leave.
 
-Usage: volume.py status | up|down|mute [GROUP] | set PERCENT [GROUP]
+Usage: volume.py status | up|down|mute [GROUP] | mute GROUP on|off | set PERCENT [GROUP]
 GROUP is media, ring, call or alarm. up/down/mute default to the group WirePlumber
-says the volume keys control; set defaults to media. Top-level percent and muted
+says the volume keys control; set defaults to media. mute toggles unless told on
+or off, which the alert slider uses for the ring group. Top-level percent and muted
 describe media, for older callers.
 """
 import json
@@ -33,7 +34,7 @@ DEFAULT_SINK = '@DEFAULT_AUDIO_SINK@'
 CONTROL_KEY = 'current.role-based.volume.control'
 UNAVAILABLE = {'available': False, 'percent': 0, 'muted': False}
 STATE = Path(os.environ.get('XDG_STATE_HOME', Path.home() / '.local/state')) / 'omarchy-mobile/volume.json'
-USAGE = 'Usage: volume.py status | up|down|mute [GROUP] | set PERCENT [GROUP]'
+USAGE = 'Usage: volume.py status | up|down|mute [GROUP] | mute GROUP on|off | set PERCENT [GROUP]'
 
 
 def wpctl(*args):
@@ -129,6 +130,8 @@ def parse(args, keys):
         return action, None, None
     if action in ('up', 'down', 'mute') and len(args) <= 2:
         return action, args[1] if len(args) == 2 else keys, None
+    if action == 'mute' and len(args) == 3 and args[2] in ('on', 'off'):
+        return action, args[1], args[2]
     if action == 'set' and len(args) in (2, 3):
         if not args[1].isdigit() or not 0 <= int(args[1]) <= 100:
             raise ValueError('Volume must be between 0 and 100')
@@ -153,7 +156,7 @@ def main(args):
         if action in ('up', 'down'):
             wpctl('set-volume', '-l', '1.0', target, '5%+' if action == 'up' else '5%-')
         elif action == 'mute':
-            wpctl('set-mute', target, 'toggle')
+            wpctl('set-mute', target, {'on': '1', 'off': '0'}.get(percent, 'toggle'))
         else:
             wpctl('set-volume', '-l', '1.0', target, percent + '%')
         if action == 'up' or (action == 'set' and int(percent) > 0):

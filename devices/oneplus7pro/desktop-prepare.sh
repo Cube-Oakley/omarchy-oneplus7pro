@@ -21,6 +21,11 @@ if [[ -f /root/power-bringup/cpufreq-enabled && ! -d /sys/module/guacamole_cpufr
     insmod /root/power-bringup/cpufreq/guacamole_cpufreq.ko ||
         echo 'CPU frequency overlay failed to load.' >&2
 fi
+if [[ -x /usr/local/sbin/guacamole-controls-start &&
+      -f /root/controls-bringup/autostart-enabled ]]; then
+    nohup /usr/local/sbin/guacamole-controls-start \
+        >> /root/controls-bringup/startup.log 2>&1 < /dev/null &
+fi
 if [[ -x /usr/local/sbin/guacamole-bluetooth-start &&
       -f /root/bluetooth-bringup/autostart-enabled ]]; then
     nohup /usr/local/sbin/guacamole-bluetooth-start \

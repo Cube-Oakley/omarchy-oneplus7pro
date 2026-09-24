@@ -68,6 +68,10 @@ class VolumeTests(unittest.TestCase):
     def test_explicit_group_and_set_default_to_media(self):
         _, changes = self.run_volume(GROUP_SINKS + [control(volume.GROUPS['call'])], ['mute', 'ring'])
         self.assertEqual(changes, [('set-mute', '51', 'toggle')])
+        _, changes = self.run_volume(GROUP_SINKS, ['mute', 'ring', 'on'])
+        self.assertEqual(changes, [('set-mute', '51', '1')])
+        _, changes = self.run_volume(GROUP_SINKS, ['mute', 'ring', 'off'])
+        self.assertEqual(changes, [('set-mute', '51', '0')])
         _, changes = self.run_volume(GROUP_SINKS + [control(volume.GROUPS['call'])], ['set', '30'])
         self.assertEqual(changes, [('set-volume', '-l', '1.0', '50', '30%'), ('set-mute', '50', '0')])
         _, changes = self.run_volume(GROUP_SINKS, ['set', '0', 'alarm'])

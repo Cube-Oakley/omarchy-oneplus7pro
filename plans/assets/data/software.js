@@ -49,8 +49,9 @@ PAGE_SOFTWARE = {
               + "persistent history, lock-screen notifications or banners after reboot.",
           ref: "docs/shell-controls-20260918.md" },
         { n: "Quick-setting toggles (brightness, Bluetooth, DND…)", s: "partial",
-          note: "Wi-Fi radio, Bluetooth, mute and Do Not Disturb are in the shade; Bluetooth starts its stack "
-              + "when needed. Brightness and flashlight wait on hardware.", ref: "docs/bluetooth-20260922.md" },
+          note: "Wi-Fi radio, Bluetooth, mute, Do Not Disturb, the flashlight and a brightness slider are in "
+              + "the shade; Bluetooth starts its stack when needed. No rotation lock or hotspot yet.",
+          ref: "docs/controls-20260923.md" },
         { n: "Performance panel", s: "ok",
           note: "CPU/RAM chip opens CPU, memory, load, thermal zones, battery draw and top CPU processes. Process "
               + "ranking is CPU time, not milliwatts.",

@@ -259,6 +259,90 @@ PanelWindow {
                     active: MobileStatus.dnd
                     onClicked: MobileStatus.setDnd(!MobileStatus.dnd)
                 }
+                QuickToggle {
+                    readonly property var torch: MobileStatus.controls.torch || ({})
+                    Layout.fillWidth: true; Layout.preferredWidth: 1
+                    visible: torch.available === true
+                    symbol: torch.on ? "󰉄" : "󰉅"; label: "Torch"
+                    active: torch.on === true
+                    onClicked: MobileStatus.control(["torch", "toggle"])
+                }
+            }
+            RowLayout {
+                Layout.fillWidth: true; spacing: 12
+                visible: !!MobileStatus.controls.backlight
+                Text { font.family: MobileTheme.fontFamily; text: "󰃞"; color: MobileTheme.secondary; font.pixelSize: 20 }
+                Slider {
+                    id: brightness
+                    Layout.fillWidth: true
+                    // Released level not yet confirmed by the helper, or -1.
+                    property real pending: -1
+                    from: 1; to: 100; stepSize: 1
+                    onMoved: brightnessThrottle.want(Math.round(value), false)
+                    onPressedChanged: if (!pressed) {
+                        pending = value;
+                        brightnessSettle.restart();
+                        brightnessThrottle.want(Math.round(value), true);
+                    }
+                    background: Rectangle {
+                        x: brightness.leftPadding; y: brightness.topPadding + (brightness.availableHeight - height) / 2
+                        implicitWidth: 200; implicitHeight: 12
+                        width: brightness.availableWidth; height: 12; radius: MobileTheme.radius(6)
+                        color: MobileTheme.muted
+                        Rectangle {
+                            width: parent.width * brightness.visualPosition; height: parent.height
+                            radius: MobileTheme.radius(6); color: MobileTheme.accent
+                        }
+                    }
+                    handle: Rectangle {
+                        x: brightness.leftPadding + brightness.visualPosition * (brightness.availableWidth - width)
+                        y: brightness.topPadding + (brightness.availableHeight - height) / 2
+                        implicitWidth: 22; implicitHeight: 34
+                        radius: MobileTheme.radius(11)
+                        color: MobileTheme.foreground
+                    }
+                    // Follow the screen's level, but neither pull the handle
+                    // mid-drag nor snap it back before the new level lands.
+                    Binding {
+                        target: brightness
+                        property: "value"
+                        value: MobileStatus.controls.backlight ? MobileStatus.controls.backlight.percent : 50
+                        when: !brightness.pressed && brightness.pending < 0
+                        restoreMode: Binding.RestoreNone
+                    }
+                    Connections {
+                        target: MobileStatus
+                        function onControlsChanged() {
+                            const light = MobileStatus.controls.backlight;
+                            if (brightness.pending >= 0 && light && Math.abs(light.percent - brightness.pending) <= 1)
+                                brightness.pending = -1;
+                        }
+                    }
+                    Timer { id: brightnessSettle; interval: 2000; onTriggered: brightness.pending = -1 }
+                    // A level at once when the drag starts, then at most one
+                    // every 80 ms, then the last: each is a panel command, and
+                    // one that lands while a frame is on its way can flicker.
+                    Timer {
+                        id: brightnessThrottle
+                        property int wanted: -1
+                        property int sent: -1
+                        property bool final: false
+                        function want(level, last) {
+                            wanted = level;
+                            final = final || last;
+                            if (!running) send();
+                        }
+                        function send() {
+                            sent = wanted;
+                            MobileStatus.brightness(wanted, final);
+                            final = false;
+                            start();
+                        }
+                        interval: 80
+                        onTriggered: if (wanted !== sent || final) send()
+                    }
+                }
+                Text { font.family: MobileTheme.fontFamily; text: "󰃠"; color: MobileTheme.secondary; font.pixelSize: 20 }
             }
             GridLayout {
                 Layout.fillWidth: true; columns: 2; columnSpacing: 12; rowSpacing: 12

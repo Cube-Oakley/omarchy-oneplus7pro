@@ -1,0 +1,47 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * The rear dual LED flash on PM8150L, applied at runtime.
+ *
+ * The flash block sits at PM8150L's second slave id (pmic@5), which our tree
+ * leaves disabled, so the SPMI bus never created a device for it; the loader
+ * (guacamole_flash.c) registers that device after applying this.
+ *
+ * Stock (18821 pm8150l.dtsi, sm8150-oem-camera-t0.dtsi) drives the two LEDs on
+ * flash channels 0 and 1 together, at 1 A per channel for a flash (1.5 A
+ * maximum), 300 mA for torch (500 mA maximum) and 1.28 s at most; channel 2
+ * is unused. Those are the limits below, for the mainline QCOM flash driver,
+ * whose channels count from 1. As on the OnePlus 7T Pro, the first channel is
+ * named for its torch function (white:torch), which flashlight controls look
+ * for; the second is white:flash-1.
+ */
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/leds/common.h>
+
+&{/soc@0/spmi@c440000/pmic@5} {
+	status = "okay";
+};
+
+&pm8150l_flash {
+	status = "okay";
+
+	led-0 {
+		function = LED_FUNCTION_TORCH;
+		color = <LED_COLOR_ID_WHITE>;
+		led-sources = <1>;
+		led-max-microamp = <300000>;
+		flash-max-microamp = <1000000>;
+		flash-max-timeout-us = <1280000>;
+	};
+
+	led-1 {
+		function = LED_FUNCTION_FLASH;
+		color = <LED_COLOR_ID_WHITE>;
+		function-enumerator = <1>;
+		led-sources = <2>;
+		led-max-microamp = <300000>;
+		flash-max-microamp = <1000000>;
+		flash-max-timeout-us = <1280000>;
+	};
+};

@@ -9,6 +9,8 @@ Singleton {
     property alias bluetooth: bluetoothProbe.state
     property alias volume: volumeProbe.state
     property alias stats: statsProbe.state
+    // Brightness, flashlight, vibration and the alert slider (omarchy-mobile-controls).
+    property alias controls: controlsProbe.state
     property bool dnd: false
     // Set while the shade's performance page is open.
     property bool statsShown: false
@@ -25,6 +27,54 @@ Singleton {
         prefsSave.running = true;
     }
     property string prefsInput: ""
+    // Control actions run one at a time. A newer action of the same kind
+    // replaces one still waiting, so a brightness drag sends only its latest.
+    property var controlQueue: []
+    function control(args) {
+        controlQueue = controlQueue.filter(waiting => waiting[0] !== args[0]).concat([args]);
+        if (!controlRunner.running) controlNext();
+    }
+    function controlNext() {
+        if (!controlQueue.length) return;
+        controlRunner.command = [Quickshell.env("HOME") + "/.local/bin/omarchy-mobile-controls"].concat(controlQueue[0]);
+        controlQueue = controlQueue.slice(1);
+        controlRunner.running = true;
+    }
+    Process {
+        id: controlRunner
+        stdout: StdioCollector {}
+        onExited: {
+            try {
+                const result = JSON.parse(stdout.text);
+                if (result.torch !== undefined) controlsProbe.state = result;
+            } catch (e) {}
+            status.controlNext();
+        }
+    }
+    // Brightness during a drag goes to one resident writer: starting a
+    // process per step made the screen lag the slider. The final level of a
+    // drag is remembered.
+    function brightness(level, final) {
+        if (!brightnessWriter.running) brightnessWriter.running = true;
+        brightnessWriter.write((final ? "remember " : "brightness ") + Math.round(level) + "\n");
+        if (final) brightnessRefresh.restart();
+    }
+    Process {
+        id: brightnessWriter
+        command: [Quickshell.env("HOME") + "/.local/bin/omarchy-mobile-controls", "serve"]
+        stdinEnabled: true
+        running: true
+    }
+    Timer { id: brightnessRefresh; interval: 100; onTriggered: controlsProbe.refresh() }
+    StatusProbe {
+        id: controlsProbe
+        sampleCommand: [Quickshell.env("HOME") + "/.local/bin/omarchy-mobile-controls", "status"]
+        // A line per alert slider change; nothing else changes on its own.
+        eventCommand: [Quickshell.env("HOME") + "/.local/bin/omarchy-mobile-controls", "watch"]
+        pollInterval: 60000
+    }
+    // The screen comes up at the panel's default; bring back the user's level.
+    Component.onCompleted: control(["restore"])
     StatusProbe {
         id: batteryProbe
         sampleCommand: [Quickshell.env("HOME") + "/.local/bin/omarchy-mobile-battery"]

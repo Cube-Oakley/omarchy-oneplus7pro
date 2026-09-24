@@ -1,0 +1,74 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * The three-position alert slider, applied at runtime.
+ *
+ * Stock (18821 sm8150-oem.dtsi, "oplus, tri-state-key") wires one contact per
+ * position to TLMM GPIOs 27, 134 and 125, active low, with no internal bias
+ * (the board pulls them up) and 2 mA drive. The stock driver's truth table has
+ * one contact low at a time: 125 Silent, 134 Vibrate, 27 Ring. The OnePlus 7T
+ * Pro (19801) uses the same GPIOs; its mainline port describes the slider with
+ * gpio-keys on the sound-profile axis, which this follows.
+ *
+ * ABS_SND_PROFILE (0x22) and SND_PROFILE_SILENT/VIBRATE/RING (0, 1, 2) arrive
+ * in later kernels than our 6.17; the numbers are written out here. The kernel
+ * default for these pins is a pull-down, which reads low whatever the slider
+ * does, so the pin state below matters.
+ */
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/linux-event-codes.h>
+
+#define ABS_SND_PROFILE		0x22
+#define SND_PROFILE_SILENT	0
+#define SND_PROFILE_VIBRATE	1
+#define SND_PROFILE_RING	2
+
+&tlmm {
+	alert_slider_default: alert-slider-default-state {
+		pins = "gpio27", "gpio125", "gpio134";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-disable;
+	};
+};
+
+&{/} {
+	alert-slider {
+		compatible = "gpio-keys";
+		label = "Alert slider";
+		pinctrl-names = "default";
+		pinctrl-0 = <&alert_slider_default>;
+
+		switch-top {
+			label = "Silent";
+			gpios = <&tlmm 125 GPIO_ACTIVE_LOW>;
+			linux,input-type = <EV_ABS>;
+			linux,code = <ABS_SND_PROFILE>;
+			linux,input-value = <SND_PROFILE_SILENT>;
+			linux,can-disable;
+			debounce-interval = <15>;
+		};
+
+		switch-middle {
+			label = "Vibrate";
+			gpios = <&tlmm 134 GPIO_ACTIVE_LOW>;
+			linux,input-type = <EV_ABS>;
+			linux,code = <ABS_SND_PROFILE>;
+			linux,input-value = <SND_PROFILE_VIBRATE>;
+			linux,can-disable;
+			debounce-interval = <15>;
+		};
+
+		switch-bottom {
+			label = "Ring";
+			gpios = <&tlmm 27 GPIO_ACTIVE_LOW>;
+			linux,input-type = <EV_ABS>;
+			linux,code = <ABS_SND_PROFILE>;
+			linux,input-value = <SND_PROFILE_RING>;
+			linux,can-disable;
+			debounce-interval = <15>;
+		};
+	};
+};

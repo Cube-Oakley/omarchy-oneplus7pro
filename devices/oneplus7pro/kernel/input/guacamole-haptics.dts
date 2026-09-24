@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * The Awinic AW8697 haptics controller, applied at runtime.
+ *
+ * Stock (18821 sm8150-oem.dtsi) puts it at 0x5a on QUP SE7, the bus mainline
+ * calls i2c7 (i2c@89c000), with reset on TLMM GPIO 116 (active low) and its
+ * interrupt on GPIO 24, and gives it device id 619. The stock driver selects
+ * its 170 Hz "0815" actuator profile for every id but 832 and 833, so this
+ * phone uses the same profile as the OnePlus 7T Pro, whose mainline port this
+ * follows. Nothing else enables i2c7. The driver does not use the interrupt,
+ * so it is left out.
+ */
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
+&i2c7 {
+	clock-frequency = <400000>;
+	status = "okay";
+
+	haptics@5a {
+		compatible = "awinic,aw8697";
+		reg = <0x5a>;
+		reset-gpios = <&tlmm 116 GPIO_ACTIVE_LOW>;
+	};
+};

@@ -62,9 +62,10 @@ PAGE_HARDWARE = {
         { n: "Volume up / down keys", s: "partial",
           note: "Both keys enumerate cleanly after the SPMI-parent fix; physical press-and-hold behaviour not "
               + "yet confirmed by the user.", ref: "docs/audio-bringup-20260918.md" },
-        { n: "Three-position alert slider", s: "no",
-          note: "Guacamole wiring and physical events need verification, followed by ring/vibrate/silent policy.",
-          ref: "docs/hardware-plan-20260922.md" },
+        { n: "Three-position alert slider", s: "partial",
+          note: "gpio-keys on the stock GPIOs (27, 134, 125) reports Vibrate and Ring, which mute and unmute "
+              + "the ring group. This unit's Silent contact never closes, a worn switch.",
+          ref: "docs/controls-20260923.md" },
         { n: "Battery gauge (TI bq27541)", s: "ok",
           note: "Standard power_supply class: capacity, voltage, current and temperature, live while unplugged.",
           ref: "docs/battery-gauge-20260917.md" },
@@ -100,8 +101,9 @@ PAGE_HARDWARE = {
           note: "Blank and restore driven by the power key, charging preserved.",
           ref: "docs/power-button-policy-20260917.md" },
         { n: "Backlight / brightness control", s: "partial",
-          note: "Backlight sysfs interface exists and reads 320/1023. Physical brightness changes and Settings control remain untested; no value was changed during investigation.",
-          ref: "docs/hardware-plan-20260922.md" },
+          note: "User-confirmed changes; a shade slider sets and remembers the level. Dragging it can flicker "
+              + "the screen: panel commands collide with frame transfers at 90 Hz. No automatic brightness yet.",
+          ref: "docs/controls-20260923.md" },
         { n: "Always-on / ambient display (panel doze)", s: "no", note: "Not attempted." },
         { n: "Multitouch (Samsung S6SY761)", s: "ok",
           note: "User-tested including five-finger input; survives suspend/resume.",
@@ -109,9 +111,10 @@ PAGE_HARDWARE = {
         { n: "Touchscreen gesture surface / edge rejection", s: "partial",
           note: "Bottom-edge and top-edge zones work as shell gestures, but palm and accidental-touch rejection "
               + "is untested.", ref: "docs/mobile-gestures-20260917.md" },
-        { n: "Haptic / vibration motor", s: "no",
-          note: "Not brought up. Needed for key feedback, long-press confirmation and call alerting.",
-          ref: "docs/mobile-roadmap.md" }
+        { n: "Haptic / vibration motor", s: "ok",
+          note: "AW8697 (stock 170 Hz profile) through the standard force-feedback interface, user-confirmed. "
+              + "Notifications and the alert slider buzz; key feedback still to come.",
+          ref: "docs/controls-20260923.md" }
       ]
     },
 
@@ -285,7 +288,9 @@ PAGE_HARDWARE = {
         { n: "Video codec (Venus: hardware encode / decode)", s: "no",
           note: "Not brought up. Likely part of why web video is choppy, though that is not proven.",
           ref: "docs/next-session.md" },
-        { n: "LED flash / torch", s: "no", note: "Not brought up." }
+        { n: "LED flash / torch", s: "partial",
+          note: "Both PM8150L flash LEDs light at stock limits, user-confirmed; the shade has a Torch toggle. "
+              + "Camera flash synchronization remains.", ref: "docs/controls-20260923.md" }
       ]
     },
 
