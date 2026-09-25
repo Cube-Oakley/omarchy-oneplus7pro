@@ -14,6 +14,7 @@ for name in quickshell kitty hypr fastfetch omarchy-mobile; do
 done
 install -m644 "$source_dir"/*.qml "$source_dir/qmldir" "$config/quickshell/omarchy-mobile/"
 install -m755 "$source_dir/start-mobile.sh" "$HOME/.local/bin/omarchy-mobile-session"
+install -m755 "$source_dir/shell-watchdog.sh" "$HOME/.local/bin/omarchy-mobile-shell-watchdog"
 install -m755 "$source_dir/keyboard.sh" "$HOME/.local/bin/omarchy-mobile-keyboard"
 install -m755 "$source_dir/display-power.sh" "$HOME/.local/bin/omarchy-mobile-display"
 install -m755 "$source_dir/power-button.py" "$HOME/.local/bin/omarchy-mobile-power"
@@ -36,6 +37,7 @@ install -m755 "$source_dir/storage.py" "$HOME/.local/bin/omarchy-mobile-storage"
 install -m755 "$source_dir/display.py" "$HOME/.local/bin/omarchy-mobile-displayinfo"
 install -m755 "$source_dir/controls.py" "$HOME/.local/bin/omarchy-mobile-controls"
 install -m755 "$source_dir/rotation.py" "$HOME/.local/bin/omarchy-mobile-rotation"
+install -m755 "$source_dir/ambient.py" "$HOME/.local/bin/omarchy-mobile-ambient"
 kit="$data/omarchy-mobile/qml/OmarchyMobile"
 mkdir -p "$kit" "$config/quickshell/omarchy-mobile-settings" "$data/applications"
 install -m644 "$source_dir/MobileTheme.qml" "$source_dir/TouchButton.qml" \

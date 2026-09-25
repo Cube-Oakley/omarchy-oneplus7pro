@@ -34,6 +34,10 @@ if [[ ${1:-prepare} == launch ]]; then
     exec quickshell -n -d -p "$shell_config"
 fi
 "$HOME/.local/bin/omarchy-mobile-theme" sync >/dev/null
+# Start the shell again if it ever exits (one watchdog per session).
+state=${XDG_STATE_HOME:-$HOME/.local/state}/omarchy-mobile
+mkdir -p "$state"
+setsid "$HOME/.local/bin/omarchy-mobile-shell-watchdog" </dev/null >>"$state/shell-watchdog.log" 2>&1 &
 if [[ -x "$config/omarchy-mobile/session-prepare" ]]; then
     "$config/omarchy-mobile/session-prepare"
 else

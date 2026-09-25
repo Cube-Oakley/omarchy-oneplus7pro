@@ -171,6 +171,14 @@ Item {
         cardsKey = key;
         cardsModel = groups.slice().reverse();
         const last = Math.max(0, cardsModel.length - 1);
+        // Closing the last app leaves nothing to switch to: go to the desktop,
+        // as Android does, rather than an empty switcher.
+        if (closedAt >= 0 && cardsModel.length === 0) {
+            closingAt = -1;
+            closingId = 0;
+            dismissed();
+            return;
+        }
         if (closedAt >= 0 && cardsModel.length > 0) {
             const removedLast = closedAt > last;
             index = removedLast ? last : Math.min(closedAt, last);

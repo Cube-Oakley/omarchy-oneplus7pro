@@ -26,7 +26,7 @@ PanelWindow {
     implicitWidth: 64; implicitHeight: 64
     exclusionMode: ExclusionMode.Ignore
     color: "transparent"
-    visible: offered && differs
+    visible: offered && differs && !MobileStatus.ambient
     WlrLayershell.namespace: "omarchy-mobile-rotate"
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None

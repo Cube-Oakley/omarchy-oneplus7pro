@@ -12,6 +12,17 @@ Singleton {
     // Brightness, flashlight, vibration and the alert slider (omarchy-mobile-controls).
     property alias controls: controlsProbe.state
     property bool dnd: false
+    // The always-on display is showing (omarchy-mobile-display ambient).
+    property bool ambient: false
+    // Its brightness, on the slider's scale: dim, but readable indoors.
+    readonly property int ambientLevel: 15
+    function setAmbient(on) {
+        if (on === ambient) return;
+        ambient = on;
+        // The level is not remembered; leaving restores the user's own.
+        if (on) brightness(ambientLevel, false);
+        else control(["restore"]);
+    }
     // Set while the shade's performance page is open.
     property bool statsShown: false
     // Busy share of all CPUs and used memory, in percent, for the status bar.
@@ -70,16 +81,18 @@ Singleton {
     // light sensor while it is on. Each change it makes moves the slider
     // through a status refresh; the slider's final level teaches it.
     readonly property bool autoBrightness: controlsProbe.state.auto === true
-    onAutoBrightnessChanged: autoFollower.running = autoBrightness
+    // Paused while the always-on display holds its own dim level.
+    readonly property bool followLight: autoBrightness && !ambient
+    onFollowLightChanged: autoFollower.running = followLight
     Process {
         id: autoFollower
         command: [Quickshell.env("HOME") + "/.local/bin/omarchy-mobile-controls", "auto-run"]
         stdout: SplitParser {
             onRead: data => { if (data.trim().length) brightnessRefresh.restart(); }
         }
-        onExited: if (status.autoBrightness) autoRetry.start()
+        onExited: if (status.followLight) autoRetry.start()
     }
-    Timer { id: autoRetry; interval: 10000; onTriggered: autoFollower.running = status.autoBrightness }
+    Timer { id: autoRetry; interval: 10000; onTriggered: autoFollower.running = status.followLight }
     StatusProbe {
         id: controlsProbe
         sampleCommand: [Quickshell.env("HOME") + "/.local/bin/omarchy-mobile-controls", "status"]

@@ -8,7 +8,7 @@ import subprocess
 import sys
 
 CONFIG = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config'))) / 'omarchy-mobile/prefs.json'
-ALLOWED = {'dnd', 'fontFamily', 'corners'}
+ALLOWED = {'dnd', 'fontFamily', 'corners', 'alwaysOn'}
 DEFAULT_FONT = 'JetBrainsMono Nerd Font'
 FONT_NAME = re.compile(r'^[A-Za-z0-9][A-Za-z0-9 +._-]{0,78}$')
 
@@ -22,13 +22,15 @@ def read(path=CONFIG):
     if not FONT_NAME.fullmatch(font):
         font = DEFAULT_FONT
     corners = data.get('corners') if data.get('corners') in ('round', 'square') else ''
-    return {'dnd': bool(data.get('dnd')), 'fontFamily': font, 'corners': corners}
+    return {'dnd': bool(data.get('dnd')), 'fontFamily': font, 'corners': corners,
+            'alwaysOn': data.get('alwaysOn') is True}
 
 
 def save(data, path=CONFIG):
     path.parent.mkdir(parents=True, exist_ok=True)
     temp = path.with_suffix('.tmp')
-    stored = {'dnd': bool(data.get('dnd')), 'fontFamily': data.get('fontFamily') or DEFAULT_FONT}
+    stored = {'dnd': bool(data.get('dnd')), 'fontFamily': data.get('fontFamily') or DEFAULT_FONT,
+              'alwaysOn': data.get('alwaysOn') is True}
     if data.get('corners') in ('round', 'square'):
         stored['corners'] = data['corners']
     temp.write_text(json.dumps(stored))
@@ -68,6 +70,10 @@ def main(argv=None, stdin=None, path=CONFIG):
             if not isinstance(name, str) or not FONT_NAME.fullmatch(name):
                 raise ValueError('Font name is not valid')
             prefs['fontFamily'] = name
+        if 'alwaysOn' in incoming:
+            if not isinstance(incoming['alwaysOn'], bool):
+                raise ValueError('alwaysOn must be true or false')
+            prefs['alwaysOn'] = incoming['alwaysOn']
         if 'corners' in incoming:
             choice = incoming['corners']
             if choice not in ('round', 'square'):

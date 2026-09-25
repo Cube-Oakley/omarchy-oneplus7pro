@@ -28,6 +28,8 @@ class PowerButtonTests(unittest.TestCase):
         self.button.adapter.touch(mode=0o755)
         self.button.display_on = Mock(return_value=True)
         self.button.set_display = Mock()
+        # The screen's close animation starts as its own process.
+        self.button.start_display = Mock(return_value=Mock(poll=Mock(return_value=0), wait=Mock()))
         self.calls = []
         self.ready = True
         self.during_sleep = lambda: None
@@ -56,7 +58,8 @@ class PowerButtonTests(unittest.TestCase):
         self.ready = False
         self.tap()
         self.assertEqual(len(self.calls), 1)
-        self.button.set_display.assert_called_once_with('off')
+        self.button.start_display.assert_called_once_with('off')
+        self.button.set_display.assert_not_called()
 
     def test_blanked_screen_restores_without_suspend(self):
         self.button.display_on.return_value = False
@@ -68,7 +71,7 @@ class PowerButtonTests(unittest.TestCase):
         self.button.adapter.unlink()
         self.tap()
         self.assertFalse(self.calls)
-        self.button.set_display.assert_called_once_with('off')
+        self.button.start_display.assert_called_once_with('off')
 
     def test_release_without_press_never_sleeps(self):
         self.button.event('release')
@@ -98,6 +101,22 @@ class PowerButtonTests(unittest.TestCase):
             self.tap()
         self.button.set_display.assert_called_once_with('on')
         self.assertIn('ignore_until', self.button.load())
+
+    def test_always_on_shows_ambient_and_never_sleeps(self):
+        self.button.prefs.parent.mkdir(parents=True, exist_ok=True)
+        self.button.prefs.write_text('{"alwaysOn": true}')
+        self.tap()
+        self.assertFalse(self.calls)
+        self.button.start_display.assert_not_called()
+        self.button.set_display.assert_called_once_with('ambient')
+
+    def test_press_in_ambient_wakes(self):
+        self.button.prefs.parent.mkdir(parents=True, exist_ok=True)
+        self.button.prefs.write_text('{"alwaysOn": true}')
+        self.button.ambient.touch()
+        self.tap()
+        self.assertFalse(self.calls)
+        self.button.set_display.assert_called_once_with('on')
 
     def test_supervised_alarm_is_passed_to_adapter(self):
         (self.root / 'omarchy-mobile-power-test-alarm').write_text('90\n')

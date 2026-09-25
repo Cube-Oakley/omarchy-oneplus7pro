@@ -34,7 +34,8 @@ PAGE_SOFTWARE = {
           note: "Card switcher with previews, tap to open, drag onto a card to tile. The swipe up follows the "
               + "finger from the first frame (a recent screen copy, taken only while the phone is in use); "
               + "thumbnails stop copying once taken, and opening another app no longer rebuilds the cards "
-              + "mid-animation. Periodic status and theme polling no longer stalls it.",
+              + "mid-animation. Periodic status and theme polling no longer stalls it. Swiping away the last "
+              + "app returns to the desktop.",
           ref: "docs/smoothness-20260923.md" },
         { n: "Bottom-edge gesture navigation", s: "ok",
           note: "Left = launcher, centre = overview, right = keyboard; finger-tracked sheets with swipe-down "
@@ -44,6 +45,10 @@ PAGE_SOFTWARE = {
           ref: "docs/keyboard-browser-20260918.md" },
         { n: "Mobile scaling & tiled windows", s: "ok",
           note: "Scale appropriate to 1440 × 3120; multiple tiled app windows coexist with the shell surfaces." },
+        { n: "Shell crash recovery", s: "ok",
+          note: "A watchdog starts the shell again about 5 s after it exits, and stops the dead shell's helpers. "
+              + "Hyprland 0.56.2 can disconnect the shell when a window closes during a preview capture (a "
+              + "compositor bug, still upstream).", ref: "docs/shell-fixes-20260924.md" },
         { n: "Notification actions, grouping and dismissal", s: "partial",
           note: "Cards group by app, with expand, per-item and group dismiss, actions, and heads-up toasts. No "
               + "persistent history, lock-screen notifications or banners after reboot.",
@@ -126,8 +131,8 @@ PAGE_SOFTWARE = {
                   + "hotspot are not. Speed test is HTTP throughput to Cloudflare.",
               ref: "docs/network-speedtest-20260919.md" },
             { n: "Panel — Display & brightness", s: "partial",
-              note: "Settings Display shows the monitor mode. Brightness is read when a backlight exists and is "
-                  + "not changed. Corners are toggled from Appearance.",
+              note: "Settings Display shows the monitor mode and switches the always-on display. Brightness is "
+                  + "read here and changed from the shade. Corners are toggled from Appearance.",
               ref: "docs/mobile-architecture.md" },
             { n: "Panel — Sound & output routing", s: "partial",
               note: "Settings Sound and the OSD share the PipeWire volume helper. The OSD's four volume groups "

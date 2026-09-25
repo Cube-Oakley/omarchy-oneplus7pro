@@ -361,6 +361,8 @@ ShellRoot {
         function settings(panel: string): void { root.openSettings(panel || "home"); }
         function dismiss(): void { root.closeDrawer(); shade.close(); }
         function controls(): void { shade.toggle(); }
+        // The always-on display (omarchy-mobile-display ambient / on).
+        function ambient(on: bool): void { if (on) { root.closeDrawer(); shade.close(); } MobileStatus.setAmbient(on); }
         function controlState(): string { return JSON.stringify({open: shade.opened, detail: shade.detail, notifications: shade.notificationCount, wifi: shade.wifi.connected, networks: shade.networks.length}); }
         function detail(name: string): void { if (["wifi", "battery", "calendar", "weather", "stats", "clipboard", "speedtest"].indexOf(name) >= 0) shade.showDetail(name); }
         function terminal(): void { root.terminal(); }
@@ -386,6 +388,7 @@ ShellRoot {
     SystemClock { id: clock; precision: SystemClock.Minutes }
     VolumeOsd { id: volumeOsd }
     RotateButton {}
+    AmbientDisplay { notifications: shade.notificationValues }
     // The alert slider sets the ring group, as on Android: muted in Vibrate
     // and Silent, heard in Ring, with a short buzz on reaching Vibrate. Only
     // movements count; the position the session starts with is left alone.
@@ -427,7 +430,7 @@ ShellRoot {
     Timer { id: clipboardWatchRetry; interval: 10000; onTriggered: clipboardWatch.running = true }
     NotificationToast {
         id: toast
-        blocked: MobileStatus.dnd || shade.opened || shade.screenshotPrivacy
+        blocked: MobileStatus.dnd || shade.opened || shade.screenshotPrivacy || MobileStatus.ambient
         onActivate: shade.open()
     }
 

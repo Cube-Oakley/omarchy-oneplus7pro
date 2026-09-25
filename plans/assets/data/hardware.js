@@ -111,7 +111,11 @@ PAGE_HARDWARE = {
               + "fades with the room. Kernel #194 keeps panel commands out of frame transfers, which ended the "
               + "flicker while dragging.",
           ref: "docs/kernel194-20260924.md" },
-        { n: "Always-on / ambient display (panel doze)", s: "no", note: "Not attempted." },
+        { n: "Always-on / ambient display (panel doze)", s: "ok",
+          note: "A dim clock, date, battery and notification icons in place of switching off, after the CRT "
+              + "close; the power button or a double tap wakes it. The panel has no low-power mode (stock's AOD "
+              + "commands are empty), so it runs in its normal mode, redrawing once a minute. Face down or in a "
+              + "pocket it goes fully off.", ref: "docs/always-on-display-20260924.md" },
         { n: "Multitouch (Samsung S6SY761)", s: "ok",
           note: "User-tested including five-finger input; survives suspend/resume.",
           ref: "docs/touchscreen-work-20260916.md" },

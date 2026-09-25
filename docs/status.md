@@ -1,5 +1,17 @@
 # Checkpoint — 2026-09-17
 
+**September 24 always-on display:** [the dim clock](always-on-display-20260924.md)
+(Settings → Display): the CRT close, then the time, date, battery and
+notification icons on black; power or a double tap wakes it through the CRT
+open; face down or in a pocket the panel goes fully off. Shell work only: the
+panel has no low-power mode.
+
+**September 24 shell:** [fixes](shell-fixes-20260924.md). A watchdog starts
+the shell again if it exits (Hyprland 0.56.2 disconnected it when an app's
+window closed during a preview capture, leaving the phone looking dead);
+swiping away the last app returns to the desktop; the brightness slider
+follows the finger now that #194 stops the flicker.
+
 **September 24 display:** [kernel #194](kernel194-20260924.md) (slot B,
 rollback #193) keeps DSI commands out of command mode frames: the brightness
 flicker is gone (10 DSI errors for a slider drag on #193, none on #194), and

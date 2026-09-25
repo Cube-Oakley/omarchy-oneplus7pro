@@ -120,7 +120,7 @@ class BackendTests(unittest.TestCase):
         m=module('prefs')
         with tempfile.TemporaryDirectory() as d:
             path=Path(d)/'prefs.json'
-            self.assertEqual(m.main([],path=path),{'dnd':False,'fontFamily':'JetBrainsMono Nerd Font','corners':''})
+            self.assertEqual(m.main([],path=path),{'dnd':False,'fontFamily':'JetBrainsMono Nerd Font','corners':'','alwaysOn':False})
             result=m.main(['set'],stdin=__import__('io').StringIO('{"dnd":true}'),path=path)
             self.assertTrue(result['dnd'])
             self.assertEqual(json.loads(path.read_text())['dnd'], True)
@@ -130,5 +130,11 @@ class BackendTests(unittest.TestCase):
                 m.main(['set'],stdin=__import__('io').StringIO('{"secret":1}'),path=path)
             with self.assertRaises(ValueError):
                 m.main(['set'],stdin=__import__('io').StringIO('{"fontFamily":"bad\\nfont"}'),path=path)
+            result=m.main(['set'],stdin=__import__('io').StringIO('{"alwaysOn":true}'),path=path)
+            self.assertTrue(result['alwaysOn'])
+            self.assertTrue(json.loads(path.read_text())['alwaysOn'])
+            self.assertTrue(result['dnd'])
+            with self.assertRaises(ValueError):
+                m.main(['set'],stdin=__import__('io').StringIO('{"alwaysOn":"yes"}'),path=path)
 
 if __name__=='__main__': unittest.main()

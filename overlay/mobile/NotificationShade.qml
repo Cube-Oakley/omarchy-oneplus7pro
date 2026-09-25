@@ -36,6 +36,7 @@ PanelWindow {
     readonly property var stats: MobileStatus.stats
     Binding { target: MobileStatus; property: "statsShown"; value: shade.opened && shade.detail === "stats" }
     readonly property int notificationCount: notifications.trackedNotifications.values.length
+    readonly property var notificationValues: notifications.trackedNotifications.values
     signal opening()
     signal arrived(var notification)
     signal keyboardRequested(string action)
@@ -333,9 +334,10 @@ PanelWindow {
                         }
                     }
                     Timer { id: brightnessSettle; interval: 2000; onTriggered: brightness.pending = -1 }
-                    // A level at once when the drag starts, then at most one
-                    // every 80 ms, then the last: each is a panel command, and
-                    // one that lands while a frame is on its way can flicker.
+                    // A level at once when the drag starts, then about one per
+                    // frame, then the last. Each is a panel command; from
+                    // kernel #194 they wait for frames instead of flickering
+                    // (80 ms apart before it).
                     Timer {
                         id: brightnessThrottle
                         property int wanted: -1
@@ -352,7 +354,7 @@ PanelWindow {
                             final = false;
                             start();
                         }
-                        interval: 80
+                        interval: 16
                         onTriggered: if (wanted !== sent || final) send()
                     }
                 }
