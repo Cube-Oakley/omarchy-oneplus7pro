@@ -1,5 +1,10 @@
 # Checkpoint — 2026-09-17
 
+**September 24 display:** [kernel #194](kernel194-20260924.md) (slot B,
+rollback #193) keeps DSI commands out of command mode frames: the brightness
+flicker is gone (10 DSI errors for a slider drag on #193, none on #194), and
+automatic brightness now fades smoothly.
+
 **September 24 sensors:** [SLPI](sensors-20260924.md). Kernel #193 (slot B,
 rollback #192) moves the firmware carve-outs to the OEM map and adds a 16 MiB
 FastRPC pool; everything else runs as on #192. A runtime module starts the

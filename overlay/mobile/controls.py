@@ -52,8 +52,8 @@ PANEL_LUX = 190.0
 class AutoBrightness:
     """Brightness from ambient light: a log curve in the slider's (perceptual)
     scale, shifted by the user's own preference, which is learnt whenever
-    they set the slider. Changes are rare on purpose: each is a panel command,
-    and one can flicker."""
+    they set the slider. A change is made only when it is worth one, and
+    then faded in (ramp)."""
     STEP = 4          # slider points before a change is worth making
     INTERVAL = 2.0    # seconds between changes
     SETTLE = 5.0      # seconds a slider drag is left alone
@@ -103,6 +103,16 @@ class AutoBrightness:
             return None
         self.applied, self.written = wanted, now
         return wanted
+
+
+def ramp(start, end, seconds=1.0, step_time=0.04):
+    """The levels of a fade from start to end: a slider point per step, over
+    at most `seconds`. Needs kernel #194 or later, which keeps panel commands
+    out of frame transfers; before it, every step could flicker."""
+    if start == end:
+        return [end]
+    steps = min(abs(end - start), max(1, int(seconds / step_time)))
+    return [round(start + (end - start) * i / steps) for i in range(1, steps + 1)]
 
 
 def ioc(direction, number, size):
@@ -348,10 +358,12 @@ def auto_run():
                         auto.user_set(remembered)
                         state['auto_offset'] = auto.offset
                         save_state(state)
-                wanted = auto.light(float(match.group(1)), raw / maximum,
-                                    percent_for(raw, maximum), time.monotonic())
+                current = percent_for(raw, maximum)
+                wanted = auto.light(float(match.group(1)), raw / maximum, current, time.monotonic())
                 if wanted is not None:
-                    set_brightness(wanted, remember=False)
+                    for level in ramp(current, wanted):
+                        set_brightness(level, remember=False)
+                        time.sleep(0.04)
                     print(json.dumps({'auto': {'lux': float(match.group(1)), 'percent': wanted}}), flush=True)
         finally:
             proc.terminate()

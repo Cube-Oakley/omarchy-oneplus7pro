@@ -1,6 +1,6 @@
 /* Site-wide copy shared by all pages. */
 SITE = {
-  meta: ["updated 2026-09-24", "kernel #193 · slot B", "audio + Bluetooth working · SIM pending"],
+  meta: ["updated 2026-09-24", "kernel #194 · slot B", "audio + Bluetooth working · SIM pending"],
 
   landing: {
     eyebrow: "Project plan · overview",
@@ -8,7 +8,7 @@ SITE = {
     blurb: "Arch Linux ARM + Hyprland + Quickshell on guacamole (Snapdragon 855 / Adreno 640), "
          + "shaped into a touch phone we can actually reprogram. Three pages: the hardware inside the "
          + "handset, the software you touch, and how the phone talks to a desktop.",
-    meta: ["updated 2026-09-24", "kernel #193 · slot B", "audio + Bluetooth working · SIM pending", "3 pages"]
+    meta: ["updated 2026-09-24", "kernel #194 · slot B", "audio + Bluetooth working · SIM pending", "3 pages"]
   },
 
   howTo: [

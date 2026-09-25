@@ -106,11 +106,11 @@ PAGE_HARDWARE = {
         { n: "Panel power off / wake", s: "ok",
           note: "Blank and restore driven by the power key, charging preserved.",
           ref: "docs/power-button-policy-20260917.md" },
-        { n: "Backlight / brightness control", s: "partial",
-          note: "User-confirmed changes; a shade slider sets and remembers the level. Dragging it can flicker "
-              + "the screen: a panel command collides with the next frame at 90 Hz; stock sends it inside the "
-              + "display commit. No automatic brightness yet.",
-          ref: "docs/controls-20260923.md" },
+        { n: "Backlight / brightness control", s: "ok",
+          note: "User-confirmed changes; a shade slider sets and remembers the level, and automatic brightness "
+              + "fades with the room. Kernel #194 keeps panel commands out of frame transfers, which ended the "
+              + "flicker while dragging.",
+          ref: "docs/kernel194-20260924.md" },
         { n: "Always-on / ambient display (panel doze)", s: "no", note: "Not attempted." },
         { n: "Multitouch (Samsung S6SY761)", s: "ok",
           note: "User-tested including five-finger input; survives suspend/resume.",

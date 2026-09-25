@@ -1,0 +1,149 @@
+msm: keep DSI commands and command mode frames apart.
+
+Dragging the brightness slider flickers the panel (docs/controls-20260923.md):
+each backlight DCS command collides with a frame transfer, with DSI FIFO and
+timeout errors. #192's wait for DSI_STATUS0.CMD_MODE_MDP_BUSY was not enough:
+a kicked-off command mode frame waits for the panel's tear signal before it
+transfers, so the controller reads idle, the command starts, and the frame
+starts under it. Downstream sends the backlight inside the display commit,
+before the kickoff, which serializes the two by design.
+
+Here the command mode encoder publishes its pending frame count
+(pending_kickoff_cnt, decremented and woken in the pingpong-done interrupt)
+in msm_drm_private while enabled. A DSI command takes cmd_xfer_lock, waits
+up to 50 ms for pending frames to drain, and is sent; a kickoff takes the
+same lock, so no frame starts while a command is on the link. The kickoff
+runs under the commit's CRTC mutexes in process context, and the DSI path
+never takes those, so the order cannot invert.
+
+--- a/drivers/gpu/drm/msm/msm_drv.h
++++ b/drivers/gpu/drm/msm/msm_drv.h
+@@ -77,6 +77,19 @@
+ 	struct msm_kms *kms;
+ 	int (*kms_init)(struct drm_device *dev);
+ 
++	/*
++	 * A command mode panel takes frames and DSI commands over one link. A
++	 * kicked-off frame waits for the panel's tear signal before it
++	 * transfers, so the controller's busy flag cannot keep a command out
++	 * of its way, and the two collide (DSI FIFO and timeout errors, a
++	 * flickering panel). The command mode encoder publishes its pending
++	 * frame count here while enabled: a DSI command waits for it to drain
++	 * and holds new kickoffs off until it has been sent.
++	 */
++	struct mutex cmd_xfer_lock;
++	atomic_t *cmd_pending_frames;
++	wait_queue_head_t *cmd_frames_wq;
++
+ 	/* subordinate devices, if present: */
+ 	struct platform_device *gpu_pdev;
+ 
+--- a/drivers/gpu/drm/msm/msm_drv.c
++++ b/drivers/gpu/drm/msm/msm_drv.c
+@@ -121,6 +121,7 @@
+ 	}
+ 	ddev->dev_private = priv;
+ 	priv->dev = ddev;
++	mutex_init(&priv->cmd_xfer_lock);
+ 
+ 	INIT_LIST_HEAD(&priv->objects);
+ 	mutex_init(&priv->obj_lock);
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_cmd.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_cmd.c
+@@ -480,6 +480,16 @@
+ 
+ 	dpu_encoder_phys_cmd_enable_helper(phys_enc);
+ 	phys_enc->enable_state = DPU_ENC_ENABLED;
++
++	/* Let DSI commands wait for this encoder's frames (msm_drv.h). */
++	if (phys_enc->split_role != ENC_ROLE_SLAVE) {
++		struct msm_drm_private *priv = phys_enc->parent->dev->dev_private;
++
++		mutex_lock(&priv->cmd_xfer_lock);
++		priv->cmd_pending_frames = &phys_enc->pending_kickoff_cnt;
++		priv->cmd_frames_wq = &phys_enc->pending_kickoff_wq;
++		mutex_unlock(&priv->cmd_xfer_lock);
++	}
+ }
+ 
+ static void _dpu_encoder_phys_cmd_connect_te(
+@@ -539,6 +549,17 @@
+ 		return;
+ 	}
+ 
++	{
++		struct msm_drm_private *priv = phys_enc->parent->dev->dev_private;
++
++		mutex_lock(&priv->cmd_xfer_lock);
++		if (priv->cmd_pending_frames == &phys_enc->pending_kickoff_cnt) {
++			priv->cmd_pending_frames = NULL;
++			priv->cmd_frames_wq = NULL;
++		}
++		mutex_unlock(&priv->cmd_xfer_lock);
++	}
++
+ 	if (phys_enc->has_intf_te) {
+ 		DRM_DEBUG_KMS("id:%u intf:%d state:%d\n", DRMID(phys_enc->parent),
+ 			      phys_enc->hw_intf->idx - INTF_0,
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c
+@@ -2156,8 +2156,13 @@
+ 
+ 	trace_dpu_enc_kickoff(DRMID(drm_enc));
+ 
+-	/* All phys encs are ready to go, trigger the kickoff */
++	/*
++	 * All phys encs are ready to go, trigger the kickoff; not while a DSI
++	 * command is on the link (msm_drv.h).
++	 */
++	mutex_lock(&((struct msm_drm_private *)drm_enc->dev->dev_private)->cmd_xfer_lock);
+ 	_dpu_encoder_kickoff_phys(dpu_enc);
++	mutex_unlock(&((struct msm_drm_private *)drm_enc->dev->dev_private)->cmd_xfer_lock);
+ 
+ 	/* allow phys encs to handle any post-kickoff business */
+ 	for (i = 0; i < dpu_enc->num_phys_encs; i++) {
+--- a/drivers/gpu/drm/msm/dsi/dsi_manager.c
++++ b/drivers/gpu/drm/msm/dsi/dsi_manager.c
+@@ -501,7 +501,7 @@
+ 	return 0;
+ }
+ 
+-int msm_dsi_manager_cmd_xfer(int id, const struct mipi_dsi_msg *msg)
++static int dsi_mgr_cmd_xfer(int id, const struct mipi_dsi_msg *msg)
+ {
+ 	struct msm_dsi *msm_dsi = dsi_mgr_get_dsi(id);
+ 	struct msm_dsi *msm_dsi1 = dsi_mgr_get_dsi(DSI_1);
+@@ -546,6 +546,33 @@
+ 
+ 	return ret;
+ }
++
++/*
++ * Keep a command out of a command mode frame's way (msm_drv.h): wait until
++ * no kicked-off frame is pending, and hold new kickoffs off while it is
++ * sent. Commands during panel setup, before the display is bound, and in
++ * video mode (no command mode encoder publishes) pass straight through.
++ */
++int msm_dsi_manager_cmd_xfer(int id, const struct mipi_dsi_msg *msg)
++{
++	struct msm_dsi *msm_dsi = dsi_mgr_get_dsi(id);
++	struct msm_drm_private *priv = msm_dsi && msm_dsi->dev ? msm_dsi->dev->dev_private : NULL;
++	int ret;
++
++	if (!priv)
++		return dsi_mgr_cmd_xfer(id, msg);
++
++	mutex_lock(&priv->cmd_xfer_lock);
++	if (priv->cmd_frames_wq &&
++	    !wait_event_timeout(*priv->cmd_frames_wq,
++				atomic_read(priv->cmd_pending_frames) == 0,
++				msecs_to_jiffies(50)))
++		DBG("command mode frame still pending, sending anyway");
++	ret = dsi_mgr_cmd_xfer(id, msg);
++	mutex_unlock(&priv->cmd_xfer_lock);
++
++	return ret;
++}
+ 
+ bool msm_dsi_manager_cmd_xfer_trigger(int id, u32 dma_base, u32 len)
+ {

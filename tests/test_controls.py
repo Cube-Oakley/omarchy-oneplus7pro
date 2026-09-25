@@ -128,6 +128,15 @@ class ControlsTests(unittest.TestCase):
         self.assertEqual(auto.target(), 60)
         self.assertGreater(auto.target(), before)
 
+    def test_ramp_fades_a_point_at_a_time_within_a_second(self):
+        ramp = self.controls.ramp
+        self.assertEqual(ramp(30, 34), [31, 32, 33, 34])
+        self.assertEqual(ramp(34, 30), [33, 32, 31, 30])
+        long = ramp(10, 90)
+        self.assertEqual(len(long), 25)  # a second at 40 ms a step
+        self.assertEqual(long[-1], 90)
+        self.assertEqual(ramp(50, 50), [50])
+
     def test_auto_toggle_is_remembered(self):
         self.assertFalse(self.controls.status()['auto'])
         self.assertTrue(self.controls.main(['auto', 'on'])['auto'])
