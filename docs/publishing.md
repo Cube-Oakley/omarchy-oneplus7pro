@@ -104,3 +104,7 @@ Scan the lines the sync adds (`git diff public main`, excluding the Pages files)
 - September 24, night: synced the always-on display, the shell watchdog and
   the switcher and slider fixes after the same checks, which found nothing
   to remove.
+- September 24, late: synced the telephoto camera, Omarchy Camera's lens
+  switch and the steadier autofocus (libcamera-guacamole 0.7.2-10) after the
+  same checks; the only address added is the upstream S5K3M5 driver author's,
+  already public in linux-next. No camera frames or photos are included.
