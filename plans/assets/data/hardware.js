@@ -303,8 +303,13 @@ PAGE_HARDWARE = {
           ref: "docs/camera-20260922.md" },
         { n: "Rear ultra-wide — 16 MP", s: "no",
           note: "Sony IMX481 on CCI1 / CSIPHY3, per the stock tree. Not powered yet.", ref: "docs/camera-20260922.md" },
-        { n: "Rear telephoto — 8 MP (OIS)", s: "no",
-          note: "Samsung S5K3M5 on CCI0 / CSIPHY0, per the stock tree. Not powered yet.", ref: "docs/camera-20260922.md" },
+        { n: "Rear telephoto — 8 MP (OIS)", s: "partial",
+          note: "Samsung S5K3M5 on CCI0 / CSIPHY0 with its LC898217XC focus actuator, from runtime modules. "
+              + "With both rear cameras in one overlay, libcamera lists both and Omarchy Camera switches to it "
+              + "(3×); autofocus works over the lens's whole range (focus sits above the 7T Pro's 400 limit) "
+              + "and stills merge up to eight frames. User-tested: \"not bad\". No colour calibration yet, "
+              + "dim rooms push it to its longest exposure and highest gain, and OIS is not driven.",
+          ref: "docs/camera-telephoto-20260924.md" },
         { n: "Pop-up front camera — 16 MP Sony IMX471", s: "no", note: "Not brought up." },
         { n: "Pop-up camera motor & lifecycle", s: "no",
           note: "Unique to the 7 Pro / 7T Pro. Motor control, endstops and safe retraction (drop detection) "

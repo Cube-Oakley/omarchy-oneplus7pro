@@ -16,6 +16,23 @@ ShellRoot {
     property int viewing: -1
     readonly property string latest: camera.lastPhoto.length ? camera.lastPhoto
         : (photos.count > 0 ? String(photos.get(0, "filePath")) : "")
+    // How far each known sensor zooms against the phone's main camera, for
+    // the lens buttons; other sensors show their model instead.
+    readonly property var zooms: ({ "imx586": 1, "s5k3m5": 3, "imx481": 0.6 })
+    // The cameras on the side in use, as lens buttons, widest first.
+    readonly property var lenses: {
+        const all = camera.cameras;
+        const current = all[camera.cameraIndex];
+        if (!current) return [];
+        const list = [];
+        for (let i = 0; i < all.length; i++) {
+            if (all[i].location !== current.location) continue;
+            const zoom = zooms[all[i].model];
+            list.push({ index: i, zoom: zoom === undefined ? 1000 + i : zoom,
+                        label: zoom === undefined ? all[i].model : zoom + "×" });
+        }
+        return list.length > 1 ? list.sort((a, b) => a.zoom - b.zoom) : [];
+    }
 
     function bin(name) { return Quickshell.env("HOME") + "/.local/bin/" + name; }
     function run(kind, args) {
@@ -59,6 +76,8 @@ ShellRoot {
         function capture(): void { camera.capture(); }
         function focus(x: real, y: real): void { camera.focusAt(x, y); }
         function state(): string { return camera.state + " " + camera.focusState; }
+        function lens(index: int): void { camera.cameraIndex = index; }
+        function cameras(): string { return camera.cameraIndex + " " + JSON.stringify(camera.cameras); }
     }
 
     FolderListModel {
@@ -153,6 +172,42 @@ ShellRoot {
                         ringAnim.restart();
                     }
                     onLongPressed: camera.resetFocus()
+                }
+
+                // One button per camera on this side: 1×, 3×.
+                Row {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.bottom: parent.bottom
+                    anchors.bottomMargin: 16
+                    spacing: 12
+                    visible: root.lenses.length > 0
+                    Repeater {
+                        model: root.lenses
+                        Rectangle {
+                            required property var modelData
+                            readonly property bool current: modelData.index === camera.cameraIndex
+                            width: Math.max(44, label.implicitWidth + 20)
+                            height: 44
+                            radius: 22
+                            color: Qt.rgba(0, 0, 0, 0.45)
+                            border.width: current ? 2 : 0
+                            border.color: MobileTheme.accent
+                            Text {
+                                id: label
+                                anchors.centerIn: parent
+                                text: parent.modelData.label
+                                color: parent.current ? MobileTheme.accent : "white"
+                                font.family: MobileTheme.fontFamily
+                                font.pixelSize: 15
+                                font.bold: parent.current
+                            }
+                            // Takes the press, so the tap does not also focus.
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: camera.cameraIndex = parent.modelData.index
+                            }
+                        }
+                    }
                 }
 
                 Text {

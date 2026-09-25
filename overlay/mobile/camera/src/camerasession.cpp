@@ -91,6 +91,35 @@ bool supports(const std::shared_ptr<Camera> &camera, const ControlId &id)
     return camera->controls().find(&id) != camera->controls().end();
 }
 
+// Back, front, then external or unknown.
+int side(const std::shared_ptr<Camera> &camera)
+{
+    const auto location = camera->properties().get(properties::Location);
+    if (!location)
+        return 2;
+    switch (*location) {
+    case properties::CameraLocationBack:
+        return 0;
+    case properties::CameraLocationFront:
+        return 1;
+    default:
+        return 2;
+    }
+}
+
+qint64 pixels(const std::shared_ptr<Camera> &camera)
+{
+    const auto size = camera->properties().get(properties::PixelArraySize);
+    return size ? qint64(size->width) * size->height : 0;
+}
+
+QString modelName(const std::shared_ptr<Camera> &camera)
+{
+    const auto model = camera->properties().get(properties::Model);
+    return model ? QString::fromUtf8(model->data(), qsizetype(model->size()))
+                 : QString::fromStdString(camera->id());
+}
+
 } // namespace
 
 CameraSession::CameraSession(QObject *parent)
@@ -108,9 +137,14 @@ CameraSession::CameraSession(QObject *parent)
     worker_ = new CameraWorker(&frames_);
     worker_->moveToThread(&thread_);
     connect(&thread_, &QThread::finished, worker_, &QObject::deleteLater);
+    connect(worker_, &CameraWorker::camerasFound, this, [this](const QVariantList &cameras) {
+        cameras_ = cameras;
+        Q_EMIT camerasChanged();
+    });
     connect(worker_, &CameraWorker::opened, this,
-            [this](const QString &name, int rotation, bool canFocus) {
+            [this](int index, const QString &name, int rotation, bool canFocus) {
                 opened_ = true;
+                cameraIndex_ = index;
                 cameraName_ = name;
                 rotation_ = rotation;
                 canFocus_ = canFocus;
@@ -172,13 +206,37 @@ void CameraSession::setActive(bool active)
     if (active) {
         setState(QStringLiteral("starting"));
         const QSize size = previewSize_;
-        QMetaObject::invokeMethod(worker, [worker, size] {
-            worker->open();
+        const int index = cameraIndex_;
+        QMetaObject::invokeMethod(worker, [worker, size, index] {
+            worker->open(index);
             worker->startPreview(size);
         });
     } else {
         QMetaObject::invokeMethod(worker, [worker] { worker->stopPreview(); });
     }
+}
+
+void CameraSession::setCameraIndex(int index)
+{
+    // Not while a photo is being taken on the camera in use.
+    if (index == cameraIndex_ || index < 0 || index >= cameras_.size() ||
+        state_ == QLatin1String("capturing"))
+        return;
+    cameraIndex_ = index;
+    Q_EMIT cameraChanged();
+    if (!active_)
+        return;
+
+    setState(QStringLiteral("starting"));
+    focusPoint_ = { -1, -1 };
+    focusState_ = QStringLiteral("idle");
+    Q_EMIT focusChanged();
+    CameraWorker *worker = worker_;
+    const QSize size = previewSize_;
+    QMetaObject::invokeMethod(worker, [worker, size, index] {
+        worker->open(index);
+        worker->startPreview(size);
+    });
 }
 
 void CameraSession::setPreviewSize(const QSize &size)
@@ -319,32 +377,39 @@ CameraWorker::~CameraWorker()
     close();
 }
 
-void CameraWorker::open()
+void CameraWorker::open(int index)
 {
-    if (camera_)
-        return;
-
-    manager_ = std::make_unique<CameraManager>();
-    if (manager_->start()) {
-        manager_.reset();
-        Q_EMIT failed(QStringLiteral("The camera system did not start"));
-        return;
-    }
-
-    const auto cameras = manager_->cameras();
-    if (cameras.empty()) {
-        Q_EMIT failed(QStringLiteral("No camera found"));
-        return;
-    }
-
-    std::shared_ptr<Camera> chosen = cameras.front();
-    for (const auto &camera : cameras) {
-        const auto location = camera->properties().get(properties::Location);
-        if (location && *location == properties::CameraLocationBack) {
-            chosen = camera;
-            break;
+    if (!manager_) {
+        manager_ = std::make_unique<CameraManager>();
+        if (manager_->start()) {
+            manager_.reset();
+            Q_EMIT failed(QStringLiteral("The camera system did not start"));
+            return;
         }
+        cameras_ = manager_->cameras();
+        if (cameras_.empty()) {
+            // Look again next time: the camera drivers may still be loading.
+            manager_.reset();
+            Q_EMIT failed(QStringLiteral("No camera found"));
+            return;
+        }
+        std::stable_sort(cameras_.begin(), cameras_.end(), [](const auto &a, const auto &b) {
+            return side(a) != side(b) ? side(a) < side(b) : pixels(a) > pixels(b);
+        });
+        static const char *const sides[] = { "back", "front", "external" };
+        QVariantList list;
+        for (const auto &camera : cameras_)
+            list.append(QVariantMap{ { QStringLiteral("model"), modelName(camera) },
+                                     { QStringLiteral("location"),
+                                       QString::fromLatin1(sides[side(camera)]) } });
+        Q_EMIT camerasFound(list);
     }
+
+    index = std::clamp(index, 0, int(cameras_.size()) - 1);
+    const std::shared_ptr<Camera> chosen = cameras_[index];
+    if (camera_ == chosen)
+        return;
+    release();
     if (chosen->acquire()) {
         Q_EMIT failed(QStringLiteral("Another app is using the camera"));
         return;
@@ -357,27 +422,38 @@ void CameraWorker::open()
     // libcamera states the mounting rotation counter-clockwise; the preview
     // and photos turn the frame clockwise by the rest of a full turn.
     rotation_ = (360 - props.get(properties::Rotation).value_or(0) % 360) % 360;
-    const auto model = props.get(properties::Model);
-    model_ = model ? QString::fromUtf8(model->data(), qsizetype(model->size()))
-                   : QString::fromStdString(camera_->id());
+    model_ = modelName(camera_);
+    activeArea_ = {};
     if (const auto areas = props.get(properties::PixelArrayActiveAreas); areas && !areas->empty())
         activeArea_ = (*areas)[0];
     else if (const auto size = props.get(properties::PixelArraySize))
         activeArea_ = Rectangle(*size);
     canFocus_ = supports(camera_, controls::AfMode);
     pending_ = ControlList(camera_->controls());
+    pendingSet_ = false;
+    focusWindow_ = false;
+    lensPosition_ = -1.0f;
 
-    Q_EMIT opened(model_, rotation_, canFocus_);
+    Q_EMIT opened(index, model_, rotation_, canFocus_);
+}
+
+void CameraWorker::release()
+{
+    if (!camera_)
+        return;
+    stopStream();
+    mode_ = Off;
+    camera_->requestCompleted.disconnect(this);
+    camera_->release();
+    camera_.reset();
 }
 
 void CameraWorker::close()
 {
-    if (!camera_)
-        return;
-    stopPreview();
-    camera_->requestCompleted.disconnect(this);
-    camera_->release();
-    camera_.reset();
+    if (camera_)
+        stopPreview();
+    release();
+    cameras_.clear();
     manager_.reset();
 }
 
@@ -465,6 +541,9 @@ void CameraWorker::stopStream()
 {
     if (!camera_ || !stream_)
         return;
+    // A photo cut short, by the app going to the background or a switch of
+    // camera, still has to leave the count of photos in flight.
+    const bool interrupted = burst_ || (mode_ == Still && !stillTaken_);
     camera_->stop();
     ++generation_;
     burstWanted_ = 0;
@@ -475,6 +554,8 @@ void CameraWorker::stopStream()
     config_.reset();
     stream_ = nullptr;
     rawStream_ = nullptr;
+    if (interrupted)
+        Q_EMIT stillFailed(QStringLiteral("The photo was interrupted"));
 }
 
 void CameraWorker::startPreview(QSize size)

@@ -27,7 +27,7 @@ for attempt in $(seq 1 60); do
     [[ $(bash "$PHONE" 'date +%Y') -ge 2026 ]] && break
     sleep 5
 done
-tar czf - -C "$SRC" PKGBUILD imx586.yaml $(cd "$SRC" && ls 00*.patch) -C "$(dirname "$TARBALL")" "$(basename "$TARBALL")" |
+tar czf - -C "$SRC" PKGBUILD imx586.yaml s5k3m5.yaml $(cd "$SRC" && ls 00*.patch) -C "$(dirname "$TARBALL")" "$(basename "$TARBALL")" |
     bash "$PHONE" "set -e; rm -rf $DIR; mkdir -p $DIR; tar xzf - -C $DIR; chown -R nobody: $DIR
         cd $DIR && nice -n 10 runuser -u nobody -- env HOME=$DIR BUILD_JOBS=4 makepkg -f --noconfirm 2>&1 | tail -5
         ls $DIR/*.pkg.tar.* && sync"

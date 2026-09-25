@@ -1,0 +1,91 @@
+libcamera: software_isp: steadier continuous autofocus
+
+Continuous focus scanned again whenever the sharpness read below 65% of the
+scan's best sample for three frames in a row. On the OnePlus 7 Pro's
+telephoto, held in the hand in a dim room, that started a new scan every few
+seconds: hand shake blurs a few frames at a time, a long lens magnifies it,
+and the scan's best sample, lifted by noise, sat well above what the locked
+position gives. Focus now follows the sharpness smoothed over about eight
+frames, takes its reference from that once the lens has settled after a lock,
+and scans again only once it has stayed below 60% of the reference for 15
+frames, half a second at 30 fps.
+
+---
+--- a/src/ipa/simple/ipa_context.h
++++ b/src/ipa/simple/ipa_context.h
+@@ -87,6 +87,7 @@
+ 		int32_t bestPosition;
+ 		uint64_t bestSharpness;
+ 		uint64_t lockedSharpness;
++		uint64_t smoothedSharpness;
+ 		unsigned int settleSamples;
+ 		unsigned int lowSharpnessSamples;
+ 		int32_t metering;
+--- a/src/ipa/simple/algorithms/af.cpp
++++ b/src/ipa/simple/algorithms/af.cpp
+@@ -25,6 +25,15 @@
+ static constexpr unsigned int kAeValidSamples = 1;
+ static constexpr unsigned int kContinuousMonitorDelaySamples = 15;
+ /*
++ * Continuous focus follows the sharpness smoothed over about eight frames, and
++ * scans again only once that has stayed below this share of its value at the
++ * lock for half a second: hand shake blurs a few frames at a time, which on a
++ * long lens used to start a new scan every few seconds.
++ */
++static constexpr unsigned int kSharpnessSmoothing = 8;
++static constexpr uint64_t kRescanPercent = 60;
++static constexpr unsigned int kRescanSamples = 15;
++/*
+  * Frames still in flight when the lens moves were exposed at the old position:
+  * up to four requests can be queued at the device, and the lens needs time to
+  * travel, longest for the jump to the start of a scan.
+@@ -169,6 +178,7 @@
+ 				af.scanning = false;
+ 				af.state = controls::AfStateFocused;
+ 				af.settleSamples = kContinuousMonitorDelaySamples;
++				af.smoothedSharpness = 0;
+ 			} else if (af.mode == controls::AfModeContinuous) {
+ 				af.pendingScan = true;
+ 				af.scanning = false;
+@@ -260,6 +270,8 @@
+ 	af.state = af.bestSharpness ? controls::AfStateFocused
+ 				    : controls::AfStateFailed;
+ 	af.settleSamples = kContinuousMonitorDelaySamples;
++	af.smoothedSharpness = 0;
++	af.lowSharpnessSamples = 0;
+ 
+ 	LOG(IPASoftAf, Info)
+ 		<< "Autofocus completed at " << af.position
+@@ -369,11 +381,27 @@
+ 			processScan(context, sharpness);
+ 		} else if (af.mode == controls::AfModeContinuous &&
+ 			   af.state == controls::AfStateFocused &&
+-			   !af.settleSamples && af.lockedSharpness &&
+-			   sharpness * 100 < af.lockedSharpness * 65) {
+-			if (++af.lowSharpnessSamples >= 3) {
+-				af.pendingScan = true;
+-				af.state = controls::AfStateScanning;
++			   af.lockedSharpness) {
++			af.smoothedSharpness = af.smoothedSharpness
++				? (af.smoothedSharpness * (kSharpnessSmoothing - 1) +
++				   sharpness) / kSharpnessSmoothing
++				: sharpness;
++			if (af.settleSamples) {
++				/*
++				 * The reference is what this position gives once
++				 * the lens has settled, not the scan's best sample,
++				 * which noise lifts.
++				 */
++				if (!--af.settleSamples)
++					af.lockedSharpness = std::max<uint64_t>(af.smoothedSharpness, 1);
++			} else if (af.smoothedSharpness * 100 <
++				   af.lockedSharpness * kRescanPercent) {
++				if (++af.lowSharpnessSamples >= kRescanSamples) {
++					af.pendingScan = true;
++					af.state = controls::AfStateScanning;
++					af.lowSharpnessSamples = 0;
++				}
++			} else {
+ 				af.lowSharpnessSamples = 0;
+ 			}
+ 		} else {

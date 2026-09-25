@@ -2,7 +2,9 @@
 # Build-only: the camera stack as modules for the running native5 kernel: the
 # media core its .config selects as =m (mc, videodev, v4l2-async/fwnode,
 # videobuf2), qcom-camss with the 7T Pro's SM8150 patches, the CCI I2C master
-# and the Sony IMX586 main-camera driver. The phone has no module tree for this
+# the Sony IMX586 main-camera driver, and the Samsung S5K3M5 telephoto driver
+# with the v4l2-cci helper it uses (our .config leaves V4L2_CCI unset, so it is
+# built here with its I2C half). The phone has no module tree for this
 # kernel. camcc and the RPMh hold are built separately into out/camera/power/.
 # Deploys nothing.
 set -euo pipefail
@@ -12,7 +14,7 @@ WORK="$ROOT/.work/camera-modules"
 OUT="$ROOT/out/camera/modules"
 SRC="$ROOT/devices/oneplus7pro/kernel/camera"
 rm -rf "$WORK"
-mkdir -p "$WORK/cci" "$WORK/imx586" "$OUT"
+mkdir -p "$WORK/cci" "$WORK/imx586" "$WORK/s5k3m5" "$OUT"
 copy() {
     rsync -a --exclude '*.o' --exclude '*.cmd' --exclude '.*' --exclude '*.ko' \
         --exclude '*.mod' --exclude '*.mod.c' --exclude 'modules.order' \
@@ -28,11 +30,12 @@ copy "$KERNEL/drivers/media/mc" "$WORK/"
 copy "$KERNEL/drivers/media/v4l2-core" "$WORK/"
 copy "$KERNEL/drivers/media/common/videobuf2" "$WORK/"
 copy "$KERNEL/drivers/media/platform/qcom/camss" "$WORK/"
-# v4l2-core holds eight =m modules; only these three are needed. videodev's
+# v4l2-core holds eight =m modules; only these four are needed. videodev's
 # object list is taken from the tree's Makefile so it follows the .config.
 {
     awk '/^videodev-/{p=1} p{print} p && !/\\$/{p=0}' "$KERNEL/drivers/media/v4l2-core/Makefile"
-    printf 'obj-m += videodev.o v4l2-async.o v4l2-fwnode.o\n'
+    printf 'obj-m += videodev.o v4l2-async.o v4l2-fwnode.o v4l2-cci.o\n'
+    printf 'CFLAGS_v4l2-cci.o += -DCONFIG_V4L2_CCI_I2C_MODULE=1\n'
 } > "$WORK/v4l2-core/Makefile"
 # videobuf2: CAMSS uses scatter-gather buffers, not dma-contig or vmalloc.
 printf '%s\n' 'obj-m += videobuf2-common.o videobuf2-v4l2.o videobuf2-memops.o videobuf2-dma-sg.o' \
@@ -46,6 +49,8 @@ cp "$KERNEL/drivers/i2c/busses/i2c-qcom-cci.c" "$WORK/cci/"
 printf 'obj-m += i2c-qcom-cci.o\n' > "$WORK/cci/Makefile"
 cp "$SRC/imx586.c" "$WORK/imx586/"
 printf 'obj-m += imx586.o\n' > "$WORK/imx586/Makefile"
+cp "$SRC/s5k3m5.c" "$WORK/s5k3m5/"
+printf 'obj-m += s5k3m5.o\nCFLAGS_s5k3m5.o += -DCONFIG_V4L2_CCI_I2C_MODULE=1\n' > "$WORK/s5k3m5/Makefile"
 MC="$WORK/mc/Module.symvers"
 V4L2="$WORK/v4l2-core/Module.symvers"
 VB2="$WORK/videobuf2/Module.symvers"
@@ -55,14 +60,16 @@ build videobuf2 "$MC $V4L2"
 build camss "$MC $V4L2 $VB2"
 build cci
 build imx586 "$MC $V4L2"
+build s5k3m5 "$MC $V4L2"
 rm -f "$OUT"/*.ko
-cp "$WORK"/mc/mc.ko "$WORK"/v4l2-core/{videodev,v4l2-async,v4l2-fwnode}.ko \
+cp "$WORK"/mc/mc.ko "$WORK"/v4l2-core/{videodev,v4l2-async,v4l2-fwnode,v4l2-cci}.ko \
     "$WORK"/videobuf2/{videobuf2-common,videobuf2-memops,videobuf2-v4l2,videobuf2-dma-sg}.ko \
-    "$WORK"/camss/qcom-camss.ko "$WORK"/cci/i2c-qcom-cci.ko "$WORK"/imx586/imx586.ko "$OUT/"
+    "$WORK"/camss/qcom-camss.ko "$WORK"/cci/i2c-qcom-cci.ko "$WORK"/imx586/imx586.ko \
+    "$WORK"/s5k3m5/s5k3m5.ko "$OUT/"
 # Load order for insmod (no depmod tree on the phone). camcc-sm8150 and the
 # RPMh hold from out/camera/power/ go first; the camera overlay after these.
-printf '%s\n' mc videodev v4l2-async v4l2-fwnode videobuf2-common videobuf2-memops \
-    videobuf2-v4l2 videobuf2-dma-sg qcom-camss i2c-qcom-cci imx586 > "$OUT/load-order"
+printf '%s\n' mc videodev v4l2-async v4l2-fwnode v4l2-cci videobuf2-common videobuf2-memops \
+    videobuf2-v4l2 videobuf2-dma-sg qcom-camss i2c-qcom-cci imx586 s5k3m5 > "$OUT/load-order"
 # Every module must match the running kernel and only need modules loaded
 # before it in that order.
 VERMAGIC="$(cat "$KERNEL/include/config/kernel.release") SMP preempt mod_unload aarch64"

@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* Adds CCI0, the camera subsystem, PM8009 LDO1/3/4 and the IMX586 slot.
+/* Adds CCI0, the camera subsystem, PM8009 LDO1/3/4 and camera slots: the
+ * IMX586 main camera (guacamole_camera), the S5K3M5 telephoto
+ * (guacamole_camera_tele) or both (guacamole_camera_rear), built from
+ * guacamole-camera.dts. One per boot.
  * Refuses unless the RPMh hold and camcc are both bound: camcc's arrival runs
  * rpmhpd's sync_state, which without the hold releases the modem's power
  * hold (docs/camera-20260922.md). Reboot to remove. */
@@ -52,4 +55,7 @@ static int __init camera_init(void)
 }
 module_init(camera_init);
 MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("Guacamole camera overlay (CCI0, CAMSS, IMX586); reboot to remove");
+#ifndef CAMERA_SLOT
+#define CAMERA_SLOT "IMX586"
+#endif
+MODULE_DESCRIPTION("Guacamole camera overlay (CCI0, CAMSS, " CAMERA_SLOT "); reboot to remove");

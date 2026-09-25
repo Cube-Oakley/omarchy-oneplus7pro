@@ -1,5 +1,13 @@
 # Checkpoint — 2026-09-17
 
+**September 24 cameras:** [the telephoto](camera-telephoto-20260924.md)
+(Samsung S5K3M5) works from runtime modules: raw 4208x3120 frames, focus. One
+overlay loads both rear cameras, libcamera lists both, and Omarchy Camera
+switches between them with 1× and 3× buttons. Its lens now has the actuator's
+whole range (a sweep put focus at 550-1023, beyond the 7T Pro's 400), its
+stills merge bursts, and continuous focus holds steadier in the hand
+(libcamera-guacamole 0.7.2-10).
+
 **September 24 always-on display:** [the dim clock](always-on-display-20260924.md)
 (Settings → Display): the CRT close, then the time, date, battery and
 notification icons on black; power or a double tap wakes it through the CRT

@@ -18,6 +18,15 @@
  * instead), powered from BOB through the GPIO25 VAF switch. The sensor only
  * completes once its lens has bound, so the lens driver loads first.
  *
+ * Telephoto (built with -DCAMERA_TELE; the main camera with -DCAMERA_MAIN): a
+ * Samsung S5K3M5 on CCI0 master 0 at 0x10, CSIPHY0 as four D-PHY lanes at
+ * 602.5 MHz, MCLK0 at 24 MHz (the driver's only clock; stock ran 19.2), reset
+ * GPIO28, VANA from BOB through the GPIO148 switch, VDIG PM8009 LDO2 at the
+ * stock 1.056 V, VIO PM8150L LDO1; focus an LC898217XC at 0x74 on its own
+ * GPIO35 VAF switch, as on the 7T Pro (hotdog r181). One slot per boot: the
+ * camera subsystem completes only once every sensor on its graph has bound,
+ * so a slot that fails would take the other down with it.
+ *
  * Needs camcc bound first (with the RPMh hold: docs/camera-20260922.md).
  * PM8009 LDO1/3/4 are new children of a bound regulator device; the loader
  * rebinds it so they register.
@@ -62,6 +71,7 @@
 		bias-pull-down;
 	};
 
+#ifdef CAMERA_MAIN
 	cam_mclk1_default: cam-mclk1-default-state {
 		pins = "gpio14";
 		function = "cam_mclk";
@@ -96,9 +106,40 @@
 		drive-strength = <2>;
 		bias-disable;
 	};
+#endif
+#ifdef CAMERA_TELE
+	cam_mclk0_default: cam-mclk0-default-state {
+		pins = "gpio13";
+		function = "cam_mclk";
+		drive-strength = <2>;
+		bias-disable;
+	};
+
+	cam1_reset_default: cam1-reset-default-state {
+		pins = "gpio28";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-disable;
+	};
+
+	cam1_vana_default: cam1-vana-default-state {
+		pins = "gpio148";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-disable;
+	};
+
+	cam1_vaf_default: cam1-vaf-default-state {
+		pins = "gpio35";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-disable;
+	};
+#endif
 };
 
 &{/} {
+#ifdef CAMERA_MAIN
 	vreg_cam0_vaf: regulator-cam0-vaf {
 		compatible = "regulator-fixed";
 		regulator-name = "cam0_vaf";
@@ -110,8 +151,37 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&cam0_vaf_default>;
 	};
+#endif
+#ifdef CAMERA_TELE
+	/* The telephoto's analogue rail: BOB through the GPIO148 switch. */
+	vreg_cam1_vana: regulator-cam1-vana {
+		compatible = "regulator-fixed";
+		regulator-name = "cam1_vana";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&tlmm 148 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		vin-supply = <&vreg_bob>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cam1_vana_default>;
+	};
+
+	/* Its autofocus rail: BOB through the GPIO35 switch. */
+	vreg_cam1_vaf: regulator-cam1-vaf {
+		compatible = "regulator-fixed";
+		regulator-name = "cam1_vaf";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&tlmm 35 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		vin-supply = <&vreg_bob>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cam1_vaf_default>;
+	};
+#endif
 };
 
+#ifdef CAMERA_MAIN
 &pm8150l_gpios {
 	cam0_custom2_default: cam0-custom2-default-state {
 		pins = "gpio1";
@@ -121,6 +191,7 @@
 		input-disable;
 	};
 };
+#endif
 
 &{/soc@0/rsc@18200000/pm8009-rpmh-regulators} {
 	/* The IMX586 votes a 1.1 A load; without these the vote is ignored. */
@@ -142,6 +213,13 @@
 		regulator-allow-set-load;
 		regulator-allowed-modes = <RPMH_REGULATOR_MODE_LPM RPMH_REGULATOR_MODE_HPM>;
 	};
+#ifdef CAMERA_TELE
+	/* The telephoto's VDIG (vreg_l2f_1p2, 1.2 V at boot): stock asks 1.056 V. */
+	ldo2 {
+		regulator-min-microvolt = <1056000>;
+		regulator-max-microvolt = <1056000>;
+	};
+#endif
 };
 
 &soc {
@@ -173,6 +251,54 @@
 			clock-frequency = <1000000>;
 			#address-cells = <1>;
 			#size-cells = <0>;
+#ifdef CAMERA_TELE
+			s5k3m5_vcm: lens@74 {
+				compatible = "onnn,lc898217xc";
+				reg = <0x74>;
+				vdd-supply = <&vreg_cam1_vaf>;
+				vio-supply = <&vreg_l1c_1p8>;
+				/*
+				 * The whole DAC range: a sweep found far focus at
+				 * 640 and 1 m near 700; below about 450 the lens
+				 * hardly leaves its stop. The 7T Pro's 400 left
+				 * every subject out of reach.
+				 */
+				onnn,max-focus-position = <1023>;
+				onnn,default-focus-position = <640>;
+			};
+
+			/* Rear telephoto. */
+			camera@10 {
+				compatible = "samsung,s5k3m5";
+				reg = <0x10>;
+				orientation = <1>;
+				rotation = <90>;
+
+				clocks = <&camcc CAM_CC_MCLK0_CLK>;
+				assigned-clocks = <&camcc CAM_CC_MCLK0_CLK>;
+				assigned-clock-rates = <24000000>;
+
+				/* Brought up in this order by our driver: AF, VANA, VDIG, VIO. */
+				afvdd-supply = <&vreg_bob>;
+				vdda-supply = <&vreg_cam1_vana>;
+				vddd-supply = <&vreg_l2f_1p2>;
+				vddio-supply = <&vreg_l1c_1p8>;
+
+				reset-gpios = <&tlmm 28 GPIO_ACTIVE_LOW>;
+				lens-focus = <&s5k3m5_vcm>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&cam_mclk0_default>, <&cam1_reset_default>;
+
+				port {
+					s5k3m5_ep: endpoint {
+						bus-type = <MEDIA_BUS_TYPE_CSI2_DPHY>;
+						data-lanes = <0 1 2 3>;
+						link-frequencies = /bits/ 64 <602500000>;
+						remote-endpoint = <&csiphy0_ep>;
+					};
+				};
+			};
+#endif
 		};
 
 		cci0_i2c1: i2c-bus@1 {
@@ -181,7 +307,7 @@
 			clock-frequency = <400000>;
 			#address-cells = <1>;
 			#size-cells = <0>;
-
+#ifdef CAMERA_MAIN
 			imx586_vcm: lens@72 {
 				compatible = "onnn,lc898217xc";
 				reg = <0x72>;
@@ -225,6 +351,7 @@
 					};
 				};
 			};
+#endif
 		};
 	};
 
@@ -296,6 +423,18 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 
+#ifdef CAMERA_TELE
+			port@0 {
+				reg = <0>;
+
+				csiphy0_ep: endpoint {
+					bus-type = <MEDIA_BUS_TYPE_CSI2_DPHY>;
+					data-lanes = <0 1 2 3>;
+					remote-endpoint = <&s5k3m5_ep>;
+				};
+			};
+#endif
+#ifdef CAMERA_MAIN
 			port@1 {
 				reg = <1>;
 
@@ -305,6 +444,7 @@
 					remote-endpoint = <&imx586_ep>;
 				};
 			};
+#endif
 		};
 	};
 };

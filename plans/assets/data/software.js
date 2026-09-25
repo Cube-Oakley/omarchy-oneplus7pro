@@ -250,7 +250,8 @@ PAGE_SOFTWARE = {
                 + "bright lamp keeps its texture. In dim light a still merges up to eight raw frames, leaving "
                 + "out whatever moved, on the sharpest frame; our own renderer takes off lens glare, tone-maps "
                 + "locally and keeps night looking like night, close to a Pixel 9 Pro's. Themed with Omarchy; "
-                + "the test camera apps are gone. No video yet, and only the main camera works.",
+                + "the test camera apps are gone. 1× and 3× buttons switch between the main camera and the "
+                + "telephoto. No video yet.",
               ref: "docs/camera-20260922.md" },
             { n: "Settings application", s: "partial", note: "See the Settings & configuration section.",
               ref: "docs/settings-clipboard-20260919.md" },

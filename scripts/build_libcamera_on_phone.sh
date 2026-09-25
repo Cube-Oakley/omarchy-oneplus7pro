@@ -41,4 +41,6 @@ tar czf - -C "$src" "libcamera-v$VERSION" | bash "$ROOT/scripts/phone-ssh.sh" "
     sync"
 bash "$ROOT/scripts/phone-ssh.sh" "mkdir -p $PREFIX/share/libcamera/ipa/simple && cat > $PREFIX/share/libcamera/ipa/simple/imx586.yaml && sync" \
     < "$PATCHES/imx586.yaml"
+bash "$ROOT/scripts/phone-ssh.sh" "cat > $PREFIX/share/libcamera/ipa/simple/s5k3m5.yaml && sync" \
+    < "$PATCHES/s5k3m5.yaml"
 echo "installed to $PREFIX"

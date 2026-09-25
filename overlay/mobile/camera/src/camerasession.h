@@ -11,6 +11,7 @@
 #include <QSize>
 #include <QString>
 #include <QThread>
+#include <QVariantList>
 #include <QtQml/qqmlregistration.h>
 
 #include <array>
@@ -41,6 +42,10 @@ class CameraSession : public QObject
     Q_PROPERTY(bool active READ active WRITE setActive NOTIFY activeChanged)
     Q_PROPERTY(QString state READ state NOTIFY stateChanged)
     Q_PROPERTY(QString error READ error NOTIFY stateChanged)
+    // The cameras, back ones first and the largest sensor first on each
+    // side, so the main camera leads: [{model, location}], and the one in use.
+    Q_PROPERTY(QVariantList cameras READ cameras NOTIFY camerasChanged)
+    Q_PROPERTY(int cameraIndex READ cameraIndex WRITE setCameraIndex NOTIFY cameraChanged)
     Q_PROPERTY(QString cameraName READ cameraName NOTIFY cameraChanged)
     Q_PROPERTY(int rotation READ rotation NOTIFY cameraChanged)
     Q_PROPERTY(bool canFocus READ canFocus NOTIFY cameraChanged)
@@ -60,6 +65,9 @@ public:
     void setActive(bool active);
     QString state() const { return state_; }
     QString error() const { return error_; }
+    QVariantList cameras() const { return cameras_; }
+    int cameraIndex() const { return cameraIndex_; }
+    void setCameraIndex(int index);
     QString cameraName() const { return cameraName_; }
     int rotation() const { return rotation_; }
     bool canFocus() const { return canFocus_; }
@@ -82,6 +90,7 @@ public:
 Q_SIGNALS:
     void activeChanged();
     void stateChanged();
+    void camerasChanged();
     void cameraChanged();
     void previewSizeChanged();
     void focusChanged();
@@ -106,6 +115,8 @@ private:
     bool opened_ = false;
     QString state_ = QStringLiteral("off");
     QString error_;
+    QVariantList cameras_;
+    int cameraIndex_ = 0;
     QString cameraName_;
     int rotation_ = 0;
     bool canFocus_ = false;
@@ -127,7 +138,8 @@ public:
     explicit CameraWorker(FrameQueue *frames);
     ~CameraWorker() override;
 
-    void open();
+    // Opens cameras()[index] of the ordered list, releasing another one.
+    void open(int index);
     void close();
     void startPreview(QSize size);
     void stopPreview();
@@ -139,7 +151,8 @@ public:
     std::function<void(std::shared_ptr<std::vector<RawFrame>>, RawLayout, int, QString)> burstDone;
 
 Q_SIGNALS:
-    void opened(const QString &name, int rotation, bool canFocus);
+    void camerasFound(const QVariantList &cameras);
+    void opened(int index, const QString &name, int rotation, bool canFocus);
     void failed(const QString &message);
     void streamingChanged(const QString &mode);
     void frameReady();
@@ -152,6 +165,7 @@ Q_SIGNALS:
 private:
     enum Mode { Off, Preview, Still };
 
+    void release();
     bool configure(libcamera::StreamRole role, QSize size, unsigned int buffers, bool withRaw);
     bool startStream(const libcamera::ControlList &initial);
     void stopStream();
@@ -166,6 +180,7 @@ private:
 
     FrameQueue *frames_;
     std::unique_ptr<libcamera::CameraManager> manager_;
+    std::vector<std::shared_ptr<libcamera::Camera>> cameras_;
     std::shared_ptr<libcamera::Camera> camera_;
     std::unique_ptr<libcamera::CameraConfiguration> config_;
     std::unique_ptr<libcamera::FrameBufferAllocator> allocator_;

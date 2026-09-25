@@ -1,13 +1,14 @@
 # libcamera with the OnePlus 7 Pro camera patches, replacing Arch's libcamera,
 # libcamera-ipa and libcamera-tools. Patches 0001-0010 are the OnePlus 7T Pro
-# bring-up's (Robin Snyders, hotdog-linux-bringup); 0011-0019 are ours.
-# imx586.yaml starts from theirs, with a borrowed colour matrix (see its header).
+# bring-up's (Robin Snyders, hotdog-linux-bringup); 0011-0020 are ours.
+# imx586.yaml starts from theirs, with a borrowed colour matrix (see its header);
+# s5k3m5.yaml (the telephoto) starts from theirs, with an identity colour matrix.
 # Build on the phone with scripts/phone-libcamera-package.sh.
 # Rollback: pacman -U the cached libcamera{,-ipa,-tools}-0.7.2-4 packages.
 pkgname=libcamera-guacamole
 pkgver=0.7.2
-pkgrel=7
-pkgdesc='Linux camera framework, with the OnePlus 7 Pro IMX586 helper, autofocus and fixes'
+pkgrel=10
+pkgdesc='Linux camera framework, with the OnePlus 7 Pro camera helpers, autofocus and fixes'
 arch=(aarch64)
 url='https://libcamera.org/'
 license=('LGPL-2.1-or-later' 'GPL-2.0-or-later')
@@ -39,9 +40,11 @@ source=("https://gitlab.freedesktop.org/camera/libcamera/-/archive/v$pkgver/libc
         0017-libcamera-software-isp-keep-focus-across-configurations.patch
         0018-libcamera-software-isp-keep-highlights-with-exposure-headroom-and-digital-gain.patch
         0019-libcamera-software-isp-keep-highlights-clipped-in-every-channel-white.patch
-        imx586.yaml)
+        0020-libcamera-software-isp-steadier-continuous-autofocus.patch
+        imx586.yaml
+        s5k3m5.yaml)
 sha512sums=('b317cdc96f61682ee0bf26dfb7c4d6441db9a9c5b93ab53528121a8cd44862b3d59cbaa3881bb0837e3e381564c184c7b742124aef4267eea754c6083de353c1'
-            SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP)
+            SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP)
 
 prepare() {
   cd libcamera-v$pkgver
@@ -63,5 +66,5 @@ build() {
 
 package() {
   meson install -C build --destdir "$pkgdir"
-  install -Dm644 -t "$pkgdir/usr/share/libcamera/ipa/simple" imx586.yaml
+  install -Dm644 -t "$pkgdir/usr/share/libcamera/ipa/simple" imx586.yaml s5k3m5.yaml
 }
