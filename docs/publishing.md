@@ -98,3 +98,6 @@ Scan the lines the sync adds (`git diff public main`, excluding the Pages files)
   checks, which found nothing to remove.
 - September 24, later: synced the proximity fix (a registry patch without
   per-device values) after the same checks, which found nothing to remove.
+- September 24, evening: synced kernel #194 (the brightness flicker fix)
+  and fading automatic brightness after the same checks, which found
+  nothing to remove.
