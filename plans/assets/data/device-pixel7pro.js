@@ -34,11 +34,11 @@ HW.pixel7pro = {
           ref: "devices/pixel7pro/docs/device.md" },
         { n: "UFS storage (256 GB)", s: "partial", cap: "storage",
           note: "Linux enumerated all four UFS logical units and boot-image hashes match stock references. "
-              + "Userdata is ext4; write/remount/readback passes, the installed desktop runs, and saved files survive reset plus a recovery RAM boot. PWM gear 1 makes cold startup slow.",
+              + "Userdata is ext4; write/remount/readback passes, the installed desktop runs, and saved files survive reset plus a recovery RAM boot. PWM gear 1 makes cold startup slow (H bootstrap: 366.6 seconds); cold Quickshell visibility remains unresolved.",
           ref: "devices/pixel7pro/docs/persistence-power-20260925.md" },
         { n: "Boot chain (unlocked bootloader, fastboot RAM boot)", s: "partial", cap: "boot",
           note: "Mainline Linux boots natively with an embedded initramfs through a hash-checked fastboot boot, "
-              + "with a USB recovery shell and no automatic timeout. The exact RAM-tested kernel is installed in boot_a with direct checksum readback. USB does not return on normal boot; the same kernel boots from RAM. Header tracing appears absent on normal boot. A candidate embeds the required parameters directly in the kernel; hardware validation is pending.",
+              + "with a USB recovery shell and no automatic timeout. The exact RAM-tested kernel is installed in boot_a with direct checksum readback. USB does not return on normal boot; the same kernel boots from RAM. Header tracing appears absent on normal boot. Image H embeds those parameters, passes RAM validation and is installed with full checksum readback. Its normal reboot remains untested; work stopped with the persistent-root terminal visible but the cold Quickshell layers transparent.",
           ref: "devices/pixel7pro/docs/native-shell-20260925.md" },
         { n: "Bootloader and saved-image recovery", s: "ok", cap: "recovery",
           note: "Power + Volume Down reaches the verified bootloader; saved host images provide recovery. "

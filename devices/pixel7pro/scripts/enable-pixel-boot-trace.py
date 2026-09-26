@@ -5,8 +5,13 @@ Default is read-only. The caller must have verified the complete installed image
 against --current-sha256. This narrowly scoped diagnostic checks both host images,
 the running kernel, layout and current header, then writes/readbacks one 4 KiB
 block. It never changes kernel bytes, switches slots or reboots.
+
+Historical G diagnostic: normal ABL boot appears to ignore this header setting.
+New persistent kernels force their embedded command line; rebuild those with
+build-pixel-shell.py --initcall-debug instead.
 """
 import argparse
+import gzip
 import hashlib
 from pathlib import Path
 import runpy
@@ -46,6 +51,9 @@ def main():
     notes = remote('cat /sys/kernel/notes', capture_output=True).stdout
     if parse_id(notes) != args.kernel_build_id.read_text().strip():
         ap.error('Running kernel build ID mismatch')
+    config = gzip.decompress(remote('cat /proc/config.gz', capture_output=True).stdout).decode()
+    if 'CONFIG_CMDLINE_FORCE=y' in config.splitlines():
+        ap.error('Kernel forces its embedded command line; rebuild with --initcall-debug instead')
     checks = '''set -eu
 test "$(tr '\\0' '\\n' </sys/firmware/devicetree/base/compatible | head -1)" = 'google,GS201 CHEETAH'
 grep -qx PARTNAME=boot_a /sys/class/block/sda10/uevent

@@ -16,14 +16,18 @@ did not restore USB; the photo shows early kernel initialization. Recovery via
 fastboot and a traced RAM boot worked. Both proof files survived, establishing
 filesystem persistence across reset. Autonomous startup remains unverified.
 
-**Current diagnostic:** unchanged v19 G kernel with `initcall_debug`, SHA256
-`d9e3a47f946674129b702644b4f5a262f72667c4940fd202617bc4be39e69a2e`.
-The tracing wrapper works in RAM. Its boot_a header was then installed with
-matching 4 KiB direct readback; the next normal boot also has not returned USB.
-The new photo contains no tracing lines, suggesting normal boot omits the
-header command line. Missing keep_bootcon may explain the stale console.
-Image H embeds the required parameters with CONFIG_CMDLINE_FORCE; it is built
-and locally checked, awaiting fastboot recovery and RAM validation.
+**Stopping checkpoint:** image H embeds the required boot parameters with
+`CONFIG_CMDLINE_FORCE`. RAM boot passed USB, UFS, saved-file and GPU checks;
+the persistent bootstrap completed at 366.6 seconds. H is installed in boot_a
+and its full direct readback matches SHA256
+`ca77148f5fe6433a6625d8ca55a3b72e03bd13cc30ee11b5618de38b840742a3`.
+A normal reboot of H has **not** been attempted. The phone is left in its RAM-booted
+H session using the installed root, at the user's request to stop for the night.
+The user sees the persistent-root terminal and prompt, but no top shell interface.
+Quickshell is running with its layers at alpha 0; cold-start visibility is unresolved.
+Setting the clock before Hyprland did not prevent this on H.
+Next: fix cold-start shell visibility, then verify H through normal reboots,
+saved-file readback and physical CRT power-key checks on the resulting desktop.
 There is no automatic reboot timeout. USB serial works on the RAM recovery path.
 Local SSH: `out/checkpoints/20260925-persistence-power/arch-session-f/ssh`.
 Android recovery appeared after a native restart; recovery ADB successfully

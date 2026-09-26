@@ -74,6 +74,7 @@ test "$(blockdev --getsize64 /dev/sda10)" = 67108864
 test "$(blockdev --getsize64 /dev/sda31)" = 245977141248
 test -e /sys/module/pixel_reboot/parameters/bootloader
 test -s /var/log/pixel-native-boots.log
+grep -qx 'persistent desktop startup complete' /proc/1/root/run/pixel-persistent.log
 pgrep -x Hyprland >/dev/null
 pgrep -x quickshell >/dev/null
 grep -q 'pixel_test_seconds=0\\b' /proc/cmdline

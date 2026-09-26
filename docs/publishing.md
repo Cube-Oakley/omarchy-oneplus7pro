@@ -166,3 +166,10 @@ Scan the lines the sync adds (`git diff public main`, excluding the Pages files)
   output. Published the candidate that embeds persistent-boot parameters before
   early parsing, explicitly marked not hardware-validated. No photo or image
   artifact is included.
+
+- September 26, stopping checkpoint: H passes RAM validation and full boot_a
+  write/readback. Its normal reboot is explicitly untested. The user sees the
+  persistent-root terminal; cold Quickshell transparency remains unresolved.
+  Published installer completion guard and forced-command-line tracing guard.
+  No handset identifiers, home paths, credentials, photos or device artifacts
+  are included.

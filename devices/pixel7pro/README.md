@@ -14,7 +14,7 @@ The Pixel uses the same CRT animation and power-key policy as the OnePlus.
 
 This phone is dedicated to Linux. Android userdata has been replaced with ext4
 after verified UFS reads and explicit authorization. The write/readback check
-passes and the installed Arch desktop has been validated; boot_a now contains the tested kernel with matching direct readback. The first normal restart is under diagnosis.
+passes and the installed Arch desktop has been validated; boot_a now contains the tested kernel with matching direct readback. Image H embeds the required boot parameters and passed RAM validation; its normal reboot remains untested.
 Recovery uses the bootloader and saved host images. See the
 [active implementation record](docs/persistence-power-20260925.md).
 
@@ -38,8 +38,8 @@ Recovery uses the bootloader and saved host images. See the
 | Recovery | Power + Volume Down reaches the bootloader; verified host images are retained. Android userdata has been replaced. |
 
 Autonomous boot validation, faster UFS, complete panel rail/PHY control,
-battery/charging and CPU suspend remain unfinished. Image G was RAM-tested with Arch on internal storage, then installed in boot_a.
-The first orderly restart has not returned USB; the user sees console text. Slot B is **not** a recovery fallback.
+battery/charging and CPU suspend remain unfinished. Image H is RAM-tested and installed with full checksum readback.
+The current session shows the persistent-root terminal, but the top shell stays transparent after cold startup; this remains unresolved. Earlier G normal boots did not restore USB. Slot B is **not** a recovery fallback.
 
 ## Connect
 

@@ -54,7 +54,7 @@ SITE = {
     + "<b>Integration → Foundations to decide</b>.",
     "<b>Ship order.</b> On the OnePlus 7 Pro, modem, audio and deep suspend are all phone-critical and all "
     + "unfinished. On the Pixel 7 Pro, current implementation is power-button screen sleep/wake with the shared CRT "
-    + "animation, and validating autonomous boot after installing the Arch root and native boot image on UFS. CPU/thermal, Mali rendering and 120 Hz "
+    + "animation, and validating autonomous boot after installing the Arch root and native boot image on UFS. Image H is RAM-tested and installed with verified readback; its normal reboot and cold-start shell visibility remain unresolved. CPU/thermal, Mali rendering and 120 Hz "
     + "scanout already have verified checkpoints; charging, deeper suspend and standard SPI touch follow. "
     + "The sequence still moves with each result."
   ]

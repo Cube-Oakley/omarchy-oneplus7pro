@@ -237,8 +237,8 @@ The GPU shader test passed. Cold library reads and Pango/fontconfig discovery
 made the first desktop take about ten minutes; the 243 MiB font directory was
 being scanned and caches written, rather than the compositor having crashed.
 
-The first session began with a 1970 clock. Setting host time after Hyprland had
-started left its shell layers at alpha 0, despite mapped shell windows and a
+The first session began with a 1970 clock. After setting host time after Hyprland had
+started, its shell layers were observed at alpha 0, despite mapped shell windows and a
 visible Kitty window in a captured frame. After restarting the desktop with
 the corrected clock and warm caches, all shared layers reported alpha 1,
 configuration errors were empty, the keyboard/terminal ran and scanout remained
@@ -332,3 +332,43 @@ GNU build ID: `550740cd009bccdb3958cae5b27927a1fc6bc7ba`.
 Its final config was checked against the generated command line. It is a local,
 untested candidate; the user is returning the phone to fastboot for readback
 and RAM validation before any kernel replacement.
+
+## Image H RAM validation
+
+The complete tracing boot image fetched after the second failed normal restart
+exactly matches `d9e3a47f…e69a2e`; its missing tracing output was not caused by
+a lost or corrupted header write. Image H then RAM-booted successfully. USB
+recovery is available by 1.2 seconds and `/proc/cmdline` contains the embedded
+USB/display/CMA/console settings and initialization tracing. UFS enumerates the
+expected partitions. Desktop validation precedes boot_a replacement.
+
+H's persistent bootstrap completed automatically at 366.6 seconds, including
+Hyprland, the shared shell and keyboard startup. The installer now requires the
+current initramfs startup log's completion line as well as the saved boot log,
+so an old successful boot cannot satisfy that check alone. H replacement is
+running through the guarded full-image installer; normal-boot validation follows.
+The historical header-tracing helper now rejects `CONFIG_CMDLINE_FORCE` kernels;
+their tracing setting must be selected when rebuilding instead. This rejection
+was verified read-only against the running H kernel.
+
+## Stopping checkpoint — image H installed, normal boot pending
+
+The guarded installer finished writing H to boot_a. Full 64 MiB direct readback
+matches `ca77148f5fe6433a6625d8ca55a3b72e03bd13cc30ee11b5618de38b840742a3`.
+No other partition was written. No reboot followed: the user asked to stop for
+the night, and the current RAM-booted H session remains running on internal ext4.
+
+The user confirms seeing “persistent Linux root on internal storage” and the
+root prompt, but no top Quickshell interface. Hyprland and Quickshell run and
+the bootstrap marker is complete, but the shared shell layers report alpha 0.
+Thus process/startup checks do not establish a visible, complete desktop.
+H set its clock floor before Hyprland and still reproduced the transparency:
+the earlier clock-change explanation is not established. The successful G
+restart also warmed caches and restarted compositor state, so its cause remains
+unresolved. A legacy `hyprctl keyword` attempt was rejected by the Lua parser;
+no animation configuration changed. The shared CRT implementation is unchanged.
+
+Resume with cold-start shell visibility diagnosis, then an orderly normal boot
+of installed H. Record a new boot ID, embedded parameters, persistent proof files
+and visible shell; repeat normal boot and physical CRT sleep/wake validation.
+Normal boot without a host, full suspend, and faster UFS remain unfinished.
