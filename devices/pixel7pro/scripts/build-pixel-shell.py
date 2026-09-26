@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a local RAM-only Pixel serial-shell image; never access the phone."""
+"""Build a local Pixel recovery/desktop image; never access the phone."""
 import argparse
 import hashlib
 from pathlib import Path
@@ -20,8 +20,13 @@ ap.add_argument('--acpm', action='store_true', help='build GS201 ACPM query brin
 ap.add_argument('--gpu', action='store_true', help='build guarded GPU power-domain bring-up, implies --acpm')
 ap.add_argument('--display-timing', action='store_true', help='build v16 display timing diagnostics, implies --gpu')
 ap.add_argument('--direct-scanout', action='store_true', help='build v17 native DMA scanout, implies --display-timing')
-ap.add_argument('--panel120', action='store_true', help='build v18 guarded 60/120 Hz panel modes, implies --direct-scanout')
+ap.add_argument('--panel120', action='store_true', help='build v19 guarded 60/120 Hz panel modes and DPMS, implies --direct-scanout')
+ap.add_argument('--persistent-root', action='store_true', help='include UFS/input modules and mount an already installed Pixel root; requires --seconds 0')
 a = ap.parse_args()
+if a.persistent_root:
+    if a.seconds != 0:
+        ap.error('--persistent-root requires --seconds 0')
+    a.panel120 = True
 if a.panel120:
     a.direct_scanout = True
 if a.direct_scanout:
@@ -82,6 +87,8 @@ if a.gpu:
 (root / 'etc/os-release').write_text('NAME="Pixel Linux bring-up"\nID=pixel-bringup\nPRETTY_NAME="Pixel Linux RAM-only shell"\n')
 if a.usb_network:
     shutil.copy2(ROOT / 'mainline/pixel-usb-network.sh', root / 'etc/pixel-usb-network.sh')
+if a.persistent_root:
+    shutil.copy2(ROOT / 'scripts/pixel-persistent-start.sh', root / 'etc/pixel-persistent-start.sh')
 if a.drm:
     font = bytes(int(x, 16) for x in re.findall(r'^\s*(0x[0-9a-fA-F]{2}),',
                  (kernel / 'lib/fonts/font_8x16.c').read_text(), re.M))
@@ -94,13 +101,14 @@ if a.drm:
                     '-o', str(root / 'bin/pixel-kms-test')], check=True)
 subprocess.run(['aarch64-linux-gnu-gcc', '-static', '-O2', '-Wall', '-Wextra',
                 *(['-DPIXEL_USB_NETWORK'] if a.usb_network else []),
+                *(['-DPIXEL_PERSISTENT_ROOT'] if a.persistent_root else []),
                 str(ROOT / 'mainline/pixel-shell-init.c'), '-o', str(root / 'ourinit')], check=True)
 shutil.copy2(kernel / '.config', out / 'config-before')
 shutil.copy2(ROOT / 'kernel/native-bringup-v9.config', kernel / '.config')
 subprocess.run([str(kernel / 'scripts/config'), '--file', str(kernel / '.config'),
                 '--set-str', 'INITRAMFS_SOURCE', str(root),
                 '--set-str', 'BOOT_CONFIG_EMBED_FILE', str(ROOT / 'mainline/bootconfig'),
-                '--set-str', 'LOCALVERSION', '-pixel-panel18' if a.panel120 else '-pixel-scanout17' if a.direct_scanout else ('-pixel-display16' if a.display_timing else ('-pixel-gpu15' if a.gpu else ('-pixel-power14' if a.acpm else ('-pixel-drm11' if a.drm else ('-pixel-net10' if a.usb_network else '-pixel-shell9'))))),
+                '--set-str', 'LOCALVERSION', '-pixel-panel19' if a.panel120 else '-pixel-scanout17' if a.direct_scanout else ('-pixel-display16' if a.display_timing else ('-pixel-gpu15' if a.gpu else ('-pixel-power14' if a.acpm else ('-pixel-drm11' if a.drm else ('-pixel-net10' if a.usb_network else '-pixel-shell9'))))),
                 *(['--enable', 'EXYNOS_ACPM_PROTOCOL', '--enable', 'EXYNOS_MBOX',
                    '--enable', 'EXYNOS_ACPM_CLK', '--enable', 'GS201_ACPM_THERMAL',
                    '--disable', 'CPU_FREQ_DEFAULT_GOV_SCHEDUTIL', '--enable', 'CPU_FREQ_DEFAULT_GOV_USERSPACE',
@@ -115,6 +123,31 @@ with (out / 'build.log').open('w') as log:
     for target in ('olddefconfig', 'Image'):
         subprocess.run(['make', '-C', str(kernel), 'ARCH=arm64',
                         'CROSS_COMPILE=aarch64-linux-gnu-', f'-j{a.jobs}', target],
+                       stdout=log, stderr=subprocess.STDOUT, check=True)
+    if a.persistent_root:
+        modules = out / 'modules'
+        modules.mkdir()
+        for name, source in (
+            ('pixel-ufs.c', ROOT / 'kernel/storage/pixel-ufs.c'),
+            ('pixel-powerkey.c', ROOT / 'kernel/powerkey/pixel-powerkey.c'),
+            ('pixel_touch_input.c', ROOT / 'mainline/pixel-touch-input.c'),
+        ):
+            shutil.copy2(source, modules / name)
+        (modules / 'Makefile').write_text('obj-m += pixel-ufs.o pixel-powerkey.o pixel_touch_input.o\n')
+        old_symbols = {line.split()[1] for line in (kernel / 'Module.symvers').read_text().splitlines()}
+        extra = ''.join(line for line in (kernel / 'vmlinux.symvers').read_text().splitlines(True)
+                        if line.split()[1] not in old_symbols)
+        (modules / 'extra.symvers').write_text(extra)
+        subprocess.run(['make', '-C', str(kernel), 'ARCH=arm64',
+                        'CROSS_COMPILE=aarch64-linux-gnu-', f'M={modules}',
+                        f'KBUILD_EXTRA_SYMBOLS={modules}/extra.symvers', 'modules'],
+                       stdout=log, stderr=subprocess.STDOUT, check=True)
+        target = root / 'lib/modules/pixel'
+        target.mkdir(parents=True)
+        for module in modules.glob('*.ko'):
+            shutil.copy2(module, target / module.name)
+        subprocess.run(['make', '-C', str(kernel), 'ARCH=arm64',
+                        'CROSS_COMPILE=aarch64-linux-gnu-', f'-j{a.jobs}', 'Image'],
                        stdout=log, stderr=subprocess.STDOUT, check=True)
 shutil.copy2(kernel / 'arch/arm64/boot/Image', out / 'Image')
 shutil.copy2(kernel / '.config', out / 'kernel.config')

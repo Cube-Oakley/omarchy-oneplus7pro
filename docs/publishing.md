@@ -136,3 +136,11 @@ Scan the lines the sync adds (`git diff public main`, excluding the Pages files)
   email is the maintainer line of the upstream GS101 ACPM binding, already
   public in mainline. Neither handset's serial and no home path is included.
   The old Pages paths redirect from the user site.
+
+- September 25, later: publishing Pixel v19 CRT screen off/on, the PMIC power-key
+  driver, and the in-progress persistent installation. UFS read hashes and an
+  ext4 write/remount/readback check pass; root copying is still in progress and
+  full suspend is explicitly unfinished. Source/privacy checks found no device
+  identifiers, host paths or credentials. Only the documented Pixel USB link
+  addresses are added. No firmware, boot images, root archives or raw logs are
+  included.

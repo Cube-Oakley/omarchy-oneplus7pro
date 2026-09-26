@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* RAM-only serial-shell PID1. Never mounts a block device. */
+/* Recovery serial-shell PID1; optional persistent Arch bootstrap. */
 #define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
@@ -91,8 +91,12 @@ static void serial_shell(void)
     for (int i = 0; i < 3; i++) if (dup2(fd, i) < 0) _exit(115);
     if (fd > 2) close(fd);
     chdir("/root");
-    puts("Pixel 7 Pro native Linux — volatile root shell over USB");
+    puts("Pixel 7 Pro native Linux — recovery shell over USB");
+#ifdef PIXEL_PERSISTENT_ROOT
+    puts("Recovery shell is in RAM; persistent Arch is mounted at /run/arch.");
+#else
     puts("Files are in RAM. Run reboot to return to Android.");
+#endif
     fflush(stdout);
     char *argv[] = {"sh", "-i", NULL};
     char *env[] = {"PATH=/bin:/sbin:/usr/bin:/usr/sbin", "HOME=/root",
@@ -138,6 +142,20 @@ int main(void)
     }
     logmsg("USB network setup pid=%d", network);
 #endif
+#ifdef PIXEL_PERSISTENT_ROOT
+    pid_t desktop = fork();
+    if (!desktop) {
+        int fd = open("/run/pixel-persistent.log", O_WRONLY | O_CREAT | O_TRUNC, 0600);
+        if (fd >= 0) {
+            dup2(fd, 1);
+            dup2(fd, 2);
+            if (fd > 2) close(fd);
+        }
+        execl("/bin/sh", "sh", "/etc/pixel-persistent-start.sh", (char *)NULL);
+        _exit(118);
+    }
+    logmsg("persistent root startup pid=%d; recovery shell remains available", desktop);
+#endif
     clock_gettime(CLOCK_MONOTONIC, &start);
     unsigned int last_status = 0;
     while (!stop) {
@@ -164,7 +182,16 @@ int main(void)
         }
         sleep(1);
     }
-    logmsg("returning to Android (signal=%d)", stop);
+    logmsg("reboot requested (signal=%d)", stop);
+#ifdef PIXEL_PERSISTENT_ROOT
+    /* Stop writers before flushing the persistent filesystem. */
+    kill(-1, SIGTERM);
+    sleep(2);
+    kill(-1, SIGKILL);
+    sync();
+    if (mount(NULL, "/run/arch", NULL, MS_REMOUNT | MS_RDONLY, NULL))
+        logmsg("persistent root remount read-only: %s", strerror(errno));
+#endif
     sync();
     reboot(RB_AUTOBOOT);
     for (;;) pause();

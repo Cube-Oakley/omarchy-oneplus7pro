@@ -1,5 +1,12 @@
 # Pixel native kernel checkpoints
 
+Current display baseline: [v19](panel-v19/README.md), applied after the cumulative
+v18 image D patch. It adds clean shared CRT screen off/on. The
+[power-key module](powerkey/README.md) supplies Linux input events; the
+[UFS handoff driver](storage/README.md) and `--persistent-root` build option are
+under installation validation. Full CPU suspend remains unimplemented. Earlier
+checkpoints below are preserved for reproduction.
+
 `kernel-base.txt` records the exact upstream commit. `native-bringup-v9.patch`
 contains all local source changes relative to it, including the preexisting
 embedded initramfs/bootconfig changes and the new framebuffer, USB and watchdog
@@ -8,8 +15,8 @@ replaces its absolute initramfs path with the selected output directory.
 Recorded configurations name this workspace as `@PIXEL_ROOT@` in place of the
 local absolute path; the helpers set both paths again at build time.
 
-Apply one checkpoint patch to a clean checkout of that commit. The current
-`mainline/linux` has the complete v11 patch below applied. Reverse
+Apply one checkpoint patch to a clean checkout of that commit. The v11 checkpoint
+used the complete patch below. Reverse
 `git apply --check` was tested against that working source, including added files.
 Do not stack checkpoint patches or apply twice.
 
@@ -31,8 +38,8 @@ See [network/Arch validation](../docs/native-arch-20260925.md).
 
 `native-bringup-v11.patch` is a complete alternative patch against the same pinned
 upstream commit, including the v9 work plus the guarded DRM bridge and console
-handoff. Do not stack it on top of v9. The current working kernel has v11 applied;
-reverse-apply validation passed. `native-bringup-v11.config` records the tested
+handoff. Do not stack it on top of v9. The v11 working kernel passed
+reverse-apply validation. `native-bringup-v11.config` records the tested
 v11d configuration. The build helper still starts with v9's config and applies
 the display options when passed `--drm`.
 

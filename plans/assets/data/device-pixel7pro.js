@@ -6,7 +6,7 @@
 HW.pixel7pro = {
   blurb: "Everything physically present in the Pixel 7 Pro, plus the platform pieces the phone depends on "
        + "(boot chain, firmware interfaces, power management, storage). Every result so far comes from "
-       + "temporary RAM boots of mainline Linux; nothing is flashed to the phone.",
+       + "mainline Linux. Userdata is now an ext4 Linux root; copying Arch and native boot installation are in progress.",
 
   sections: [
     {
@@ -32,16 +32,17 @@ HW.pixel7pro = {
         { n: "RAM (12 GB)", s: "ok",
           note: "The whole Arch userspace, including a 4 GB mobile root, runs from RAM without trouble.",
           ref: "devices/pixel7pro/docs/device.md" },
-        { n: "UFS storage (256 GB)", s: "no", cap: "storage",
-          note: "No phone block device is mounted: every file lives in RAM and disappears at reboot. Persistent "
-              + "install comes after the drivers mature.", ref: "devices/pixel7pro/docs/native-arch-20260925.md" },
+        { n: "UFS storage (256 GB)", s: "partial", cap: "storage",
+          note: "Linux enumerated all four UFS logical units and boot-image hashes match stock references. "
+              + "Userdata is ext4 and a write/remount/readback check passes; the Arch root copy is running. PWM gear 1 is slow.",
+          ref: "devices/pixel7pro/docs/persistence-power-20260925.md" },
         { n: "Boot chain (unlocked bootloader, fastboot RAM boot)", s: "partial", cap: "boot",
           note: "Mainline Linux boots natively with an embedded initramfs through a hash-checked fastboot boot, "
-              + "and each image reboots itself after a timeout (up to 30 minutes). Not installed to a slot yet.",
+              + "with a USB recovery shell. Installation candidates have no automatic timeout; not installed to a slot yet.",
           ref: "devices/pixel7pro/docs/native-shell-20260925.md" },
-        { n: "Recovery path back to Android", s: "ok", cap: "recovery",
-          note: "A reboot or the timeout returns to the stock Android on slot A; Power + Volume Down reaches the "
-              + "verified bootloader. Boot image hashes read back unchanged. Slot B is not a fallback.",
+        { n: "Bootloader and saved-image recovery", s: "ok", cap: "recovery",
+          note: "Power + Volume Down reaches the verified bootloader; saved host images provide recovery. "
+              + "Android userdata has been replaced for Linux. Slot B is not a fallback.",
           ref: "devices/pixel7pro/docs/status.md" },
         { n: "ACPM firmware interface (clocks, temperatures)", s: "ok",
           note: "Mailbox and ACPM protocol answer CPU, GPU, display and memory clock queries and all seven "
@@ -61,12 +62,13 @@ HW.pixel7pro = {
         { n: "Deepest idle power states", s: "no", cap: "deepsleep", note: "Not attempted yet." },
         { n: "RTC and alarms", s: "no",
           note: "Not attempted; the clock is set from the computer at session start." },
-        { n: "Power button", s: "no", cap: "buttons",
-          note: "Not handled under Linux yet; Power + Volume Down still reach the bootloader." },
+        { n: "Power button", s: "ok", cap: "buttons",
+          note: "S2MPG12 ACPM input driver reports physical press/release. User confirms clean shared CRT close/open and screen off/on. Polling input cannot wake a suspended CPU.",
+          ref: "devices/pixel7pro/docs/persistence-power-20260925.md" },
         { n: "Volume up / down keys", s: "no", cap: "buttons", note: "Not attempted yet." },
         { n: "Battery gauge", s: "no", cap: "battery", note: "Not brought up.", ref: "devices/pixel7pro/adapter/README.md" },
         { n: "Charging", s: "no", cap: "charging",
-          note: "Not brought up under Linux; the phone charges normally once it is back in Android.",
+          note: "Not brought up under Linux; charging was verified in the former Android baseline.",
           ref: "devices/pixel7pro/adapter/README.md" },
         { n: "Fast charging", s: "no", cap: "fastcharge", note: "Not attempted yet." },
         { n: "Wireless charging", s: "no", cap: "wireless", note: "Not attempted yet." },
@@ -90,9 +92,10 @@ HW.pixel7pro = {
               + "with zero underruns, confirmed smooth by the user. Holds a fixed memory-bandwidth floor while "
               + "at 120 Hz; a shared bandwidth governor is still to come.",
           ref: "devices/pixel7pro/docs/panel120-20260925.md" },
-        { n: "Panel power off / wake", s: "no", cap: "display",
-          note: "Linux does not own display power yet, so the panel cannot be blanked and restored.",
-          ref: "devices/pixel7pro/docs/hardware-pipeline-20260925.md" },
+        { n: "Panel power off / wake", s: "partial", cap: "display",
+          note: "V19 B verifies DRM-controlled DCS display-off/on (power readback 0x99/0x9f); user confirms clean CRT transitions. "
+              + "This retains panel rails and does not establish CPU suspend.",
+          ref: "devices/pixel7pro/docs/persistence-power-20260925.md" },
         { n: "Backlight / brightness control", s: "no", cap: "brightness",
           note: "Not attempted; panel commands so far change refresh rate only, never brightness.",
           ref: "devices/pixel7pro/docs/panel120-20260925.md" },

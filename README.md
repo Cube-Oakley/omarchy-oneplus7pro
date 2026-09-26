@@ -16,7 +16,7 @@ device, a side-by-side comparison, and the shared software and desktop integrati
 | Device | SoC | Where it is | Details |
 |---|---|---|---|
 | OnePlus 7 Pro (`guacamole`) | Snapdragon 855 · Adreno 640 | Boots from internal storage into the full touch shell on the GPU; Wi-Fi, audio, Bluetooth, sensors and the rear cameras work; cellular waits on a SIM | [README](devices/oneplus7pro/README.md) · [status](devices/oneplus7pro/docs/status.md) |
-| Pixel 7 Pro (`cheetah`) | Google Tensor G2 · Mali-G710 | Mainline Linux boots from RAM and runs the shared shell under Hyprland at 120 Hz; storage, battery, radios and audio are not brought up; Android stays the normal boot | [README](devices/pixel7pro/README.md) · [status](devices/pixel7pro/docs/status.md) |
+| Pixel 7 Pro (`cheetah`) | Google Tensor G2 · Mali-G710 | Mainline Linux runs the shared shell at 120 Hz with confirmed CRT power-button screen off/on; UFS reads are verified and persistent installation is in progress; full suspend, battery, radios and audio remain unfinished | [README](devices/pixel7pro/README.md) · [status](devices/pixel7pro/docs/status.md) |
 
 ## The shared shell
 

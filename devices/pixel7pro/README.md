@@ -4,41 +4,48 @@ Bringing native Linux and the Omarchy desktop experience to the Pixel 7 Pro
 (`cheetah`, Tensor G2 / GS201). The OnePlus 7 Pro project is the reference for
 bring-up methods and the eventual mobile interface.
 
-**Status: native Hyprland and shared Omarchy mobile shell, September 25, 2026.** Mainline Linux
-boots in RAM with all eight CPUs, an on-screen boot log, and a BusyBox serial
-shell. The shared OnePlus Arch Linux ARM base runs in a RAM-only chroot, with
-key-only SSH and verified SFTP over USB Ethernet. A fixed-mode DRM display bridge
-runs user-confirmed Hyprland with USB-fed keyboard input. The same mobile shell
-as the OnePlus project displays its launcher, themes, Kitty, keyboard and Settings
-using Mesa software rendering. Physical touch was confirmed with a temporary GPIO
-SPI driver; proper CPU/GPU/display drivers are now the priority. Full Arch boot and persistent
-installation are still ahead.
-Factory Android remains the normal boot on slot A; no experimental Linux image
-has been flashed.
+**Status: accelerated shared mobile shell and working CRT screen power;
+persistent installation in progress, September 25, 2026.** Mainline Linux runs Arch Linux
+ARM and the shared Hyprland/Quickshell mobile shell from RAM. Mali-G710 rendering,
+clean 120 Hz scanout, bounded CPU scaling and seven thermal zones are verified.
+The new S2MPG12 input driver and DRM panel off/on path have a user-confirmed
+sleep/wake cycle with clean CRT transitions and no console flash.
+The Pixel uses the same CRT animation and power-key policy as the OnePlus.
+
+This phone is dedicated to Linux. Android userdata has been replaced with ext4
+after verified UFS reads and explicit authorization. The write/readback check
+passes and the Arch root copy is running; native boot-slot installation is next.
+Recovery uses the bootloader and saved host images. See the
+[active implementation record](docs/persistence-power-20260925.md).
 
 ## What works
 
 | Area | Verified result |
 |---|---|
-| Recovery baseline | Rooted factory Android AP4A.250205.002 on slot A; boot images checked by SHA256. |
+| Recovery baseline | Unlocked bootloader and saved factory images; boot partitions checked by SHA256 before installation. |
 | Native boot | Linux 7.3.0-rc2, embedded initramfs, all eight CPUs online. |
-| Display | Fixed-mode 1440×3120 DRM bridge, standard dumb buffers/modeset/page flips, visible test card; early console hands off while RAM logs continue. |
-| Wayland | Hyprland/llvmpipe, confirmed graphical input, shared mobile launcher, themed Kitty, keyboard and Settings; Weston fallback preserved. |
+| Display | Native 1440×3120 DMA scanout, real page flips, validated 60/120 Hz modes and memory-bandwidth floor. |
+| Wayland | Hyprland on Mali-G710 MC7, shared mobile shell and clean fullscreen animation at 119.6–120.2 fps; older software-rendered fallback preserved. |
+| CPU/thermal | Three bounded cpufreq policies, schedutil, seven thermal zones and cooling tests. |
+| Power key/display sleep | S2MPG12 press/release, panel off/on and clean shared CRT transitions confirmed; CPU stays awake. |
+| Internal storage | All UFS logical units discovered; boot hashes match and ext4 write/remount/readback passes. Arch root copy in progress. |
 | Physical touch | S3908 GPIO SPI input reached Hyprland; user confirmed response, but it is slow. |
 | USB | DWC3 peripheral using inherited PHY state; concurrent USB2 CDC-ACM and CDC-ECM Ethernet. |
 | Shell | Native root BusyBox shell, job control, RAM files, shell restart after exit, command exit-status reporting. |
 | Arch userspace | Same cached Arch Linux ARM base as OnePlus; native Bash, glibc, pacman and OpenSSH. |
 | Network transfer | Private USB link, key-only SSH, 8 MiB SFTP roundtrip with matching hashes. |
 | Boot watchdogs | Both inherited AP watchdogs stopped; two-minute runtime verified before the longer shell test. |
-| Return path | Automatic test timeout; normal `reboot` from the shell returns to Android. |
+| Recovery | Power + Volume Down reaches the bootloader; verified host images are retained. Android userdata has been replaced. |
 
-Storage, GPU acceleration, complete panel control, battery/charging, thermal and
-power management are not brought up in this mainline image. The current shell
-uses RAM only; files disappear on reboot. Slot B is **not** a recovery fallback.
+Persistent desktop boot, faster UFS, complete panel rail/PHY control,
+battery/charging and CPU suspend remain unfinished. The running staging shell
+still uses RAM while the root copy completes. Slot B is **not** a recovery fallback.
 
 ## Connect
 
-From `devices/pixel7pro/` on the computer, with the phone in Android or fastboot.
+Use the current connection and installation state in [status](docs/status.md).
+The following commands describe the historical RAM recovery image, from
+`devices/pixel7pro/` on the computer with the phone in fastboot.
 The helper needs the handset serial, which stays local: set `PHONE_SERIAL` or
 put it on one line in ignored `out/device.serial`.
 
@@ -48,9 +55,9 @@ python scripts/pixel-shell.py
 ```
 
 The boot helper verifies the image hash, phone identity and slot state, then
-uses `fastboot boot`. The default v9 image returns to Android after ten minutes.
+uses `fastboot boot`. The default v9 image reboots after ten minutes.
 `Ctrl-]` disconnects the terminal; `exit` restarts the phone's shell; `reboot`
-returns to Android immediately.
+restarts the phone. Android userdata is no longer present.
 
 For a single command:
 
@@ -64,6 +71,8 @@ For the network image and repeatable Arch/SSH bootstrap, follow
 [native Arch userspace](docs/native-arch-20260925.md).
 
 ## Documentation
+
+- [Persistent install and power button](docs/persistence-power-20260925.md): current implementation, CRT requirement, storage decision and validation.
 
 - [Hardware pipeline](docs/hardware-pipeline-20260925.md): CPU/GPU/display dependency order, stock inventory and initial ACPM patches.
 

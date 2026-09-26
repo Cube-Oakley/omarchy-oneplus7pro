@@ -5,6 +5,18 @@ policy belongs in `overlay/mobile/`; board-specific kernel, firmware, audio
 routing and charging support belongs in that phone's `devices/<device>/`
 directory (`devices/oneplus7pro/`, `devices/pixel7pro/`).
 
+## Current device work (September 25)
+
+The project is consolidated into `omarchy-mobile`. On the connected Pixel, the
+active implementation is persistent native Linux and power-button screen
+sleep/wake using the shared CRT animation. The user permits replacing Android
+and its userdata; bootloader and calibration partitions remain protected.
+See the [Pixel implementation record](../devices/pixel7pro/docs/persistence-power-20260925.md).
+CPU/thermal, Mali rendering and 120 Hz scanout already have working checkpoints.
+Clean power-button CRT screen off/on is now physically confirmed. It leaves the
+CPU awake; interrupt wake and full suspend are separate future milestones.
+The priorities below continue to guide the OnePlus and shared software.
+
 ## Current order
 
 1. Deeper suspend: measure SoC/CPU residency, identify blockers, test individual

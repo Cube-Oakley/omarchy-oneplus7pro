@@ -1,9 +1,9 @@
 #!/bin/bash
-# Isolated v15 hardware-rendered session in the native Pixel RAM root.
+# Isolated hardware-rendered session in the native Pixel root.
 set -euo pipefail
-[[ $(stat -f -c %T /) == tmpfs ]]
+[[ $(stat -f -c %T /) == tmpfs || $(cat /etc/omarchy-mobile-pixel-root 2>/dev/null) == v1 ]]
 case $(uname -r) in
-    *-pixel-gpu15-*|*-pixel-display16-*|*-pixel-scanout17-*|*-pixel-panel18-*) ;;
+    *-pixel-gpu15-*|*-pixel-display16-*|*-pixel-scanout17-*|*-pixel-panel18-*|*-pixel-panel19-*) ;;
     *) echo 'Expected a validated Pixel GPU kernel.' >&2; exit 1 ;;
 esac
 [[ -c /dev/dri/card0 && -c /dev/dri/renderD128 ]]
@@ -25,6 +25,7 @@ if ! pgrep -x systemd-udevd >/dev/null; then
     /usr/lib/systemd/systemd-udevd --daemon
 fi
 SYSTEMD_IN_CHROOT=0 udevadm trigger --subsystem-match=drm --action=add
+SYSTEMD_IN_CHROOT=0 udevadm trigger --subsystem-match=input --action=add
 SYSTEMD_IN_CHROOT=0 udevadm settle --timeout=10
 if ! pgrep -x seatd >/dev/null; then
     nohup env SEATD_VTBOUND=0 seatd >/run/seatd.log 2>&1 </dev/null &
@@ -57,7 +58,12 @@ install -m 700 /root/pixel-desktop-prepare.sh /root/.config/omarchy-mobile/sessi
 /root/.local/bin/omarchy-mobile-keyboard start
 cat >/root/pixel-gpu-terminal.sh <<'TERMINAL'
 #!/bin/bash
-printf 'Native Arch Linux ARM\nPixel 7 Pro | Mali-G710 hardware rendering\n\nRAM development session; files disappear at reboot.\n\n'
+printf 'Native Arch Linux ARM\nPixel 7 Pro | Mali-G710 hardware rendering\n\n'
+if [[ -f /etc/omarchy-mobile-pixel-root ]]; then
+    printf 'Persistent Linux root on internal storage.\n\n'
+else
+    printf 'RAM development session; files disappear at reboot.\n\n'
+fi
 exec /bin/bash
 TERMINAL
 chmod 700 /root/pixel-gpu-terminal.sh

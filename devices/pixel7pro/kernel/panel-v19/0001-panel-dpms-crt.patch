@@ -1,0 +1,107 @@
+--- a/drivers/gpu/drm/sysfb/pixel_panel.h
++++ b/drivers/gpu/drm/sysfb/pixel_panel.h
+@@ -12,6 +12,7 @@
+ 	u32 timer, te0, underrun;
+ 	unsigned int refresh;
+ 	bool validated;
++	bool blanked;
+ };
+ 
+ static int panel_read(struct pixel_panel *panel, u8 command, unsigned int length, u8 *result)
+@@ -117,6 +118,43 @@
+ 	return ret;
+ }
+ 
++/* DCS display-off retains panel timing/DSC state. This is not sleep-in or
++ * rail power-off. The caller owns commit ordering and has stopped DMA.
++ */
++static int panel_blank(struct pixel_panel *panel, bool blank)
++{
++	void __iomem *dsi = panel->dsi;
++	u32 state;
++	u8 power;
++	int ret;
++
++	if (!panel->validated)
++		return -EINVAL;
++	if (blank == panel->blanked)
++		return 0;
++	if (readl(dsi + 0x80))
++		return -EBUSY;
++	ret = readl_poll_timeout(dsi + 0x68, state,
++		(state & 0x500) == 0x500, 50, 50000);
++	if (ret)
++		return ret;
++	/* One-byte DCS short write, no parameter. */
++	writel(BIT(16), dsi + 0x80);
++	writel(((blank ? 0x28 : 0x29) << 8) | 0x05, dsi + 0x58);
++	ret = panel_flush(panel);
++	if (ret)
++		return ret;
++	msleep(20);
++	ret = panel_read(panel, 0x0a, 1, &power);
++	if (ret)
++		return ret;
++	if (!!(power & BIT(2)) == blank)
++		return -EIO;
++	panel->blanked = blank;
++	pr_info("pixel-panel: display %s power=%02x\n", blank ? "off" : "on", power);
++	return 0;
++}
++
+ static int panel_key(struct pixel_panel *panel, bool unlock)
+ {
+ 	writel(BIT(16), panel->dsi + 0x80);
+--- a/drivers/gpu/drm/sysfb/pixel_scanout.c
++++ b/drivers/gpu/drm/sysfb/pixel_scanout.c
+@@ -260,7 +260,8 @@
+ 
+ 	if (panel120 &&
+ 	    ((drm_mode_vrefresh(&cs->mode) == 120 && bandwidth_acquire(&p->bandwidth)) ||
+-	     panel_refresh(&p->panel, drm_mode_vrefresh(&cs->mode)))) {
++	     panel_refresh(&p->panel, drm_mode_vrefresh(&cs->mode)) ||
++	     panel_blank(&p->panel, false))) {
+ 		p->faulted = true;
+ 		atomic64_inc(&p->failures);
+ 		drm_err(&p->drm, "panel/bandwidth mode change failed; rejecting further transfers\n");
+@@ -277,8 +278,21 @@
+ 	struct pixel_scanout *p = to_pixel(pipe->crtc.dev);
+ 	int ret;
+ 
+-	ret = pixel_transfer(p, ORIGINAL_FB);
+-	if (!ret) {
++	if (panel120) {
++		u32 status;
++
++		/* Keep the compositor's final (CRT black) image in panel GRAM.
++		 * Do not flash the boot console by restoring ORIGINAL_FB here.
++		 * Hold the last DMA buffer across DPMS until a new transfer replaces
++		 * it; the hardware shadow still refers to that allocation.
++		 */
++		ret = (readl(p->decon + 0x30) & BIT(4)) ?
++			readl_poll_timeout(p->decon + 0x20, status,
++					   status & BIT(5), 50, 100000) : -EBUSY;
++	} else {
++		ret = pixel_transfer(p, ORIGINAL_FB);
++	}
++	if (!ret && !panel120) {
+ 		if (p->held)
+ 			drm_framebuffer_put(p->held);
+ 		if (p->failed_fb)
+@@ -287,7 +301,7 @@
+ 		p->failed_fb = NULL;
+ 	}
+ 	if (panel120 && (ret || panel_refresh(&p->panel, 60) ||
+-			 bandwidth_release(&p->bandwidth))) {
++			 bandwidth_release(&p->bandwidth) || panel_blank(&p->panel, true))) {
+ 		p->faulted = true;
+ 		atomic64_inc(&p->failures);
+ 		drm_err(&p->drm, "panel/bandwidth restore failed\n");
+@@ -395,6 +409,7 @@
+ 		   atomic64_read(&p->flips), atomic64_read(&p->failures));
+ 	seq_printf(m, "cpu_pixel_copy_bytes 0\nactive_dma %08x\nfaulted %u\n",
+ 		   readl(p->dma + 0x440), p->faulted);
++	seq_printf(m, "panel_blanked %u\n", p->panel.blanked);
+ 	seq_printf(m, "panel_refresh_hz %u\nstart_events %lld\nlate_events %lld\n",
+ 		   p->panel.refresh, atomic64_read(&p->start_events), atomic64_read(&p->late_events));
+ 	seq_printf(m, "bandwidth_active %u\nmif_rate_hz %lu\ndsi_underruns %lld\n",

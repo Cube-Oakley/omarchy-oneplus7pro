@@ -377,6 +377,11 @@ PAGE_SOFTWARE = {
         { n: "Standard user session + sudo", s: "no",
           note: "The bring-up desktop runs as root; the mobile-browser account is a temporary Chromium bridge, "
               + "not the intended session design.", ref: "docs/mobile-roadmap.md" },
+        { n: "Power-key CRT screen close / open", s: "ok",
+          on: { pixel7pro: { s: "ok", note: "Physical power key, shared CRT animation and panel off/on confirmed on v19 B, with no boot-console flash. CPU remains awake.",
+                             ref: "devices/pixel7pro/docs/persistence-power-20260925.md" } },
+          note: "Shared CrtPower.qml animation runs before panel-off and during wake; hardware suspend remains device-specific.",
+          ref: "overlay/mobile/README.md" },
         { n: "Automatic idle / sleep policy", s: "no", note: "Not implemented; sleep is currently user-triggered.",
           ref: "devices/oneplus7pro/docs/status.md" },
         { n: "Background wake for delayed delivery", s: "no",

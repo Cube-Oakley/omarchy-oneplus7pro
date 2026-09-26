@@ -1,6 +1,21 @@
 # Checkpoint — September 25, 2026
 
-**Latest RAM boot:** panel/bandwidth v18 image D, 120 Hz animation validated;
+**Active work: persistent installation and power-button screen sleep/wake.**
+The merged repository is the workspace for both devices. [V19 B](persistence-power-20260925.md)
+now has physically verified power-key screen off/on with the shared CRT animation
+and no console flash. The CPU stays awake; full suspend is not implemented.
+The user authorizes replacing Android and userdata for a Linux-only install.
+UFS enumerated the expected partitions and full boot-image reads matched the
+saved hashes. Fresh-boot image F discovers storage automatically using one bounded handoff
+retry. Userdata is now ext4, and a 16 MiB write/remount/readback test passes.
+The Arch root copy is running; the Linux boot image has not been installed yet.
+
+**Current RAM test:** v19 F persistent-bootstrap candidate, SHA256
+`6f03b908269c086b8e9be66bc196518e11d983225fbc01235ef40039fa154a8c`, no automatic reboot timeout. USB serial remains the recovery
+interface. Local installation SSH: `out/checkpoints/20260925-persistence-power/arch-session-f/ssh`.
+Do not reboot into stock Android during the root copy: its userdata has been replaced.
+
+**Previous RAM milestone:** panel/bandwidth v18 image D, 120 Hz animation validated;
 1800-second automatic return to stock slot A. No partitions were flashed.
 
 **120 Hz milestone:** [Panel timing and bandwidth investigation](panel120-20260925.md)
@@ -66,14 +81,13 @@ ownership remains unfinished. The v16 D image remains the separate known-good vi
 `b8479c90bfb58f9758f597393d56205794f0989fce1aa12466647b9c5480d2de`.
 Sources, test results and replay are in the linked checkpoint. Earlier v11d
 Arch/Hyprland/mobile shell and touch evidence remain preserved independently.
-Android is the recovery/reboot destination, not the target OS. Preserve the
-bootloader and use RAM boots while drivers mature.
+Earlier RAM milestones returned to Android. The current Linux-only installation
+reuses userdata; recovery now means the bootloader and saved host images.
 
-**Shared repository direction accepted:** one product monorepo with shared
-userspace, per-device support and separate pinned kernel repos. Consolidation
-must use an isolated destination and preserve the existing OnePlus project and
-clean public history. No OnePlus file was edited and no repository was renamed or
-published. Wired external video is not required for the Pixel port.
+**Repository consolidation complete:** shared userspace lives in
+`overlay/mobile/`; hardware-specific sources and evidence live in
+`devices/<device>/`. The clean publication line is preserved separately, as
+[publication instructions](../../../docs/publishing.md) describe.
 
 ## Display/Arch image
 
@@ -106,7 +120,7 @@ keyboard input. The RAM image reboots at 1800 seconds; that session has now ende
 - Twenty-minute automatic reboot; all phone userspace files disappear on reboot.
 - See [exact boot/provisioning commands](native-arch-20260925.md#repeatable-use).
 
-## Serial-only baseline (default helper image)
+## Historical serial-only baseline (default helper image)
 
 | Item | Value |
 |---|---|
@@ -129,8 +143,9 @@ python scripts/boot-pixel-shell.py
 python scripts/pixel-shell.py
 ```
 
-Run from the project root. `Ctrl-]` leaves the connection; `exit` starts a fresh
-shell. Use `reboot` to return to Android. ADB is an Android service and is not
+Run from `devices/pixel7pro/`. `Ctrl-]` leaves the connection; `exit` starts a fresh
+shell. These are historical v9 commands; use the current installation state above.
+ADB is an Android service and is not
 present in the native image. The host helper identifies the Pixel gadget rather
 than assuming that ttyACM0 is always its port.
 
@@ -149,21 +164,19 @@ than assuming that ttyACM0 is always its port.
 
 ## Next work
 
-1. [Proper GS201 CPU/GPU/display pipeline](hardware-pipeline-20260925.md), per
-   the user's priority. Initial ACPM mailbox/clock patches compile and validate;
-   GS201 CMU_APM and correct DT resources are next, before query-only runtime tests.
-2. CPU frequency/thermal support and GPU power/firmware integration, then real
-   atomic display scanout. The current eight online CPUs do not have native DVFS.
-3. Replace the proven GPIO touch experiment with standard pinctrl/SPI/IRQ input.
-4. Complete shared Arch boot/services, charging and storage/persistent boot after
-   driver validation and recovery checkpoints.
-5. Consolidate reviewed device recipes and common OS composition according to the
-   architecture proposal, preserving the OnePlus clean public history.
+1. Finish the root copy, validate desktop startup from storage, and install the
+   verified native boot image. Power-key events and clean shared CRT screen
+   off/on are already confirmed.
+2. Validate persistence across independent boots and improve UFS performance.
+3. Extend charging and suspend/resume after persistent boot.
+   Screen blanking does not establish CPU suspend or deep idle.
+4. Replace temporary GPIO SPI touch with standard SPI/IRQ input. CPU scaling,
+   thermal sensing, Mali rendering and 120 Hz scanout already have checkpoints.
 
 ## Recovery state
 
-Normal reboot returns to Android on slot A. If native Linux becomes unresponsive,
-use Power + Volume Down to reach the known bootloader, then
-`fastboot -s "$PHONE_SERIAL" reboot`. Do not switch to B or use the old restore
-scripts blindly. Exact Android boot hashes and the validated restoration history
-are in [restart notes](restart-20260924.md); the shell image is RAM-boot only.
+Userdata is now the Linux filesystem; Android is no longer the recovery OS.
+Power + Volume Down reaches the verified bootloader. Preserve the host factory
+images and follow the validated restoration procedure if needed; do not switch
+to B or use the old restore scripts blindly. Exact recovery hashes and the ABL
+flash-header caveat are in [restart notes](restart-20260924.md).

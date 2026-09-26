@@ -1,9 +1,9 @@
 #!/bin/bash
-# Development adapter for the verified Pixel RAM session. No hardware writes.
+# Development adapter for the verified Pixel native session. No hardware writes.
 set -euo pipefail
-[[ $(stat -f -c %T /) == tmpfs ]]
+[[ $(stat -f -c %T /) == tmpfs || $(cat /etc/omarchy-mobile-pixel-root 2>/dev/null) == v1 ]]
 case $(uname -r) in
-    *-pixel-drm11-*|*-pixel-gpu15-*|*-pixel-display16-*|*-pixel-scanout17-*|*-pixel-panel18-*) ;;
+    *-pixel-drm11-*|*-pixel-gpu15-*|*-pixel-display16-*|*-pixel-scanout17-*|*-pixel-panel18-*|*-pixel-panel19-*) ;;
     *) echo 'Expected a validated Pixel desktop kernel.' >&2; exit 1 ;;
 esac
 config=/root/pixel-hyprland.lua

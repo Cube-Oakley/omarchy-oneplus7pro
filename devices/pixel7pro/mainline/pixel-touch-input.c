@@ -153,7 +153,7 @@ static int poll_touch(void *unused)
     unsigned long deadline=jiffies+seconds*HZ;
     unsigned int reports=0;
     int ret=0;
-    while (!kthread_should_stop() && time_before(jiffies,deadline)) {
+    while (!kthread_should_stop() && (!seconds || time_before(jiffies,deadline))) {
         u8 header[4], body[259];
         unsigned int len;
         if (readl(far+0x44)&0x80) { ret=-EBUSY; break; }
@@ -202,7 +202,7 @@ static int __init touch_probe_init(void)
 {
     u8 reply[64];
     int ret=-ENODEV;
-    if (half_period_us < 1 || half_period_us > 10 || seconds < 10 || seconds > 600 || !probe || !of_machine_is_compatible("google,GS201 CHEETAH"))
+    if (half_period_us < 1 || half_period_us > 10 || (seconds && seconds < 10) || seconds > 600 || !probe || !of_machine_is_compatible("google,GS201 CHEETAH"))
         return -EINVAL;
     for (int i=0;i<3;i++) {
         char path[48];

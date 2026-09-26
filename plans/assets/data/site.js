@@ -53,8 +53,9 @@ SITE = {
     + "anything; and how pairing, per-feature permissions and end-to-end privacy are framed. See "
     + "<b>Integration → Foundations to decide</b>.",
     "<b>Ship order.</b> On the OnePlus 7 Pro, modem, audio and deep suspend are all phone-critical and all "
-    + "unfinished. On the Pixel 7 Pro, the order is the proper CPU/GPU/display pipeline, then "
-    + "frequency and thermal support, standard SPI touch, and only then storage, charging and a persistent boot. "
+    + "unfinished. On the Pixel 7 Pro, current implementation is power-button screen sleep/wake with the shared CRT "
+    + "animation, and UFS storage for a persistent native install. CPU/thermal, Mali rendering and 120 Hz "
+    + "scanout already have verified checkpoints; charging, deeper suspend and standard SPI touch follow. "
     + "The sequence still moves with each result."
   ]
 };

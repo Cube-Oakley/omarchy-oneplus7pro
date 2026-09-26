@@ -1,23 +1,22 @@
 # Pixel 7 Pro development adapter
 
 These files connect the shared Omarchy mobile overlay to the verified Pixel
-RAM-only Hyprland session. They are source-development artifacts, not host desktop
+native Hyprland session. They are source-development artifacts, not host desktop
 configuration. Install them only inside the target Arch root.
 
 - `mobile.json`: display scale, keyboard dimensions and common shortcut settings.
   The display driver's preferred mode is used; no OnePlus 90 Hz assumption.
 - `desktop-prepare.sh`: sources the shared generated mobile config into
-  `/root/pixel-hyprland.lua` after checking a validated Pixel RAM kernel. No register,
+  `/root/pixel-hyprland.lua` after checking a validated Pixel kernel and RAM or marked persistent root. No register,
   partition, clock, charging, suspend or radio operations.
 - `quickshell-bootstrap.qml`: optional entry point that inherits the caller's
   Wayland environment. The tested host-driven entry is
   `scripts/pixel-mobile-start.sh`, which discovers the live compositor instance.
 - `kernel/`: pinned mainline base, complete bring-up patches and configurations.
 
-Shared shell source remains owned by the common mobile layer. The current Pixel
-test consumes a hash-pinned snapshot of the OnePlus working tree without changing
-it. Do not copy OnePlus hardware control adapters here. The future monorepo should
-provide this overlay once and select the relevant device adapter during assembly.
+Shared shell source remains owned by the common mobile layer. Both devices now use `overlay/mobile/` in the merged repository. The current
+Pixel test installs that shared source with this device adapter. Do not copy
+OnePlus hardware control adapters here.
 
 | Capability | Current state |
 |---|---|
@@ -31,7 +30,7 @@ provide this overlay once and select the relevant device adapter during assembly
 | CPU/thermal | Bounded cpufreq, schedutil and seven thermal zones verified |
 | Battery/charging | Not brought up |
 | Wi-Fi, Bluetooth, cellular, audio, camera | Not brought up |
-| Persistent storage/native install | Not brought up; no partitions flashed |
+| Persistent storage/native install | UFS reads and ext4 write/remount/readback pass; root copy and automatic boot validation in progress |
 | Wired external display | Not a requirement for this device |
 
 See [the working checkpoint](../docs/hyprland-mobile-20260925.md),
