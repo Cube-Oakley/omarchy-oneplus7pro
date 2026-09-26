@@ -5,7 +5,7 @@ policy belongs in `overlay/mobile/`; board-specific kernel, firmware, audio
 routing and charging support belongs in that phone's `devices/<device>/`
 directory (`devices/oneplus7pro/`, `devices/pixel7pro/`).
 
-## Current device work (September 25)
+## Current device work (September 26)
 
 The project is consolidated into `omarchy-mobile`. On the connected Pixel, the
 active implementation is persistent native Linux and power-button screen
@@ -15,6 +15,10 @@ See the [Pixel implementation record](../devices/pixel7pro/docs/persistence-powe
 CPU/thermal, Mali rendering and 120 Hz scanout already have working checkpoints.
 Clean power-button CRT screen off/on is now physically confirmed. It leaves the
 CPU awake; interrupt wake and full suspend are separate future milestones.
+The Arch root is now installed on ext4 userdata and runs the shared desktop.
+Native boot-slot installation and autonomous startup checks are in progress.
+Storage still uses PWM gear 1: cold startup is slow, so full GS201 UFS support
+is a priority alongside charging, suspend and standard SPI touch.
 The priorities below continue to guide the OnePlus and shared software.
 
 ## Current order

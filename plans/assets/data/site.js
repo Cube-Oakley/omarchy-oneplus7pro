@@ -1,6 +1,6 @@
 /* Site-wide copy shared by all pages. Device facts live in devices.js. */
 SITE = {
-  meta: ["updated 2026-09-25", "shared shell · overlay/mobile"],
+  meta: ["updated 2026-09-26", "shared shell · overlay/mobile"],
 
   /* Where `ref` paths open when the pages are served from GitHub Pages.
      Opened from a checkout (file://), refs open the local file instead. */
@@ -13,7 +13,7 @@ SITE = {
          + "mobile shell and one OS, brought up handset by handset. Each device has its own hardware page; the "
          + "software you touch and the link to a desktop are shared, and every row says which phones it has "
          + "been verified on.",
-    meta: ["updated 2026-09-25"]
+    meta: ["updated 2026-09-26"]
   },
 
   howTo: [
@@ -54,7 +54,7 @@ SITE = {
     + "<b>Integration → Foundations to decide</b>.",
     "<b>Ship order.</b> On the OnePlus 7 Pro, modem, audio and deep suspend are all phone-critical and all "
     + "unfinished. On the Pixel 7 Pro, current implementation is power-button screen sleep/wake with the shared CRT "
-    + "animation, and UFS storage for a persistent native install. CPU/thermal, Mali rendering and 120 Hz "
+    + "animation, and a native boot installation using the Arch root now on UFS storage. CPU/thermal, Mali rendering and 120 Hz "
     + "scanout already have verified checkpoints; charging, deeper suspend and standard SPI touch follow. "
     + "The sequence still moves with each result."
   ]

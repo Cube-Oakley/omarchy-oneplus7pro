@@ -4,7 +4,10 @@ Current display baseline: [v19](panel-v19/README.md), applied after the cumulati
 v18 image D patch. It adds clean shared CRT screen off/on. The
 [power-key module](powerkey/README.md) supplies Linux input events; the
 [UFS handoff driver](storage/README.md) and `--persistent-root` build option are
-under installation validation. Full CPU suspend remains unimplemented. Earlier
+under installation validation. The Arch root is installed on ext4 userdata and
+the shared desktop runs from it. [Reboot target selection](reboot/README.md) is
+experimental: its bootloader-mode test entered Android recovery, where ADB
+successfully restored fastboot. Full CPU suspend remains unimplemented. Earlier
 checkpoints below are preserved for reproduction.
 
 `kernel-base.txt` records the exact upstream commit. `native-bringup-v9.patch`

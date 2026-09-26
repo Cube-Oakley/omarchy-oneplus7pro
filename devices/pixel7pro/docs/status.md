@@ -1,4 +1,4 @@
-# Checkpoint — September 25, 2026
+# Checkpoint — September 26, 2026
 
 **Active work: persistent installation and power-button screen sleep/wake.**
 The merged repository is the workspace for both devices. [V19 B](persistence-power-20260925.md)
@@ -6,14 +6,19 @@ now has physically verified power-key screen off/on with the shared CRT animatio
 and no console flash. The CPU stays awake; full suspend is not implemented.
 The user authorizes replacing Android and userdata for a Linux-only install.
 UFS enumerated the expected partitions and full boot-image reads matched the
-saved hashes. Fresh-boot image F discovers storage automatically using one bounded handoff
-retry. Userdata is now ext4, and a 16 MiB write/remount/readback test passes.
-The Arch root copy is running; the Linux boot image has not been installed yet.
+saved hashes. Userdata is ext4 and passed a 16 MiB write/remount/readback check.
+The complete Arch filesystem was installed through a checked sparse image;
+image G mounts it and passes GPU shader readback. The shared desktop runs from
+storage at 120 Hz after first-run font discovery and a desktop restart. Clock
+setup now precedes Hyprland; cold reads at PWM gear 1 remain slow. The guarded
+boot_a installation is in progress; autonomous startup is not yet verified.
 
-**Current RAM test:** v19 F persistent-bootstrap candidate, SHA256
-`6f03b908269c086b8e9be66bc196518e11d983225fbc01235ef40039fa154a8c`, no automatic reboot timeout. USB serial remains the recovery
-interface. Local installation SSH: `out/checkpoints/20260925-persistence-power/arch-session-f/ssh`.
-Do not reboot into stock Android during the root copy: its userdata has been replaced.
+**Current RAM test:** v19 G persistent-bootstrap candidate, SHA256
+`eefa70189bf032f68d821bf9a1695229b15f0a20d2b0ffcbfbc0a4d35d80d42a`,
+no automatic reboot timeout. USB serial remains the recovery interface.
+Local SSH: `out/checkpoints/20260925-persistence-power/arch-session-f/ssh`.
+Android recovery appeared after a native restart; recovery ADB successfully
+returned it to the bootloader. Do not select Factory reset: userdata is Linux.
 
 **Previous RAM milestone:** panel/bandwidth v18 image D, 120 Hz animation validated;
 1800-second automatic return to stock slot A. No partitions were flashed.
@@ -164,7 +169,7 @@ than assuming that ttyACM0 is always its port.
 
 ## Next work
 
-1. Finish the root copy, validate desktop startup from storage, and install the
+1. Complete desktop startup validation from storage and install the
    verified native boot image. Power-key events and clean shared CRT screen
    off/on are already confirmed.
 2. Validate persistence across independent boots and improve UFS performance.

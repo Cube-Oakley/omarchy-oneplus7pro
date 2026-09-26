@@ -228,7 +228,7 @@ PAGE_SOFTWARE = {
               ref: "devices/oneplus7pro/docs/keyboard-browser-20260918.md" },
             { n: "Webapp launcher", s: "ok", note: "Desktop-entry driven app-mode windows." },
             { n: "pacman package management", s: "ok",
-              on: { pixel7pro: { s: "partial", note: "Works in the RAM Arch root through a temporary package tunnel from the computer; installs vanish at reboot.",
+              on: { pixel7pro: { s: "partial", note: "Pacman was verified in the staging root through a temporary host package tunnel. That Arch root is now installed on ext4 userdata; native networking remains unfinished.",
                                  ref: "devices/pixel7pro/docs/hyprland-mobile-20260925.md" } },
               note: "Ordinary sync/install works; the earlier Landlock incompatibility is fixed.",
               ref: "devices/oneplus7pro/docs/status.md" }
@@ -363,12 +363,12 @@ PAGE_SOFTWARE = {
         { n: "Automated UI / backend / hardware-policy tests", s: "ok",
           note: "Gesture, backend and policy checks under tests/, run against the live session.", ref: "tests/" },
         { n: "Guarded build, flash and rollback tooling", s: "ok",
-          on: { pixel7pro: { s: "partial", note: "Image-hash and phone-identity checks, then a fastboot RAM boot that returns to Android on its own; nothing is flashed yet, by design.",
+          on: { pixel7pro: { s: "partial", note: "Guarded sparse userdata installation checks identity, layout and image hash. Boot-slot tooling additionally checks the running kernel build ID and direct write readback. Android userdata has been replaced.",
                              ref: "devices/pixel7pro/README.md" } },
           note: "Explicit target identity, image/hash and slot checks, frozen checkpoints and rollback images.",
           ref: "devices/oneplus7pro/README.md" },
         { n: "Reusable shell across devices", s: "partial",
-          on: { pixel7pro: { s: "partial", note: "The shared overlay runs unchanged with a three-file Pixel adapter (scale, session preparation, bootstrap), installed by hand into the RAM root.",
+          on: { pixel7pro: { s: "partial", note: "The shared overlay runs unchanged with a three-file Pixel adapter (scale, session preparation, bootstrap), included in the prepared Arch root now installed on internal storage.",
                              ref: "devices/pixel7pro/docs/hyprland-mobile-20260925.md" } },
           note: "Shared UI in overlay/mobile/, one adapter per device. The Pixel 7 Pro runs it unchanged as a second "
               + "device; both now live in one repository, but the shell is still installed by hand, not assembled "

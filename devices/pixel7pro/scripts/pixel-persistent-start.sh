@@ -4,6 +4,7 @@ set -eu
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin
 log() { printf '<5>PIXEL ROOT: %s\n' "$*" >/dev/kmsg; echo "$*"; }
 trap 'log "startup stopped; inspect /run/pixel-persistent.log over USB serial"' EXIT
+insmod /lib/modules/pixel/pixel-reboot.ko
 insmod /lib/modules/pixel/pixel-ufs.ko
 for n in $(seq 1 60); do
     [ -b /dev/sda31 ] && break

@@ -20,7 +20,7 @@ OnePlus hardware control adapters here.
 
 | Capability | Current state |
 |---|---|
-| Native CPU/userspace | Verified, Arch Linux ARM in RAM, development PID1 |
+| Native CPU/userspace | Verified, Arch Linux ARM on ext4 userdata, RAM recovery PID1 |
 | Internal display | Native DMA scanout; clean 60/120 Hz with integrated memory bandwidth floor |
 | Hyprland/mobile shell | Mali-G710 rendering; fullscreen animation verified at 119.6–120.2 fps |
 | USB serial/Ethernet/SSH | Verified |
@@ -30,7 +30,7 @@ OnePlus hardware control adapters here.
 | CPU/thermal | Bounded cpufreq, schedutil and seven thermal zones verified |
 | Battery/charging | Not brought up |
 | Wi-Fi, Bluetooth, cellular, audio, camera | Not brought up |
-| Persistent storage/native install | UFS reads and ext4 write/remount/readback pass; root copy and automatic boot validation in progress |
+| Persistent storage/native install | UFS read/write checks pass; installed Arch desktop validated; native boot-slot installation in progress |
 | Wired external display | Not a requirement for this device |
 
 See [the working checkpoint](../docs/hyprland-mobile-20260925.md),

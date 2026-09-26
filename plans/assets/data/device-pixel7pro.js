@@ -6,7 +6,7 @@
 HW.pixel7pro = {
   blurb: "Everything physically present in the Pixel 7 Pro, plus the platform pieces the phone depends on "
        + "(boot chain, firmware interfaces, power management, storage). Every result so far comes from "
-       + "mainline Linux. Userdata is now an ext4 Linux root; copying Arch and native boot installation are in progress.",
+       + "mainline Linux. Arch is installed on ext4 userdata and runs the shared desktop; native boot-slot installation is in progress.",
 
   sections: [
     {
@@ -34,11 +34,11 @@ HW.pixel7pro = {
           ref: "devices/pixel7pro/docs/device.md" },
         { n: "UFS storage (256 GB)", s: "partial", cap: "storage",
           note: "Linux enumerated all four UFS logical units and boot-image hashes match stock references. "
-              + "Userdata is ext4 and a write/remount/readback check passes; the Arch root copy is running. PWM gear 1 is slow.",
+              + "Userdata is ext4; write/remount/readback passes and the installed Arch desktop runs. PWM gear 1 makes cold startup slow.",
           ref: "devices/pixel7pro/docs/persistence-power-20260925.md" },
         { n: "Boot chain (unlocked bootloader, fastboot RAM boot)", s: "partial", cap: "boot",
           note: "Mainline Linux boots natively with an embedded initramfs through a hash-checked fastboot boot, "
-              + "with a USB recovery shell. Installation candidates have no automatic timeout; not installed to a slot yet.",
+              + "with a USB recovery shell and no automatic timeout. The exact RAM-tested kernel is under guarded boot-slot installation.",
           ref: "devices/pixel7pro/docs/native-shell-20260925.md" },
         { n: "Bootloader and saved-image recovery", s: "ok", cap: "recovery",
           note: "Power + Volume Down reaches the verified bootloader; saved host images provide recovery. "

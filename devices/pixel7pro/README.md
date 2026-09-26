@@ -5,8 +5,8 @@ Bringing native Linux and the Omarchy desktop experience to the Pixel 7 Pro
 bring-up methods and the eventual mobile interface.
 
 **Status: accelerated shared mobile shell and working CRT screen power;
-persistent installation in progress, September 25, 2026.** Mainline Linux runs Arch Linux
-ARM and the shared Hyprland/Quickshell mobile shell from RAM. Mali-G710 rendering,
+persistent installation in progress, September 26, 2026.** Mainline Linux runs Arch Linux
+ARM and the shared Hyprland/Quickshell mobile shell from installed ext4 storage. Mali-G710 rendering,
 clean 120 Hz scanout, bounded CPU scaling and seven thermal zones are verified.
 The new S2MPG12 input driver and DRM panel off/on path have a user-confirmed
 sleep/wake cycle with clean CRT transitions and no console flash.
@@ -14,7 +14,7 @@ The Pixel uses the same CRT animation and power-key policy as the OnePlus.
 
 This phone is dedicated to Linux. Android userdata has been replaced with ext4
 after verified UFS reads and explicit authorization. The write/readback check
-passes and the Arch root copy is running; native boot-slot installation is next.
+passes and the installed Arch desktop has been validated; native boot-slot installation is in progress.
 Recovery uses the bootloader and saved host images. See the
 [active implementation record](docs/persistence-power-20260925.md).
 
@@ -28,7 +28,7 @@ Recovery uses the bootloader and saved host images. See the
 | Wayland | Hyprland on Mali-G710 MC7, shared mobile shell and clean fullscreen animation at 119.6–120.2 fps; older software-rendered fallback preserved. |
 | CPU/thermal | Three bounded cpufreq policies, schedutil, seven thermal zones and cooling tests. |
 | Power key/display sleep | S2MPG12 press/release, panel off/on and clean shared CRT transitions confirmed; CPU stays awake. |
-| Internal storage | All UFS logical units discovered; boot hashes match and ext4 write/remount/readback passes. Arch root copy in progress. |
+| Internal storage | All UFS logical units discovered; boot hashes match and ext4 write/remount/readback passes. The installed Arch desktop runs from userdata. |
 | Physical touch | S3908 GPIO SPI input reached Hyprland; user confirmed response, but it is slow. |
 | USB | DWC3 peripheral using inherited PHY state; concurrent USB2 CDC-ACM and CDC-ECM Ethernet. |
 | Shell | Native root BusyBox shell, job control, RAM files, shell restart after exit, command exit-status reporting. |
@@ -37,9 +37,9 @@ Recovery uses the bootloader and saved host images. See the
 | Boot watchdogs | Both inherited AP watchdogs stopped; two-minute runtime verified before the longer shell test. |
 | Recovery | Power + Volume Down reaches the bootloader; verified host images are retained. Android userdata has been replaced. |
 
-Persistent desktop boot, faster UFS, complete panel rail/PHY control,
-battery/charging and CPU suspend remain unfinished. The running staging shell
-still uses RAM while the root copy completes. Slot B is **not** a recovery fallback.
+Autonomous boot validation, faster UFS, complete panel rail/PHY control,
+battery/charging and CPU suspend remain unfinished. Image G was RAM-booted,
+but its Arch userspace now runs from internal storage. Slot B is **not** a recovery fallback.
 
 ## Connect
 

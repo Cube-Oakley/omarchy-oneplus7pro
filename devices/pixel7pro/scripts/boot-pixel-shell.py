@@ -71,4 +71,4 @@ for name, expected in [('product', 'cheetah'), ('current-slot', 'a'),
         raise SystemExit(f'Refusing RAM boot: expected {name}={expected}')
 print(run(['fastboot', '-s', SERIAL, 'boot', str(a.image)], timeout=60))
 print('RAM boot sent. Connect: python scripts/pixel-shell.py')
-print('The image\'s configured test timeout applies; reboot returns to Android sooner.')
+print('The image\'s configured test timeout applies. Reboot uses the installed boot slot; Android may no longer be usable.')

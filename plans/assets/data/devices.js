@@ -30,9 +30,9 @@ DEVICES = [
     soc: "Google Tensor G2 (GS201) · Mali-G710",
     stage: "Early bring-up",
     summary: "Mainline Linux boots from RAM over fastboot and runs the shared mobile shell under Hyprland "
-           + "on the Mali GPU at 120 Hz, with confirmed CRT power-button screen off/on. Internal storage reads "
-           + "work in a diagnostic test; persistent installation is in progress. Full suspend is unfinished.",
-    meta: ["mainline 7.3-rc2 · RAM boot", "updated 2026-09-25"],
+           + "on the Mali GPU at 120 Hz, with confirmed CRT power-button screen off/on. The Arch root "
+           + "is installed on internal storage; autonomous boot validation is in progress. Full suspend is unfinished.",
+    meta: ["mainline 7.3-rc2 · RAM boot", "updated 2026-09-26"],
     readme: "devices/pixel7pro/README.md",
     status: "devices/pixel7pro/docs/status.md"
   }

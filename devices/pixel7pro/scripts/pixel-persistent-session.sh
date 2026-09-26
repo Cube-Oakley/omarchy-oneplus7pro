@@ -4,6 +4,16 @@ set -euo pipefail
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin HOME=/root USER=root LOGNAME=root
 [[ $(cat /etc/omarchy-mobile-pixel-root) == v1 ]]
 [[ $(stat -f -c %T /) == ext2/ext3 ]]
+# RTC is not brought up yet. Avoid 1970 timestamps; this is only a clock floor,
+# not a substitute for RTC or network time synchronization.
+clock_floor=$(stat -c %Y /etc/omarchy-mobile-pixel-root)
+if [[ -f /var/log/pixel-native-boots.log ]]; then
+    previous=$(stat -c %Y /var/log/pixel-native-boots.log)
+    (( previous <= clock_floor )) || clock_floor=$previous
+fi
+if (( $(date +%s) < clock_floor )); then
+    date -u -s "@$clock_floor" >/dev/null
+fi
 mkdir -p /run/sshd /run/omarchy-mobile
 for n in {1..30}; do
     ip -4 addr show dev usb0 | grep -q '10.77.7.1/30' && break
@@ -29,6 +39,8 @@ for policy in /sys/devices/system/cpu/cpufreq/policy*; do
     echo schedutil >"$policy/scaling_governor"
 done
 insmod /proc/1/root/lib/modules/pixel/pixel-powerkey.ko
-insmod /proc/1/root/lib/modules/pixel/pixel_touch_input.ko probe=1 seconds=0
+if ! insmod /proc/1/root/lib/modules/pixel/pixel_touch_input.ko probe=1 seconds=0; then
+    echo 'Temporary GPIO touch driver failed; starting the desktop with USB recovery available.' >&2
+fi
 /root/pixel-gpu-session-start.sh
 date -u +%FT%TZ >>/var/log/pixel-native-boots.log

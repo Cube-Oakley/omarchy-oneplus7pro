@@ -144,3 +144,10 @@ Scan the lines the sync adds (`git diff public main`, excluding the Pages files)
   identifiers, host paths or credentials. Only the documented Pixel USB link
   addresses are added. No firmware, boot images, root archives or raw logs are
   included.
+
+- September 26: publishing the Pixel sparse-root installer, guarded boot_a
+  installer, recovery-ADB result and first desktop from internal storage.
+  Autonomous boot validation is still in progress at this checkpoint. Reviewed
+  source contains no handset identifiers, home paths or credentials; only the
+  documented USB link addresses remain. Root archives, font caches, images,
+  screenshots and raw device logs stay local.

@@ -165,3 +165,93 @@ The earlier descriptor-address hypothesis remains unproven: both allocation
 policies failed on the first inherited probe. The working driver conservatively
 keeps descriptors below 4 GiB, permits 64-bit data buffers, and performs the
 bounded failed-probe recovery. It still needs full GS201 PHY/clock ownership.
+
+## Sparse root installation and recovery
+
+The native PWM gear 1 copy was too slow for the 2.5 GiB root. A complete snapshot
+of the prepared RAM root was saved on the host, with the latest startup scripts,
+then populated into an ext4 image matching the exact userdata geometry. Host
+`e2fsck -fn`, file contents, permissions and sparse chunk sizes were checked.
+More than 98% of the expanded image is unused space that fastboot skips.
+
+The incomplete on-device copy was stopped and deliberately discarded. A forced
+reboot skipped flushing that disposable copy; the complete root remained saved
+on the host. The experimental PMU bootloader selector reached Android recovery
+instead. Recovery displayed the Android data-corruption message because userdata
+was now Linux ext4. Recovery ADB successfully returned the phone to the bootloader.
+Do **not** choose Factory reset: it would erase the Linux filesystem.
+
+`flash-pixel-root.py` checked the unlocked cheetah, successful active slot A,
+userdata geometry and image checksum, then flashed only userdata in 20 sparse
+chunks. All chunks succeeded in 72.7 seconds. No partition table, calibration,
+identity, bootloader or boot partition was changed by this operation.
+
+Sparse image SHA256:
+`7ef443b2cc04712204c3becc16e9a3ece5c196877680988b1bbb9eded1a30efb`.
+Image G RAM boot SHA256:
+`eefa70189bf032f68d821bf9a1695229b15f0a20d2b0ffcbfbc0a4d35d80d42a`.
+Kernel ELF build ID: `1edf1b92a5f315ef6d9436b549509d327e339651`.
+G has no automatic reboot timeout. Persistent desktop validation precedes any
+boot-slot installation. Root archives, images and SSH material remain local.
+
+## Installation tooling
+
+These helpers target only the inspected 256 GB cheetah layout; they are not a
+general installer for other Pixels or capacities. Paths below are relative to
+`devices/pixel7pro/`. Keep the serial in ignored `out/device.serial`.
+
+- `scripts/build-pixel-root-image.py --archive <prepared-root.tar> --output <new-dir>`
+  builds the full-geometry ext4 image, checks it and emits the sparse image plus
+  a checksum/geometry manifest. The input is a prepared, tested Arch snapshot,
+  not an arbitrary distribution archive. Output includes private SSH material.
+- `scripts/flash-pixel-root.py --image-dir <new-dir>` checks the image and
+  fastboot target without writing. `--replace-android-data` explicitly enables
+  the userdata write; it leaves the bootloader active and does not switch slots.
+- RAM-boot the exact persistent kernel using `scripts/boot-pixel-shell.py` with
+  its explicit image path and SHA256. Validate the mounted root, desktop,
+  thermals and physical controls before proceeding.
+- `scripts/install-pixel-boot.py --image <boot.img> --sha256 <sha256>
+  --kernel-build-id <kernel-build-id.txt> --ssh-wrapper <trusted-local-wrapper>`
+  performs a read-only preflight, including the running kernel's GNU build ID,
+  root marker, partition geometry, desktop processes and original boot hash.
+  `--replace-android-boot` enables a write to **boot_a only**, followed by a
+  direct-I/O SHA256 readback. It never reboots automatically. Preserve the saved
+  factory boot image and recovery route before enabling this step.
+
+The bootstrap retains a RAM recovery PID1 and runs the native Arch desktop in
+the mounted ext4 root. It is not yet a systemd service boot. For orderly restart,
+signal this PID1 (`kill -TERM 1` from recovery): it stops writers, syncs and
+remounts the persistent root read-only before rebooting. Do not use forced
+reboot during ordinary use. The bootloader mode selector remains experimental.
+
+Initial cold startup exposed slow library/font reads at PWM gear 1. The desktop
+launcher permits longer shader/compositor startup and the session tolerates a
+failed temporary touch probe while retaining USB recovery. Until RTC support is
+available, session startup uses the root marker/previous boot-log timestamp as
+a clock floor; this does not provide accurate offline wall time.
+
+## First desktop from installed storage
+
+Image G mounted ext4 userdata automatically and read the saved proof file back.
+The GPU shader test passed. Cold library reads and Pango/fontconfig discovery
+made the first desktop take about ten minutes; the 243 MiB font directory was
+being scanned and caches written, rather than the compositor having crashed.
+
+The first session began with a 1970 clock. Setting host time after Hyprland had
+started left its shell layers at alpha 0, despite mapped shell windows and a
+visible Kitty window in a captured frame. After restarting the desktop with
+the corrected clock and warm caches, all shared layers reported alpha 1,
+configuration errors were empty, the keyboard/terminal ran and scanout remained
+120 Hz with zero transfer failures/underruns. Clock setup now precedes desktop
+startup, using the conservative floor described above.
+
+Updating the running Bash startup file in place also interrupted its final
+logging step. The complete saved script passed syntax and checksum checks; the
+desktop launcher was rerun successfully and then recorded the boot. Future
+deployments must replace running scripts atomically. This first boot included
+manual recovery; it is not evidence of unattended startup after a reboot.
+
+The guarded boot installer is now checking the original boot_a before writing
+the RAM-tested G image. A new file created in the installed root will be checked
+after independent normal boots. Boot-slot installation and autonomous startup
+are not considered complete until those checks pass.

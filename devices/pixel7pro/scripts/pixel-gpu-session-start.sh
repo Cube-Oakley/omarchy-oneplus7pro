@@ -18,7 +18,10 @@ export GBM_BACKENDS_PATH=/opt/pixel-mesa/lib/gbm
 export __EGL_VENDOR_LIBRARY_FILENAMES=/opt/pixel-mesa/share/glvnd/egl_vendor.d/50_mesa.json
 unset GBM_ALWAYS_SOFTWARE LIBGL_ALWAYS_SOFTWARE GALLIUM_DRIVER MESA_LOADER_DRIVER_OVERRIDE
 # Refuse to start the desktop if the isolated build cannot execute a shader.
-timeout 20 /root/pixel-gpu-render-test /dev/dri/card0
+startup_timeout=20
+# Initial UFS bring-up uses PWM gear 1; cold library reads need more time.
+[[ ! -f /etc/omarchy-mobile-pixel-root ]] || startup_timeout=180
+timeout "$startup_timeout" /root/pixel-gpu-render-test /dev/dri/card0
 mkdir -p /run/user/0 /run/udev
 chmod 700 /run/user/0
 if ! pgrep -x systemd-udevd >/dev/null; then
@@ -44,7 +47,7 @@ ulimit -c 0
 nohup Hyprland --i-am-really-stupid -c /root/pixel-hyprland.lua \
     >/run/hyprland-gpu.log 2>&1 </dev/null &
 hypr_pid=$!
-for n in {1..150}; do
+for ((n=0; n<startup_timeout*10; n++)); do
     kill -0 "$hypr_pid" || { cat /run/hyprland-gpu.log >&2; exit 1; }
     hypr_socket=$(hyprctl instances 2>/dev/null | awk -v wanted="$hypr_pid" \
         '$1 == "pid:" { pid=$2 } $1 == "wl" && pid == wanted { print $3 }')

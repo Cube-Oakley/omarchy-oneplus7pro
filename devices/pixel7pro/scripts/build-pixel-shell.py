@@ -130,10 +130,11 @@ with (out / 'build.log').open('w') as log:
         for name, source in (
             ('pixel-ufs.c', ROOT / 'kernel/storage/pixel-ufs.c'),
             ('pixel-powerkey.c', ROOT / 'kernel/powerkey/pixel-powerkey.c'),
+            ('pixel-reboot.c', ROOT / 'kernel/reboot/pixel-reboot.c'),
             ('pixel_touch_input.c', ROOT / 'mainline/pixel-touch-input.c'),
         ):
             shutil.copy2(source, modules / name)
-        (modules / 'Makefile').write_text('obj-m += pixel-ufs.o pixel-powerkey.o pixel_touch_input.o\n')
+        (modules / 'Makefile').write_text('obj-m += pixel-ufs.o pixel-powerkey.o pixel-reboot.o pixel_touch_input.o\n')
         old_symbols = {line.split()[1] for line in (kernel / 'Module.symvers').read_text().splitlines()}
         extra = ''.join(line for line in (kernel / 'vmlinux.symvers').read_text().splitlines(True)
                         if line.split()[1] not in old_symbols)
@@ -150,6 +151,11 @@ with (out / 'build.log').open('w') as log:
                         'CROSS_COMPILE=aarch64-linux-gnu-', f'-j{a.jobs}', 'Image'],
                        stdout=log, stderr=subprocess.STDOUT, check=True)
 shutil.copy2(kernel / 'arch/arm64/boot/Image', out / 'Image')
+notes = subprocess.check_output(['aarch64-linux-gnu-readelf', '-n', str(kernel / 'vmlinux')], text=True)
+build_id = re.search(r'Build ID:\s+([0-9a-f]+)', notes)
+if not build_id:
+    raise RuntimeError('Kernel ELF build ID missing')
+(out / 'kernel-build-id.txt').write_text(build_id[1] + '\n')
 shutil.copy2(kernel / '.config', out / 'kernel.config')
 shutil.copy2(ROOT / 'mainline/pixel-shell-init.c', out / 'pixel-shell-init.c')
 shutil.copy2(ROOT / 'mainline/bootconfig', out / 'bootconfig')
