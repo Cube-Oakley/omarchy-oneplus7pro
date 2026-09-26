@@ -26,7 +26,9 @@ H session using the installed root, at the user's request to stop for the night.
 The user sees the persistent-root terminal and prompt, but no top shell interface.
 Quickshell is running with its layers at alpha 0; cold-start visibility is unresolved.
 Setting the clock before Hyprland did not prevent this on H.
-Next: fix cold-start shell visibility, then verify H through normal reboots,
+Overnight follow-up: the user reports the power button does not work in this
+session. Remote display-off succeeded and DPMS reports off; Linux stays awake.
+Next: fix cold-start shell visibility and the current physical-key path, then verify H through normal reboots,
 saved-file readback and physical CRT power-key checks on the resulting desktop.
 There is no automatic reboot timeout. USB serial works on the RAM recovery path.
 Local SSH: `out/checkpoints/20260925-persistence-power/arch-session-f/ssh`.

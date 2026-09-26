@@ -372,3 +372,16 @@ Resume with cold-start shell visibility diagnosis, then an orderly normal boot
 of installed H. Record a new boot ID, embedded parameters, persistent proof files
 and visible shell; repeat normal boot and physical CRT sleep/wake validation.
 Normal boot without a host, full suspend, and faster UFS remain unfinished.
+
+### Overnight screen-off follow-up
+
+The user reports that the physical power button does not blank the display in
+the current H session. USB SSH remains reachable. Calling the installed shared
+`omarchy-mobile-display off` returned `ok`, and Hyprland reported
+`dpmsStatus: false`. This is remote screen blanking, not CPU suspend or renewed
+physical-key validation. Leave the screen off; diagnose the current power-key
+path alongside cold shell visibility on resumption. Earlier v19 B success does
+not establish that H's persistent session has working physical sleep/wake.
+Driver logs also confirm `display off power=99` (DCS 0x99). Physical key
+press/release events were logged earlier, narrowing the missing action to the
+session/input integration rather than proving a missing hardware event.

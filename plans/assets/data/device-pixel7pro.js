@@ -63,7 +63,7 @@ HW.pixel7pro = {
         { n: "RTC and alarms", s: "no",
           note: "Not attempted; the clock is set from the computer at session start." },
         { n: "Power button", s: "ok", cap: "buttons",
-          note: "S2MPG12 ACPM input driver reports physical press/release. User confirms clean shared CRT close/open and screen off/on. Polling input cannot wake a suspended CPU.",
+          note: "S2MPG12 ACPM input driver reports physical press/release. User confirmed clean shared CRT close/open on v19 B. The current H persistent session does not respond to the key; remote display-off works. Physical-key integration needs diagnosis. Polling input cannot wake a suspended CPU.",
           ref: "devices/pixel7pro/docs/persistence-power-20260925.md" },
         { n: "Volume up / down keys", s: "no", cap: "buttons", note: "Not attempted yet." },
         { n: "Battery gauge", s: "no", cap: "battery", note: "Not brought up.", ref: "devices/pixel7pro/adapter/README.md" },
