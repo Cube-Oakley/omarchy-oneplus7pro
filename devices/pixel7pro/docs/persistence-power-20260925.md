@@ -265,3 +265,17 @@ Hyprland from the installed root before the restart, with noticeable slowness.
 An orderly restart was requested through recovery PID1. USB did not return
 within the initial observation window; the user sees console text. This is
 under diagnosis and does not yet establish autonomous boot or clean reboot.
+
+The September 26 console photo shows a new kernel boot, with timestamps through
+approximately 0.253 seconds and serial-driver initialization. The screen wraps,
+so its bottom line at 0.165 seconds is not the newest line. There is no visible
+panic. This rules out treating the displayed text as a late shutdown log, but
+does not identify the exact blocking instruction: framebuffer refresh can lag
+the last emitted message. Working RAM-boot logs continue beyond this stage.
+
+A diagnostic wrapper preserves the exact G kernel/build ID and adds only
+`initcall_debug`; its SHA256 is
+`d9e3a47f946674129b702644b4f5a262f72667c4940fd202617bc4be39e69a2e`.
+It has been built locally, not booted or flashed. The next steps are physical
+return to fastboot, recovery of available bootloader logs, and a traced boot.
+The photo remains local; it is not a published artifact.
