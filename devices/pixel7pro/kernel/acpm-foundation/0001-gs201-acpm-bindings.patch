@@ -1,0 +1,27 @@
+diff --git i/Documentation/devicetree/bindings/firmware/google,gs101-acpm-ipc.yaml w/Documentation/devicetree/bindings/firmware/google,gs101-acpm-ipc.yaml
+index e68f9c3ca..5a80b6ca0 100644
+--- i/Documentation/devicetree/bindings/firmware/google,gs101-acpm-ipc.yaml
++++ w/Documentation/devicetree/bindings/firmware/google,gs101-acpm-ipc.yaml
+@@ -22,7 +22,9 @@ description: |
+ 
+ properties:
+   compatible:
+-    const: google,gs101-acpm-ipc
++    enum:
++      - google,gs101-acpm-ipc
++      - google,gs201-acpm-ipc
+ 
+   "#clock-cells":
+     const: 1
+diff --git i/Documentation/devicetree/bindings/mailbox/google,gs101-mbox.yaml w/Documentation/devicetree/bindings/mailbox/google,gs101-mbox.yaml
+index c109c1f7a..9e6c01f29 100644
+--- i/Documentation/devicetree/bindings/mailbox/google,gs101-mbox.yaml
++++ w/Documentation/devicetree/bindings/mailbox/google,gs101-mbox.yaml
+@@ -22,6 +22,7 @@ properties:
+   compatible:
+     enum:
+       - google,gs101-mbox
++      - google,gs201-mbox
+       - samsung,exynos850-mbox
+ 
+   reg:

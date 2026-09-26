@@ -2,7 +2,8 @@
 
 Updated from the user's 2026-09-17 requirements. Shared shell, input and service
 policy belongs in `overlay/mobile/`; board-specific kernel, firmware, audio
-routing and charging support belongs in `devices/oneplus7pro/`.
+routing and charging support belongs in that phone's `devices/<device>/`
+directory (`devices/oneplus7pro/`, `devices/pixel7pro/`).
 
 ## Current order
 
@@ -73,8 +74,8 @@ and service from device adapters and Quickshell presentation. Evaluate existing
 protocols/services before inventing a new one; preserve standard Omarchy theme
 formats on both ends. Background delivery must fit the sleep/wake design.
 
-See [next session](next-session.md) for checkpoints and recovery instructions,
-and [background wake design](background-wake-plan.md) for notification delivery
+See [next session](../devices/oneplus7pro/docs/next-session.md) for checkpoints and recovery instructions,
+and [background wake design](../devices/oneplus7pro/docs/background-wake-plan.md) for notification delivery
 while asleep. This is a backlog, not a claim of completed hardware support.
 
 - Add a themed font picker to mobile settings; initial user choice is JetBrainsMono Nerd Font for the shell and Kitty. Preserve the choice across theme changes.

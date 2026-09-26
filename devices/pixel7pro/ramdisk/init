@@ -1,0 +1,121 @@
+#!/busybox sh
+# Pixel 7 Pro ramdisk: disable SELinux, log to pmsg+persist, load USB PHY.
+BB=/busybox
+export PATH=/bin:/sbin:/usr/bin:/usr/sbin
+LOG=/persist/omarchy-ramdisk.log
+
+$BB mkdir -p /proc /sys /dev /tmp /bin /sbin /persist /sys/fs/pstore /sys/fs/selinux /sys/kernel/config
+$BB mount -t proc proc /proc
+$BB mount -t sysfs sysfs /sys
+$BB mount -t devtmpfs devtmpfs /dev
+$BB --install -s /bin 2>/dev/null || true
+
+# Kernel is enforcing with no Android policy — that would block USB probes.
+$BB mount -t selinuxfs selinuxfs /sys/fs/selinux 2>/dev/null || true
+$BB echo 0 > /sys/fs/selinux/enforce 2>/dev/null || true
+
+# persist is ext4 on sda1 on this unit. Survives reboot; we read it after restore.
+$BB mount -t ext4 -o rw,noatime /dev/block/sda1 /persist 2>/dev/null \
+  || $BB mount -t ext4 -o rw,noatime /dev/block/by-name/persist /persist 2>/dev/null || true
+$BB mount -t pstore pstore /sys/fs/pstore 2>/dev/null || true
+
+log() {
+  $BB echo "OMARCHY: $*" > /dev/kmsg 2>/dev/null
+  $BB echo "OMARCHY: $*" > /dev/pmsg0 2>/dev/null
+  $BB echo "OMARCHY: $*" >> "$LOG" 2>/dev/null
+}
+
+: > "$LOG" 2>/dev/null
+log "init pid=$$"
+log "selinux enforce=$($BB cat /sys/fs/selinux/enforce 2>/dev/null)"
+log "lib/modules exists=$($BB test -d /lib/modules && echo y || echo n)"
+log "ko count=$($BB ls /lib/modules/*.ko 2>/dev/null | $BB wc -l)"
+log "block=$($BB ls /dev/block 2>/dev/null | $BB tr '\n' ' ')"
+
+MODDIR=/lib/modules
+for m in \
+  gvotable.ko \
+  exynos-pd_hsi0.ko \
+  pkvm-s2mpu.ko \
+  exynos-pd_el3.ko \
+  pinctrl-samsung-core.ko \
+  ect_parser.ko \
+  gs-chipid.ko \
+  exynos_pm_qos.ko \
+  systrace.ko \
+  kernel-top.ko \
+  pixel-suspend-diag.ko \
+  exynos-pmu-if.ko \
+  dss.ko \
+  gs_acpm.ko \
+  cmupmucal.ko \
+  clk_exynos.ko \
+  exynos-cpupm.ko \
+  logbuffer.ko \
+  phy-exynos-usbdrd-super.ko \
+  dwc3-exynos-usb.ko \
+  xhci-exynos.ko \
+  usb_f_rndis.ko \
+  i2c-exynos5.ko \
+  i2c-acpm.ko \
+  i2c-dev.ko \
+  pmic_class.ko \
+  max77729-pmic.ko \
+  max77759_helper.ko \
+  max77759_contaminant.ko \
+  usb_psy.ko \
+  bc_max77759.ko \
+  tcpci_max77759.ko \
+  google-bms.ko \
+  google-cpm.ko
+ do
+  if [ -f "$MODDIR/$m" ]; then
+    if $BB insmod "$MODDIR/$m" 2>/tmp/insmod.err; then
+      log "ok $m"
+    else
+      log "FAIL $m $($BB cat /tmp/insmod.err)"
+    fi
+  else
+    log "missing $m"
+  fi
+done
+
+log "udc=$($BB ls /sys/class/udc 2>/dev/null | $BB tr '\n' ' ')"
+log "configfs_gadget=$($BB test -d /sys/kernel/config/usb_gadget && echo y || echo n)"
+
+$BB mount -t configfs configfs /sys/kernel/config 2>/dev/null || true
+G=/sys/kernel/config/usb_gadget/omarchy
+if [ -d /sys/kernel/config/usb_gadget ]; then
+  $BB mkdir -p "$G/strings/0x409" "$G/configs/c.1/strings/0x409"
+  $BB echo 0x18d1 > "$G/idVendor"
+  $BB echo 0x4ee7 > "$G/idProduct"
+  $BB echo 0x0200 > "$G/bcdUSB"
+  $BB echo "omarchy" > "$G/strings/0x409/manufacturer"
+  $BB echo "cheetah-ramdisk" > "$G/strings/0x409/product"
+  $BB echo "omarchy-pixel7pro" > "$G/strings/0x409/serialnumber"
+  $BB echo "ACM" > "$G/configs/c.1/strings/0x409/configuration"
+  $BB mkdir -p "$G/functions/acm.usb0"
+  $BB ln -s "$G/functions/acm.usb0" "$G/configs/c.1/" 2>/dev/null || true
+  i=0
+  UDC=
+  while [ $i -lt 15 ]; do
+    UDC=$($BB ls /sys/class/udc 2>/dev/null | $BB head -1)
+    [ -n "$UDC" ] && break
+    $BB sleep 1
+    i=$((i + 1))
+  done
+  log "udc_wait=${UDC:-none} i=$i"
+  if [ -n "$UDC" ]; then
+    $BB echo "$UDC" > "$G/UDC" 2>/tmp/udc.err || log "UDC bind FAIL $($BB cat /tmp/udc.err)"
+    log "UDC bound"
+  fi
+fi
+
+log "ttyGS0=$($BB test -e /dev/ttyGS0 && echo y || echo n)"
+$BB sync
+if [ -e /dev/ttyGS0 ]; then
+  log "getty ttyGS0"
+  exec $BB getty -n -l /bin/sh 115200 /dev/ttyGS0
+fi
+log "idle — Power+VolDown"
+exec $BB sleep 86400

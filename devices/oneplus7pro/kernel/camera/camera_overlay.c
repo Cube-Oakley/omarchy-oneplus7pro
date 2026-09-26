@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* Adds CCI0, the camera subsystem, PM8009 LDO1/3/4 and camera slots: the
- * IMX586 main camera (guacamole_camera), the S5K3M5 telephoto
- * (guacamole_camera_tele) or both (guacamole_camera_rear), built from
+/* Adds CCI0 (and CCI1 for the ultra-wide), the camera subsystem, PM8009
+ * LDO1/3/4 and camera slots: the IMX586 main camera (guacamole_camera), the
+ * S5K3M5 telephoto (guacamole_camera_tele), the IMX481 ultra-wide
+ * (guacamole_camera_wide) or all three (guacamole_camera_rear), built from
  * guacamole-camera.dts. One per boot.
  * Refuses unless the RPMh hold and camcc are both bound: camcc's arrival runs
  * rpmhpd's sync_state, which without the hold releases the modem's power

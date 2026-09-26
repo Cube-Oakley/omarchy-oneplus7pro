@@ -1,0 +1,627 @@
+diff --git i/arch/arm64/kernel/Makefile w/arch/arm64/kernel/Makefile
+index d2690c3ec..73a234ebf 100644
+--- i/arch/arm64/kernel/Makefile
++++ w/arch/arm64/kernel/Makefile
+@@ -34,7 +34,7 @@ obj-y			:= debug-monitors.o entry.o irq.o fpsimd.o		\
+ 			   cpufeature.o alternative.o cacheinfo.o		\
+ 			   smp.o smp_spin_table.o topology.o smccc-call.o	\
+ 			   syscall.o proton-pack.o idle.o patching.o pi/	\
+-			   rsi.o jump_label.o
++			   rsi.o jump_label.o pixel_earlycon.o pixel_usb.o pixel_watchdog.o
+ 
+ obj-$(CONFIG_COMPAT)			+= sys32.o signal32.o			\
+ 					   sys_compat.o
+diff --git i/arch/arm64/kernel/head.S w/arch/arm64/kernel/head.S
+index 87a822e5c..b7aa09da1 100644
+--- i/arch/arm64/kernel/head.S
++++ w/arch/arm64/kernel/head.S
+@@ -73,6 +73,17 @@
+ 
+ 	.section ".idmap.text","a"
+ 
++	/* Cheetah RAM-only bring-up: MMU-off primary-path progress markers.
++	 * Probe v2 verified this console reservation and MMU-off EL2 entry.
++	 * Clobbers only x9/x10; never invoke after MMU enable or on secondaries.
++	 */
++	.macro pixel_stamp index
++	mov_q x9, 0xfd3ff000
++	mov w10, #(65 + \index)
++	strb w10, [x9, #(12 + \index)]
++	dsb sy
++	.endm
++
+ 	/*
+ 	 * The following callee saved general purpose registers are used on the
+ 	 * primary lowlevel boot path:
+@@ -83,8 +94,27 @@
+ 	 *  x21        primary_entry() .. start_kernel()        FDT pointer passed at boot in x0
+ 	 */
+ SYM_CODE_START(primary_entry)
++	mov_q x9, 0xfd3ff000
++	mov_q x10, 0x2d2d2d2d
++	str w10, [x9, #12]
++	str w10, [x9, #16]
++	str w10, [x9, #20]
++	str w10, [x9, #24]
++	str w10, [x9, #28]
++	str w10, [x9, #32]
++	str w10, [x9, #36]
++	str w10, [x9, #40]
++	mov w10, #10
++	strb w10, [x9, #43]
++	mov w10, #32
++	str w10, [x9, #4]
++	str w10, [x9, #8]
++	mov_q x10, 0x43474244
++	str w10, [x9]
++	pixel_stamp 0
+ 	bl	record_mmu_state
+ 	bl	preserve_boot_args
++	pixel_stamp 1
+ 
+ 	adrp	x1, early_init_stack
+ 	mov	sp, x1
+@@ -92,6 +122,7 @@ SYM_CODE_START(primary_entry)
+ 	adrp	x0, __pi_init_idmap_pg_dir
+ 	mov	x1, xzr
+ 	bl	__pi_create_init_idmap
++	pixel_stamp 2
+ 
+ 	/*
+ 	 * If the page tables have been populated with non-cacheable
+@@ -116,9 +147,11 @@ SYM_CODE_START(primary_entry)
+ 	adr_l	x2, dcache_clean_poc
+ 	blr	x2
+ 
+-1:	mov	x0, x19
++1:	pixel_stamp 3
++	mov	x0, x19
+ 	bl	init_kernel_el			// w0=cpu_boot_mode
+ 	mov	x20, x0
++	pixel_stamp 4
+ 
+ 	/*
+ 	 * The following calls CPU setup code, see arch/arm64/mm/proc.S for
+@@ -127,6 +160,7 @@ SYM_CODE_START(primary_entry)
+ 	 * the TCR will have been set.
+ 	 */
+ 	bl	__cpu_setup			// initialise processor
++	pixel_stamp 5
+ 	b	__primary_switch
+ SYM_CODE_END(primary_entry)
+ 
+@@ -506,6 +540,7 @@ SYM_FUNC_START_LOCAL(__no_granule_support)
+ SYM_FUNC_END(__no_granule_support)
+ 
+ SYM_FUNC_START_LOCAL(__primary_switch)
++	pixel_stamp 6
+ 	adrp	x1, reserved_pg_dir
+ 	adrp	x2, __pi_init_idmap_pg_dir
+ 	bl	__enable_mmu
+diff --git i/arch/arm64/kernel/setup.c w/arch/arm64/kernel/setup.c
+index 29c6100f0..74bb08764 100644
+--- i/arch/arm64/kernel/setup.c
++++ w/arch/arm64/kernel/setup.c
+@@ -14,6 +14,7 @@
+ #include <linux/delay.h>
+ #include <linux/initrd.h>
+ #include <linux/console.h>
++#include <linux/serial_core.h>
+ #include <linux/cache.h>
+ #include <linux/screen_info.h>
+ #include <linux/init.h>
+@@ -167,20 +168,27 @@ static void __init smp_build_mpidr_hash(void)
+ 		pr_warn("Large number of MPIDR hash buckets detected\n");
+ }
+ 
++extern void pixel_early_note(const char *s);
++
+ static void __init setup_machine_fdt(phys_addr_t dt_phys)
+ {
+ 	int size = 0;
+-	void *dt_virt = fixmap_remap_fdt(dt_phys, &size, PAGE_KERNEL);
++	void *dt_virt;
+ 	const char *name;
++	pixel_early_note("FDT: before fixmap");
++	dt_virt = fixmap_remap_fdt(dt_phys, &size, PAGE_KERNEL);
++	pixel_early_note("FDT: after fixmap");
+ 
+ 	if (dt_virt)
+ 		memblock_reserve(dt_phys, size);
++	pixel_early_note("FDT: after memblock reserve, before scan");
+ 
+ 	/*
+ 	 * dt_virt is a fixmap address, hence __pa(dt_virt) can't be used.
+ 	 * Pass dt_phys directly.
+ 	 */
+ 	if (!early_init_dt_scan(dt_virt, dt_phys)) {
++		pixel_early_note("FDT: scan FAILED");
+ 		pr_crit("\n"
+ 			"Error: invalid device tree blob: PA=%pa, VA=%px, size=%d bytes\n"
+ 			"The dtb must be 8-byte aligned and must not exceed 2 MB in size.\n"
+@@ -195,9 +203,11 @@ static void __init setup_machine_fdt(phys_addr_t dt_phys)
+ 		while (true)
+ 			cpu_relax();
+ 	}
++	pixel_early_note("FDT: scan succeeded");
+ 
+ 	/* Early fixups are done, map the FDT as read-only now */
+ 	fixmap_remap_fdt(dt_phys, &size, PAGE_KERNEL_RO);
++	pixel_early_note("FDT: remapped read-only");
+ 
+ 	name = of_flat_dt_get_machine_name();
+ 	if (!name)
+@@ -205,6 +215,7 @@ static void __init setup_machine_fdt(phys_addr_t dt_phys)
+ 
+ 	pr_info("Machine model: %s\n", name);
+ 	dump_stack_set_arch_desc("%s (DT)", name);
++	pixel_early_note("FDT: setup complete");
+ }
+ 
+ static void __init request_standard_resources(void)
+@@ -288,15 +299,28 @@ void __init __no_sanitize_address setup_arch(char **cmdline_p)
+ 
+ 	early_fixmap_init();
+ 	early_ioremap_init();
++	{
++		extern void pixel_early_stage(void);
++		pixel_early_stage();
++	}
+ 
+ 	setup_machine_fdt(__fdt_pointer);
++	pixel_early_note("setup_arch: FDT returned");
++	pixel_early_note(boot_command_line);
+ 
+ 	/*
+ 	 * Initialise the static keys early as they may be enabled by the
+ 	 * cpufeature code and early parameters.
+ 	 */
+ 	jump_label_init();
++	pixel_early_note("setup_arch: jump labels initialized");
++	/* Cloudripper strips earlycon= when its serial console is disabled.
++	 * This target-only RAM test explicitly selects the proven screen console.
++	 */
++	if (setup_earlycon("pixelfb"))
++		pixel_early_note("setup_arch: direct Pixel earlycon FAILED");
+ 	parse_early_param();
++	pixel_early_note("setup_arch: early params parsed");
+ 
+ 	dynamic_scs_init();
+ 
+diff --git i/drivers/clocksource/exynos_mct.c w/drivers/clocksource/exynos_mct.c
+index da09f467a..6501476e7 100644
+--- i/drivers/clocksource/exynos_mct.c
++++ w/drivers/clocksource/exynos_mct.c
+@@ -645,6 +645,15 @@ static int __init mct_init_dt(struct device_node *np, unsigned int int_type)
+ 	int nr_local;
+ 	int ret;
+ 
++	/* The GS201 vendor DT reuses this compatible, but its clock provider
++	 * and interrupt topology are not supported by this driver. The ARM
++	 * architected timer is available for the Cheetah bring-up kernel.
++	 */
++	if (of_machine_is_compatible("google,GS201")) {
++		pr_info("GS201 bring-up: skip unsupported vendor MCT; use arch timer\n");
++		return -ENODEV;
++	}
++
+ 	nr_local = of_property_count_u32_elems(np, "samsung,local-timers");
+ 	if (nr_local == 0)
+ 		return -EINVAL;
+diff --git i/init/main.c w/init/main.c
+index c05e63b8e..7ebb88fc3 100644
+--- i/init/main.c
++++ w/init/main.c
+@@ -365,17 +365,24 @@ static int __init warn_bootconfig(char *str)
+ 
+ static void __init setup_boot_config(void)
+ {
+-	const char *msg, *data;
++	const char *msg, *data, *initrd_data;
+ 	int pos, ret, offs;
+-	size_t size;
++	size_t size, initrd_size = 0;
+ 	bool from_embedded = false;
+ 
+-	/* Cut out the bootconfig data even if we have no bootconfig option */
+-	data = get_boot_config_from_initrd(&size);
+-	/* If there is no bootconfig in initrd, try embedded one. */
+-	if (!data) {
+-		data = xbc_get_embedded_bootconfig(&size);
++	/* Always strip an initrd trailer so it is not unpacked as files. */
++	initrd_data = get_boot_config_from_initrd(&initrd_size);
++	/*
++	 * Pixel vendor_boot carries androidboot.* bootconfig. Using that
++	 * instead of the embed would drop kernel { rdinit = "/ourinit" }.
++	 * Vendor ramdisk also overwrites /init, so PID 1 must be rdinit.
++	 */
++	data = xbc_get_embedded_bootconfig(&size);
++	if (data) {
+ 		from_embedded = true;
++	} else {
++		data = initrd_data;
++		size = initrd_size;
+ 	}
+ 
+ 	bootconfig_found = bootconfig_cmdline_requested(boot_command_line, &offs);
+diff --git i/usr/Kconfig w/usr/Kconfig
+index 9279a2893..ae5613295 100644
+--- i/usr/Kconfig
++++ w/usr/Kconfig
+@@ -24,7 +24,7 @@ config INITRAMFS_SOURCE
+ 
+ config INITRAMFS_FORCE
+ 	bool "Ignore the initramfs passed by the bootloader"
+-	depends on CMDLINE_EXTEND || CMDLINE_FORCE
++	depends on INITRAMFS_SOURCE != ""
+ 	help
+ 	  This option causes the kernel to ignore the initramfs image
+ 	  (or initrd image) passed to it by the bootloader. This is
+--- /dev/null
++++ b/arch/arm64/kernel/pixel_earlycon.c
+@@ -0,0 +1,218 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/* Cheetah early framebuffer console, based on the verified RAM probe v2.
++ * Development-only: stock GS201 DT, retained ABL DPP0/DECON0, no display driver.
++ * Uses EFI earlycon's temporary-map -> early_initcall permanent-map pattern.
++ * CONFIG_PSTORE_RAM must be disabled: we own its console buffer during this test.
++ */
++#include <linux/console.h>
++#include <linux/font.h>
++#include <linux/init.h>
++#include <linux/io.h>
++#include <linux/memblock.h>
++#include <linux/serial_core.h>
++#include <linux/sizes.h>
++#include <asm/arch_timer.h>
++#include <asm/early_ioremap.h>
++
++#define PFB_BASE 0xfac00000UL
++#define PFB_W 1440
++#define PFB_H 3120
++#define PFB_BYTES PAGE_ALIGN(PFB_W * PFB_H * 4)
++#define PFB_DMA 0x1c0b0000UL
++#define PFB_DECON 0x1c240000UL
++#define PFB_LOG 0xfd3ff000UL
++#define PFB_LOG_SIZE SZ_128K
++#define PFB_Y 600
++#define PFB_ROWS 60
++#define PFB_COLS 82
++#define PFB_CH 32
++#define PFB_ROW_BYTES (PFB_CH * PFB_W * 4)
++
++static void *pixel_fb, *pixel_log;
++static void __iomem *pixel_decon;
++static bool pixel_active, pixel_draw;
++static unsigned int pixel_x, pixel_y;
++static u64 last_flush;
++void __init pixel_early_stage(void);
++void __init pixel_early_note(const char *s);
++
++static __ref void *pixel_map(phys_addr_t pa, size_t size, void *permanent)
++{
++	if (permanent)
++		return permanent;
++	return early_memremap_prot(pa, size, pgprot_val(pgprot_writecombine(PAGE_KERNEL)));
++}
++
++static __ref void pixel_unmap(void *p, size_t size, void *permanent)
++{
++	if (!permanent && p)
++		early_memunmap(p, size);
++}
++
++static void pixel_save(const char *s, unsigned int n)
++{
++	u32 *log = pixel_map(PFB_LOG, PFB_LOG_SIZE, pixel_log);
++	u32 used;
++
++	if (!log)
++		return;
++	used = READ_ONCE(log[2]);
++	if (used < PFB_LOG_SIZE - 12) {
++		n = min_t(unsigned int, n, PFB_LOG_SIZE - 12 - used);
++		memcpy((u8 *)log + 12 + used, s, n);
++		wmb();
++		WRITE_ONCE(log[1], used + n);
++		WRITE_ONCE(log[2], used + n);
++		wmb();
++	}
++	pixel_unmap(log, PFB_LOG_SIZE, pixel_log);
++}
++
++void __init pixel_early_stage(void)
++{
++	pixel_save("Linux setup_arch: early mappings ready\n",
++		   sizeof("Linux setup_arch: early mappings ready\n") - 1);
++}
++
++void __init pixel_early_note(const char *s)
++{
++	pixel_save(s, strlen(s));
++	pixel_save("\n", 1);
++}
++
++static void __ref pixel_flush(void)
++{
++	void __iomem *regs;
++	u32 trigger;
++	u64 start, freq = read_sysreg(cntfrq_el0);
++
++	if (!pixel_draw)
++		return;
++	/* Cap normal refreshes at ~25 Hz; RAM log still records every message. */
++	start = __arch_counter_get_cntvct();
++	if (start - last_flush < freq / 25)
++		return;
++	regs = pixel_decon ?: early_ioremap(PFB_DECON, PAGE_SIZE);
++	if (!regs)
++		return;
++	trigger = readl(regs + 0x30);
++	wmb();
++	writel(readl(regs + 0x50) | 0x3f, regs + 0x50);
++	writel(readl(regs + 0x20) | 3, regs + 0x20);
++	writel(readl(regs + 0x50) | 0x80100000, regs + 0x50);
++	writel((trigger & ~0x10U) | 1, regs + 0x30);
++	while (readl(regs + 0x50) && __arch_counter_get_cntvct() - start < freq / 10)
++		cpu_relax();
++	writel(trigger, regs + 0x30);
++	last_flush = __arch_counter_get_cntvct();
++	if (!pixel_decon)
++		early_iounmap(regs, PAGE_SIZE);
++}
++
++static void pixel_write(struct console *con, const char *s, unsigned int n)
++{
++	pixel_save(s, n);
++	if (!pixel_draw)
++		return;
++	while (n) {
++		u32 *row;
++		unsigned long offset = (PFB_Y + pixel_y * PFB_CH) * PFB_W * 4;
++		void *permanent = pixel_fb ? pixel_fb + offset : NULL;
++
++		row = pixel_map(PFB_BASE + offset, PFB_ROW_BYTES, permanent);
++		if (!row)
++			return;
++		if (!pixel_x)
++			for (unsigned int i = 0; i < PFB_CH * PFB_W; i++)
++				row[i] = 0xff101010;
++		while (n && pixel_x < PFB_COLS) {
++			unsigned char c = *s++;
++			n--;
++			if (c == '\r')
++				continue;
++			if (c == '\n') {
++				pixel_x = PFB_COLS;
++				break;
++			}
++			if (c == '\t') c = ' ';
++			for (unsigned int gy = 0; gy < 16; gy++) {
++				u8 bits = ((const u8 *)font_vga_8x16.data)[c * 16 + gy];
++				for (unsigned int gx = 0; gx < 8; gx++) {
++					u32 color = bits & (128 >> gx) ? 0xffffffff : 0xff101010;
++					for (unsigned int dy = 0; dy < 2; dy++) {
++						u32 *p = row + (gy * 2 + dy) * PFB_W + 64 + pixel_x * 16 + gx * 2;
++						p[0] = p[1] = color;
++					}
++				}
++			}
++			pixel_x++;
++		}
++		pixel_unmap(row, PFB_ROW_BYTES, permanent);
++		if (pixel_x == PFB_COLS) {
++			pixel_x = 0;
++			pixel_y = (pixel_y + 1) % PFB_ROWS;
++		}
++	}
++	pixel_flush();
++}
++
++static int __init pixel_setup(struct earlycon_device *device, const char *opt)
++{
++	void __iomem *dma, *decon;
++	u32 *log;
++	u32 base, size, ctrl, global, trigger;
++
++	/* Refuse configurations that would have two writers on the same RAM log. */
++	if (IS_ENABLED(CONFIG_PSTORE_RAM))
++		return -EINVAL;
++	memblock_reserve(PFB_BASE, PFB_BYTES);
++	memblock_mark_nomap(PFB_BASE, PFB_BYTES);
++	memblock_reserve(PFB_LOG, SZ_4M);
++	memblock_mark_nomap(PFB_LOG, SZ_4M);
++	log = pixel_map(PFB_LOG, PFB_LOG_SIZE, NULL);
++	if (!log)
++		return -ENOMEM;
++	log[1] = log[2] = 0;
++	log[0] = 0x43474244;
++	wmb();
++	pixel_unmap(log, PFB_LOG_SIZE, NULL);
++	pixel_save("PIXEL LINUX EARLYCON SETUP\n", sizeof("PIXEL LINUX EARLYCON SETUP\n") - 1);
++	dma = early_ioremap(PFB_DMA, PAGE_SIZE);
++	decon = early_ioremap(PFB_DECON, PAGE_SIZE);
++	if (!dma || !decon) {
++		if (dma) early_iounmap(dma, PAGE_SIZE);
++		if (decon) early_iounmap(decon, PAGE_SIZE);
++		return -ENOMEM;
++	}
++	base = readl(dma + 0x40);
++	size = readl(dma + 0x10);
++	ctrl = readl(dma + 8);
++	global = readl(decon + 0x20);
++	trigger = readl(decon + 0x30);
++	pixel_draw = base == PFB_BASE && size == (PFB_H << 16 | PFB_W) &&
++		!(ctrl & 7) && ((ctrl >> 8) & 63) == 0 && !readl(dma + 0x14) &&
++		!(readl(dma + 0x50) & BIT(20)) && (global & BIT(8)) &&
++		(trigger & 0x11) && !(trigger & 0x102);
++	early_iounmap(dma, PAGE_SIZE);
++	early_iounmap(decon, PAGE_SIZE);
++	device->con->write = pixel_write;
++	pixel_active = true;
++	pr_info("Pixel earlycon: fb=%08x size=%08x ctrl=%08x trigger=%08x draw=%d\n",
++		base, size, ctrl, trigger, pixel_draw);
++	return 0;
++}
++EARLYCON_DECLARE(pixelfb, pixel_setup);
++
++static int __init pixel_remap(void)
++{
++	if (!pixel_active)
++		return 0;
++	pixel_fb = ioremap_wc(PFB_BASE, PFB_BYTES);
++	pixel_log = ioremap_wc(PFB_LOG, PFB_LOG_SIZE);
++	pixel_decon = ioremap(PFB_DECON, PAGE_SIZE);
++	if (!pixel_fb || !pixel_log || !pixel_decon)
++		panic("Pixel earlycon permanent mapping failed");
++	pr_info("Pixel earlycon: permanent mappings ready\n");
++	return 0;
++}
++early_initcall(pixel_remap);
+--- /dev/null
++++ b/arch/arm64/kernel/pixel_usb.c
+@@ -0,0 +1,91 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/* GS201 RAM-boot USB handoff. No persistent DT or partition changes. */
++#include <linux/init.h>
++#include <linux/io.h>
++#include <linux/kstrtox.h>
++#include <linux/of.h>
++#include <linux/of_address.h>
++#include <linux/of_platform.h>
++#include <linux/printk.h>
++
++static bool pixel_usb_bind;
++static int __init pixel_usb_arg(char *s)
++{
++	return !kstrtobool(s, &pixel_usb_bind);
++}
++__setup("pixel_usb=", pixel_usb_arg);
++
++static struct property pixel_usb_props[] = {
++	{ .name = "compatible", .value = "snps,dwc3", .length = sizeof("snps,dwc3") },
++	{ .name = "maximum-speed", .value = "high-speed", .length = sizeof("high-speed") },
++	{ .name = "snps,dis_u2_susphy_quirk" },
++	{ .name = "snps,dis_u3_susphy_quirk" },
++	{ .name = "snps,dis_enblslpm_quirk" },
++};
++
++static int __init pixel_usb_register(void)
++{
++	static const char * const remove[] = {
++		"clocks", "clock-names", "phys", "phy-names", "usb-psy-name",
++	};
++	struct device_node *np;
++	struct property *p;
++	struct resource res;
++	int ret = -ENODEV;
++
++	if (!pixel_usb_bind || !IS_ENABLED(CONFIG_USB_DWC3))
++		return 0;
++	np = of_find_node_by_path("/usb@11210000/dwc3");
++	if (!np)
++		return -ENODEV;
++	if (of_address_to_resource(np, 0, &res) ||
++	    res.start != 0x11210000 || resource_size(&res) != 0x10000 ||
++	    of_node_check_flag(np, OF_POPULATED))
++		goto out;
++	/* ABL leaves this PHY running. Do not bind incompatible vendor providers. */
++	for (unsigned int i = 0; i < ARRAY_SIZE(remove); i++) {
++		p = of_find_property(np, remove[i], NULL);
++		if (p && of_remove_property(np, p))
++			goto out;
++	}
++	for (unsigned int i = 0; i < ARRAY_SIZE(pixel_usb_props); i++) {
++		ret = of_update_property(np, &pixel_usb_props[i]);
++		if (ret)
++			goto out;
++	}
++	pr_info("Pixel USB: registering DWC3 with inherited PHY, USB2 peripheral\n");
++	ret = of_platform_device_create(np, NULL, NULL) ? 0 : -ENODEV;
++	pr_info("Pixel USB: platform registration result=%d\n", ret);
++out:
++	of_node_put(np);
++	return ret;
++}
++
++static int __init pixel_usb_inspect(void)
++{
++	void __iomem *regs;
++	u32 id;
++
++	if (!of_machine_is_compatible("google,GS201 CHEETAH"))
++		return 0;
++	pr_info("Pixel USB: inspecting inherited DWC3 at 11210000\n");
++	regs = ioremap(0x11210000, 0x10000);
++	if (!regs)
++		return -ENOMEM;
++	id = readl(regs + 0xc120);
++	pr_info("Pixel USB: GSNPSID=%08x\n", id);
++	if ((id >> 16) == 0x5533 || (id >> 16) == 0x3331 ||
++	    (id >> 16) == 0x3332) {
++		pr_info("Pixel USB: GCTL=%08x GSTS=%08x GHWPARAMS0=%08x\n",
++			readl(regs + 0xc110), readl(regs + 0xc118),
++			readl(regs + 0xc140));
++		pr_info("Pixel USB: PHYCFG=%08x PIPE=%08x DCTL=%08x DSTS=%08x\n",
++			readl(regs + 0xc200), readl(regs + 0xc2c0),
++			readl(regs + 0xc704), readl(regs + 0xc70c));
++	}
++	iounmap(regs);
++	if ((id >> 16) != 0x3331)
++		return -ENODEV;
++	return pixel_usb_register();
++}
++late_initcall(pixel_usb_inspect);
+--- /dev/null
++++ b/arch/arm64/kernel/pixel_watchdog.c
+@@ -0,0 +1,50 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/* Stop inherited ABL AP watchdogs until the GS201 watchdog driver is ported.
++ * Same WTCON read/clear/write/read sequence as this phone's ABL wdt_stop().
++ * This affects only the current RAM boot, not firmware or PMIC settings.
++ */
++#include <linux/init.h>
++#include <linux/io.h>
++#include <linux/of.h>
++#include <linux/of_address.h>
++#include <linux/printk.h>
++
++static int __init pixel_watchdog_stop(void)
++{
++	static const char * const compat[] = {
++		"google,gs201-cl0-wdt", "google,gs201-cl1-wdt",
++	};
++
++	if (!of_machine_is_compatible("google,GS201 CHEETAH"))
++		return 0;
++	for (unsigned int i = 0; i < ARRAY_SIZE(compat); i++) {
++		struct device_node *np;
++		struct resource res;
++		void __iomem *regs;
++		u32 before, after;
++		int ret;
++
++		np = of_find_compatible_node(NULL, NULL, compat[i]);
++		if (!np)
++			return -ENODEV;
++		ret = of_address_to_resource(np, 0, &res);
++		of_node_put(np);
++		if (ret || res.start != 0x10060000 + i * 0x10000 ||
++		    resource_size(&res) != 0x100)
++			return -EINVAL;
++		regs = ioremap(res.start, resource_size(&res));
++		if (!regs)
++			return -ENOMEM;
++		before = readl(regs);
++		/* WTCON enable bit 5, reset-enable bit 0. Preserve all other bits. */
++		writel(before & ~0x21U, regs);
++		after = readl(regs);
++		pr_info("Pixel WDT%u: inherited WTCON=%08x stopped=%08x count=%08x\n",
++			i, before, after, readl(regs + 8));
++		iounmap(regs);
++		if (after & 0x21)
++			return -EIO;
++	}
++	return 0;
++}
++subsys_initcall(pixel_watchdog_stop);

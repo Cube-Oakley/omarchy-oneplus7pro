@@ -67,7 +67,7 @@ background when available, and supports `~/.config/omarchy/backgrounds/<theme>/`
 user additions. The minimal-Arch fallback saves per-theme choices in its own
 `backgrounds.json`. `omarchy-mobile-theme background next` cycles backgrounds.
 Wallpaper-only changes leave Kitty and the keyboard unchanged.
-See [wallpaper results](../../docs/wallpaper-switching-20260917.md).
+See [wallpaper results](../../devices/oneplus7pro/docs/wallpaper-switching-20260917.md).
 
 Fastfetch uses the official Omarchy PNG in Kitty. `fastfetch --logo Omarchy`
 uses Fastfetch's built-in ASCII branding on a text-only connection;

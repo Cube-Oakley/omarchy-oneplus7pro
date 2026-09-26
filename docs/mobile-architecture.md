@@ -67,7 +67,7 @@ the chosen image path; OnePlus uses it to align the frozen initramfs fallback.
 This hook is separate from theme repositories.
 Wallpaper choices on minimal Arch live in mobile-owned `backgrounds.json`;
 full Omarchy current-background state remains authoritative.
-[Wallpaper implementation and validation](wallpaper-switching-20260917.md).
+[Wallpaper implementation and validation](../devices/oneplus7pro/docs/wallpaper-switching-20260917.md).
 
 [Archwave](https://github.com/davidguttman/archwave) is a real compatibility
 target, not a request to invent another format. It currently ships the older
@@ -244,4 +244,4 @@ QML shell, using logical coordinates and standard Qt touch ownership. The
 OnePlus adapter supplies no gesture-specific implementation. Overview holds
 expose workspace move, window swap and normal-close targets; app content keeps
 its native gestures outside the overview. See
-[touch implementation and validation](touch-drawers-20260917.md).
+[touch implementation and validation](../devices/oneplus7pro/docs/touch-drawers-20260917.md).

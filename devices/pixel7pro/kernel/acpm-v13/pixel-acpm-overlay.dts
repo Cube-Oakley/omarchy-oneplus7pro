@@ -1,0 +1,43 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+	fragment@0 {
+		target-path = "/acpm_ipc";
+		__overlay__ { status = "disabled"; };
+	};
+	fragment@1 {
+		target-path = "/";
+		__overlay__ {
+			#address-cells = <2>;
+			#size-cells = <1>;
+			gs201_cmu_apm: clock-controller@18000000 {
+				compatible = "google,gs201-cmu-apm";
+				reg = <0 0x18000000 0x8000>;
+				#clock-cells = <1>;
+				/* Patched from the live DT, never copied stock phandles. */
+				clocks = <0xffffffff>, <0xfffffffe>;
+				clock-names = "oscclk", "padclk";
+			};
+			gs201_apm_mbox: mailbox@18210000 {
+				compatible = "google,gs201-mbox";
+				reg = <0 0x18210000 0x1000>;
+				clocks = <&gs201_cmu_apm 7>;
+				clock-names = "pclk";
+				interrupt-parent = <0xffffffff>;
+				interrupts = <0 78 4>;
+				#mbox-cells = <0>;
+			};
+			gs201_apm_sram: sram@18500000 {
+				compatible = "mmio-sram";
+				reg = <0 0x18500000 0x48000>;
+			};
+			gs201_acpm: power-management {
+				compatible = "google,gs201-acpm-ipc";
+				#clock-cells = <1>;
+				mboxes = <&gs201_apm_mbox>;
+				shmem = <&gs201_apm_sram>;
+			};
+		};
+	};
+};

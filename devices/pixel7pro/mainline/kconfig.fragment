@@ -1,0 +1,54 @@
+# Extra options on top of arm64 defconfig for a first GS201 boot.
+CONFIG_BLK_DEV_INITRD=y
+CONFIG_RD_GZIP=y
+CONFIG_RD_LZ4=y
+CONFIG_BOOT_CONFIG=y
+CONFIG_BOOT_CONFIG_EMBED=y
+CONFIG_BOOT_CONFIG_FORCE=y
+CONFIG_BOOT_CONFIG_EMBED_FILE="@PIXEL_ROOT@/mainline/bootconfig"
+CONFIG_INITRAMFS_SOURCE="@PIXEL_ROOT@/out/mainline/builtin-root"
+# Ignore vendor_boot+init_boot ramdisks so they cannot overlay /init.
+# (usr/Kconfig no longer requires CMDLINE_FORCE for this.)
+CONFIG_INITRAMFS_FORCE=y
+# rdinit=/ourinit via embedded bootconfig (no CMDLINE_FORCE).
+CONFIG_DEVTMPFS=y
+CONFIG_DEVTMPFS_MOUNT=y
+CONFIG_TMPFS=y
+CONFIG_PROC_FS=y
+CONFIG_SYSFS=y
+CONFIG_PRINTK=y
+CONFIG_KALLSYMS=y
+# 0 = stay in panic (no reboot). If the logo sits instead of ~70s fastboot,
+# the kernel started and panicked before /init.
+CONFIG_PANIC_TIMEOUT=0
+# Builtin ramoops + console so a panic dump lands in vendor DT's
+# ramoops_mem@fd3ff000 (same 4MiB Evolution reads from pstore).
+CONFIG_PSTORE=y
+CONFIG_PSTORE_CONSOLE=y
+CONFIG_PSTORE_RAM=y
+CONFIG_VT=y
+CONFIG_VT_CONSOLE=y
+CONFIG_FRAMEBUFFER_CONSOLE=y
+CONFIG_DUMMY_CONSOLE=y
+CONFIG_FB=y
+CONFIG_FB_SIMPLE=y
+CONFIG_DRM=y
+CONFIG_DRM_SIMPLEDRM=y
+CONFIG_SERIAL_SAMSUNG=y
+CONFIG_SERIAL_SAMSUNG_CONSOLE=y
+CONFIG_SERIAL_SAMSUNG_UARTS=4
+CONFIG_USB=y
+CONFIG_USB_DWC3=y
+CONFIG_USB_DWC3_DUAL_ROLE=y
+CONFIG_USB_GADGET=y
+CONFIG_USB_CONFIGFS=y
+CONFIG_USB_CONFIGFS_ACM=y
+CONFIG_USB_CONFIGFS_RNDIS=y
+CONFIG_USB_F_ACM=y
+CONFIG_PHY_EXYNOS5_USBDRD=y
+CONFIG_PHY_SAMSUNG_USB_CAL=y
+CONFIG_CLK_GS101=y
+# Keep clocks unused by DT from being gated if the bootloader left them on.
+CONFIG_COMMON_CLK=y
+CONFIG_EXPERT=y
+CONFIG_MAGIC_SYSRQ=y

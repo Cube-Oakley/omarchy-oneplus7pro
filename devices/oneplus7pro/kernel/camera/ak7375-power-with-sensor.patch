@@ -1,0 +1,70 @@
+Power the actuator with its camera sensor instead of while its subdevice is
+open: libcamera keeps lens subdevices open for as long as a camera manager
+runs, so the coil would hold the lens for as long as any camera app is open.
+The sensor links the actuator (lens-focus, a runtime PM device link), as our
+IMX586, S5K3M5 and IMX481 drivers do; a focus write while it is off is kept
+for the next resume, as in the LC898217XC driver. Applied after
+ak7375-ak7374.patch.
+
+--- a/drivers/media/i2c/ak7375.c
++++ b/drivers/media/i2c/ak7375.c
+@@ -148,35 +148,30 @@
+ {
+ 	struct ak7375_device *dev_vcm = to_ak7375_vcm(ctrl);
+ 	const struct ak73xx_chipdef *cdef = dev_vcm->cdef;
++	int ret;
++
++	if (ctrl->id != V4L2_CID_FOCUS_ABSOLUTE)
++		return -EINVAL;
+ 
+-	if (ctrl->id == V4L2_CID_FOCUS_ABSOLUTE)
+-		return ak7375_i2c_write(dev_vcm, cdef->reg_position,
+-					ctrl->val << cdef->shift_pos, 2);
++	/*
++	 * The actuator is powered with its camera sensor, through a device
++	 * link from the sensor; a position set while it is off is applied by
++	 * the next resume.
++	 */
++	if (!pm_runtime_get_if_in_use(dev_vcm->sd.dev))
++		return 0;
++
++	ret = ak7375_i2c_write(dev_vcm, cdef->reg_position,
++			       ctrl->val << cdef->shift_pos, 2);
++	pm_runtime_put(dev_vcm->sd.dev);
+ 
+-	return -EINVAL;
++	return ret;
+ }
+ 
+ static const struct v4l2_ctrl_ops ak7375_vcm_ctrl_ops = {
+ 	.s_ctrl = ak7375_set_ctrl,
+ };
+ 
+-static int ak7375_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
+-{
+-	return pm_runtime_resume_and_get(sd->dev);
+-}
+-
+-static int ak7375_close(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
+-{
+-	pm_runtime_put(sd->dev);
+-
+-	return 0;
+-}
+-
+-static const struct v4l2_subdev_internal_ops ak7375_int_ops = {
+-	.open = ak7375_open,
+-	.close = ak7375_close,
+-};
+-
+ static const struct v4l2_subdev_ops ak7375_ops = { };
+ 
+ static void ak7375_subdev_cleanup(struct ak7375_device *ak7375_dev)
+@@ -231,7 +226,6 @@
+ 
+ 	v4l2_i2c_subdev_init(&ak7375_dev->sd, client, &ak7375_ops);
+ 	ak7375_dev->sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
+-	ak7375_dev->sd.internal_ops = &ak7375_int_ops;
+ 	ak7375_dev->sd.entity.function = MEDIA_ENT_F_LENS;
+ 
+ 	ret = ak7375_init_controls(ak7375_dev);

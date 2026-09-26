@@ -10,7 +10,7 @@ PAGE_INTEGRATION = {
   title: "Integration",
   blurb: "Phone and desktop. Today the link is a development link — SSH over USB and a build-and-flash pipeline. "
        + "The target is an Omarchy phone that behaves like another member of the same family as an Omarchy "
-       + "desktop: shared theme, shared clipboard if you want it, notifications and texts on either screen.",
+       + "desktop: shared theme, shared clipboard if you want it, notifications and texts on either screen. The same link serves every device.",
 
   sections: [
     {
@@ -20,17 +20,25 @@ PAGE_INTEGRATION = {
            + "of this buildable.",
       items: [
         { n: "USB SSH from the desktop", s: "ok",
+          on: { pixel7pro: { s: "ok", note: "Key-only SSH with a pinned host key over USB Ethernet; an 8 MiB SFTP round trip matched its hashes.",
+                             ref: "devices/pixel7pro/docs/native-arch-20260925.md" } },
           note: "scripts/phone-ssh.sh with a separately provisioned pinned host key; recovers on replug.",
-          ref: "docs/usb-networking-20260917.md" },
+          ref: "devices/oneplus7pro/docs/usb-networking-20260917.md" },
         { n: "USB network / routing bring-up", s: "ok",
+          on: { pixel7pro: { s: "partial", note: "The private USB link comes up at boot, but with no default route, DNS or NAT the phone reaches packages only through a tunnel from the computer.",
+                             ref: "devices/pixel7pro/docs/native-arch-20260925.md" } },
           note: "phone-usb-up.sh restores routing, DNS, SSH and the clock after boot.",
-          ref: "scripts/phone-usb-up.sh" },
+          ref: "devices/oneplus7pro/scripts/phone-usb-up.sh" },
         { n: "Host-side build → transfer → flash pipeline", s: "ok",
+          on: { pixel7pro: { s: "partial", note: "Kernel and initramfs built on the computer, the Arch root streamed over USB, then a hash-checked fastboot RAM boot; nothing is flashed yet.",
+                             ref: "devices/pixel7pro/docs/native-arch-20260925.md" } },
           note: "Kernel, initramfs, dtbo and desktop images built on the workstation and flashed with guards.",
-          ref: "scripts/" },
+          ref: "devices/oneplus7pro/scripts/" },
         { n: "Live device observation from the desktop", s: "ok",
+          on: { pixel7pro: { s: "ok", note: "Serial console beside SSH, driver debugfs counters and native Wayland screenshots, all read from the computer.",
+                             ref: "devices/pixel7pro/docs/native-shell-20260925.md" } },
           note: "USB watchers, battery recorder, scanout readers, Sahara crashdump reads.",
-          ref: "scripts/watch_phone_usb.sh" }
+          ref: "devices/oneplus7pro/scripts/watch_phone_usb.sh" }
       ]
     },
 
@@ -62,7 +70,7 @@ PAGE_INTEGRATION = {
               ref: "docs/mobile-roadmap.md" },
             { n: "Clipboard sync (opt-in)", s: "no",
               note: "Local history exists on the phone. Sync is not built; the store is the intended surface.",
-              ref: "docs/settings-clipboard-20260919.md" },
+              ref: "devices/oneplus7pro/docs/settings-clipboard-20260919.md" },
             { n: "Agent works across both machines", s: "no",
               note: "Ask the desktop agent to change something on the phone, or the phone agent to read something "
                   + "on the desktop. Built on the phone-control API plus the paired service.",
@@ -81,7 +89,7 @@ PAGE_INTEGRATION = {
                   + "we would rather not run.", ref: "docs/mobile-roadmap.md" },
             { n: "Pairing, trust & key pinning", s: "no",
               note: "How a phone and a desktop become peers, and how that is revoked. USB already pins a host key, "
-                  + "which is the precedent to follow.", ref: "README.md" },
+                  + "which is the precedent to follow.", ref: "devices/oneplus7pro/README.md" },
             { n: "Per-feature permission controls", s: "no",
               note: "Notifications yes, clipboard no, texts maybe — the same shape as agent permissions.",
               ref: "docs/mobile-roadmap.md" },

@@ -1,5 +1,9 @@
 # Review and publication
 
+The public repository is `Cube-Oakley/omarchy-mobile`, which began as
+`Cube-Oakley/omarchy-oneplus7pro` and was renamed when the Pixel 7 Pro work
+joined it. Both devices publish through the one clean line described here.
+
 The published line starts from the September 18 review snapshot: a clean source
 tree with no parent commits from the private bring-up history. It is carried by
 the local `public` branch, which is GitHub `main`; the original review branch was
@@ -16,7 +20,10 @@ serials are local configuration; personal Wi-Fi names, LAN addresses and host
 paths have been removed. Screenshot review hides Wi-Fi identity and notification
 contents before capture, and avoids browser sessions or personal files.
 
-`out/`, `.work/`, firmware extracts, SSH material and device backups stay local.
+`out/`, `.work/`, firmware extracts, SSH material and device backups stay local,
+in each device directory. For the Pixel 7 Pro that also covers the factory images
+(`parachute/`), the mainline tree (`mainline/linux/`), the Android property dump
+(`docs/getprop.txt`) and the ramdisk tools built from their `.c` sources.
 Keep upstream source attribution. The audio notes distinguish electrical tests
 from user-confirmed sound and list the remaining protection/persistence checks.
 
@@ -52,7 +59,9 @@ git push origin public:refs/heads/public   # private-side mirror of the public l
 ```
 
 The two trees stay byte-identical except for the Pages files below, so check that
-diff after each public commit.
+diff after each public commit. When `main` moves or renames files, bring the whole
+tree across (remove the public branch's tracked files except the Pages files, then
+`git checkout main -- .`) rather than listing paths.
 
 GitHub branch Pages can publish only `/` or `/docs`, so the site is served from the
 public repository root: a root `index.html` redirects to `plans/`, and a root
@@ -73,6 +82,10 @@ Scan the lines the sync adds (`git diff public main`, excluding the Pages files)
   SSID, network and Bluetooth controller addresses, paired device addresses.
   A paired device's product name, such as a headphone model, is acceptable.
 - Binary files: none unless reviewed; camera frames and recordings stay in `out/`.
+- Pixel 7 Pro: its serial (`devices/pixel7pro/out/device.serial`) appears nowhere;
+  recorded kernel configs and Mesa build records name the workspace
+  `@PIXEL_ROOT@`, never a home path; the USB link's 10.77.7.1/10.77.7.2 and its
+  locally administered 02:70:07:… gadget addresses are the only addresses.
 - Credentials, keys, tokens and PIN/PUK values: none.
 
 ## Publication log

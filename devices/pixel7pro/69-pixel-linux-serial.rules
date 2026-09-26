@@ -1,0 +1,5 @@
+# Local Pixel native-Linux bring-up gadget (Linux g_serial CDC-ACM).
+# Give the active local desktop user access; do not make it world-writable.
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0525", ATTRS{idProduct}=="a4a7", ENV{ID_MM_DEVICE_IGNORE}="1", TAG+="uaccess"
+# Native CDC composite variant: ECM networking + ACM serial.
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0525", ATTRS{idProduct}=="a4aa", ATTRS{manufacturer}=="Linux *pixel-*", ENV{ID_MM_DEVICE_IGNORE}="1", TAG+="uaccess"

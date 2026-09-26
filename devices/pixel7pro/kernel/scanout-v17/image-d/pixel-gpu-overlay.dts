@@ -1,0 +1,38 @@
+/dts-v1/;
+/plugin/;
+/ {
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+			#address-cells = <2>;
+			#size-cells = <1>;
+			gs201_gpu_pd: power-controller@18061e00 {
+				compatible = "google,gs201-g3d-pmu";
+				reg = <0 0x18061e00 0x208>, <0 0x27f00000 0x8000>,
+				      <0 0x27f20000 0x1000>;
+				reg-names = "pmu", "cmu", "sysreg";
+				#power-domain-cells = <1>;
+			};
+			gs201_gpu_opp: opp-table-gpu {
+				compatible = "operating-points-v2";
+				opp-302000000 { opp-hz = /bits/ 64 <302000000>; };
+			};
+			gpu@28000000 {
+				compatible = "google,gs201-mali", "arm,mali-valhall-csf";
+				reg = <0 0x28000000 0x1000000>;
+				interrupts = <0 329 4>, <0 330 4>, <0 328 4>;
+				interrupt-names = "job", "mmu", "gpu";
+				clocks = <0xffffffff 6>, <0xffffffff 5>;
+				clock-names = "core", "stacks";
+				power-domains = <&gs201_gpu_pd 0>, <&gs201_gpu_pd 1>;
+				power-domain-names = "top", "cores";
+				operating-points-v2 = <&gs201_gpu_opp>;
+				status = "disabled";
+			};
+			pixel-gpu-power-test {
+				compatible = "google,pixel-gpu-power-test";
+				power-domains = <&gs201_gpu_pd 1>;
+			};
+		};
+	};
+};

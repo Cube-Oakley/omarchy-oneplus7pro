@@ -1,159 +1,94 @@
-# Omarchy Mobile · OnePlus 7 Pro
+# Omarchy Mobile
 
-An effort to bring the Omarchy desktop experience to a Linux phone: Arch Linux
-ARM, Hyprland, GPU rendering, and a touch-oriented Quickshell interface on the
-OnePlus 7 Pro (`guacamole`, Snapdragon 855 / Adreno 640).
+The Omarchy desktop experience on Linux phones: Arch Linux ARM, Hyprland, GPU
+rendering and a touch-oriented Quickshell interface. One mobile shell and one OS,
+brought up handset by handset, with the kernel, firmware and power work for each
+phone kept in its own device directory.
 
-The aim is a reusable mobile shell with standard Omarchy themes, familiar apps,
-and touch controls. Phone-specific kernel, firmware and power work lives
-separately from the shell so other devices can eventually use the same interface.
+**Status: experimental, September 25, 2026.** Two phones are in bring-up. Neither
+is a daily phone or a general-purpose installation image yet.
 
-**Status: active hardware bring-up, September 18, 2026.** The phone boots into a
-usable touch desktop with native display output, Wi-Fi, charging and sleep/wake.
-Audio is being brought up now. This is an experimental port, not yet a daily
-phone or a general-purpose installation image.
+**Project plan and status tracker:** [`plans/`](plans/index.html), with a page per
+device, a side-by-side comparison, and the shared software and desktop integration.
 
-## On the phone
+## Devices
 
-Real captures from the running phone. Network identity and notification content
-are hidden in the shade capture; no demo UI or generated mockups are used.
-Click an image to open it.
+| Device | SoC | Where it is | Details |
+|---|---|---|---|
+| OnePlus 7 Pro (`guacamole`) | Snapdragon 855 · Adreno 640 | Boots from internal storage into the full touch shell on the GPU; Wi-Fi, audio, Bluetooth, sensors and the rear cameras work; cellular waits on a SIM | [README](devices/oneplus7pro/README.md) · [status](devices/oneplus7pro/docs/status.md) |
+| Pixel 7 Pro (`cheetah`) | Google Tensor G2 · Mali-G710 | Mainline Linux boots from RAM and runs the shared shell under Hyprland at 120 Hz; storage, battery, radios and audio are not brought up; Android stays the normal boot | [README](devices/pixel7pro/README.md) · [status](devices/pixel7pro/docs/status.md) |
+
+## The shared shell
+
+Real captures from the OnePlus 7 Pro. The Pixel 7 Pro runs the same shell source.
 
 <table>
-<tr><th>Terminal / Fastfetch</th><th>Wallpaper</th><th>Notification shade</th></tr>
+<tr><th>Terminal / Fastfetch</th><th>Notification shade</th><th>Windows / workspaces</th></tr>
 <tr>
-<td><a href="docs/images/terminal.png"><img src="docs/images/terminal.png" width="220" alt="Kitty with Omarchy Fastfetch on the OnePlus 7 Pro"></a></td>
-<td><a href="docs/images/wallpaper.png"><img src="docs/images/wallpaper.png" width="220" alt="Omarchy theme wallpaper and phone status bar"></a></td>
-<td><a href="docs/images/notifications.png"><img src="docs/images/notifications.png" width="220" alt="Notification shade with Wi-Fi, battery, calendar and weather tiles"></a></td>
-</tr>
-<tr><th>App launcher</th><th>Windows / workspaces</th><th>Keyboard</th></tr>
-<tr>
-<td><a href="docs/images/launcher.png"><img src="docs/images/launcher.png" width="220" alt="Touch app launcher with Chromium, Grok, Kitty and other apps"></a></td>
-<td><a href="docs/images/workspaces.png"><img src="docs/images/workspaces.png" width="220" alt="Workspace overview with live window previews"></a></td>
-<td><a href="docs/images/keyboard.png"><img src="docs/images/keyboard.png" width="220" alt="On-screen keyboard below the Fastfetch terminal"></a></td>
+<td><a href="devices/oneplus7pro/docs/images/terminal.png"><img src="devices/oneplus7pro/docs/images/terminal.png" width="220" alt="Kitty with Omarchy Fastfetch on the OnePlus 7 Pro"></a></td>
+<td><a href="devices/oneplus7pro/docs/images/notifications.png"><img src="devices/oneplus7pro/docs/images/notifications.png" width="220" alt="Notification shade with Wi-Fi, battery, calendar and weather tiles"></a></td>
+<td><a href="devices/oneplus7pro/docs/images/workspaces.png"><img src="devices/oneplus7pro/docs/images/workspaces.png" width="220" alt="Workspace overview with live window previews"></a></td>
 </tr>
 </table>
 
-## What works
+Touch controls and the rest of the shell are described in the
+[OnePlus 7 Pro README](devices/oneplus7pro/README.md#touch-controls) and
+[`overlay/mobile/`](overlay/mobile/README.md).
 
-| Area | Current result |
-|---|---|
-| Boot and storage | Persistent Arch Linux ARM installation; tested slot-B boot images and rollback checkpoints. |
-| CPU | All eight Snapdragon 855 CPU cores online. |
-| GPU | Adreno 640 hardware rendering; Hyprland and Quickshell use the GPU. |
-| Display | Native DPU/DSI scanout at **1440 × 3120, 60 Hz**; correct colors and stable output. 90 Hz is not enabled. |
-| Touch | Multitouch, including user-tested five-finger input. |
-| Wi-Fi | NetworkManager connections, saved-network reconnect, internet access and recovery after wake. |
-| USB | USB networking and pinned-key SSH for development; reconnect support. |
-| Battery and charging | Gauge readout, charge/current/temperature details and conservative persistent charging. Current policy is **500 mA / 4.20 V**; fast charging is not implemented. |
-| Sleep/wake | Power-button display control and tested system suspend/resume with working touch and Wi-Fi afterward. Deepest low-power states remain under investigation. |
-| Packages | Normal `pacman` use; the earlier Landlock compatibility issue is fixed. |
-| Terminal | Kitty with touch scrolling, JetBrainsMono Nerd Font and Omarchy-branded Fastfetch. |
-| Keyboard | On-screen keyboard with gesture activation and a swipe-down dismissal handle. |
-| App launcher | Touch launcher, desktop entries and multiple tiled app windows. |
-| Window overview | Live previews, workspace selection, focusing apps across workspaces, and moving windows between workspaces. |
-| Themes | Omarchy theme colors and wallpapers, wallpaper previews/cycling, and remembered wallpaper choices. |
-| Notification shade | Pull-down panel, grouped notifications, heads-up toasts, Wi-Fi/mute/DND toggles, battery details, Wi-Fi picker, calendar, optional weather, and a compact CPU/RAM chip that opens a performance panel. |
-| Browser and webapps | Native-Wayland Chromium and a Grok webapp launcher, using a separate browser account with Chromium's sandbox enabled. |
-
-### Audio milestone
-
-The ADSP firmware runs, WCD9340 codec and SLIMbus enumerate, and ALSA exposes
-playback/capture. Both TFA9874 amplifiers are identified, with stock-derived
-speaker and receiver profiles. Short, quiet channel-isolated playback tests
-achieve clock lock and return both amplifiers to power-down afterward.
-
-One initial tone was heard by the user; **independent acoustic confirmation of
-both outputs is still pending**. PipeWire application playback and the themed volume slider are installed, with
-a fixed conservative output cap while DSP speaker protection is unfinished.
-Audio, the volume-key device and the floating panel now start automatically
-after reboot. The internal microphone (the stock handset mic) records through
-PipeWire and starts with the rest of the audio stack; recordings were confirmed
-clean by ear. The other two microphones work but are not exposed yet. Physical
-button confirmation and audio suspend validation remain unfinished. YouTube
-playback has been reported inaudible;
-browser audio and choppy video playback need further diagnosis. See the [audio bring-up notes](docs/audio-bringup-20260918.md).
-
-## Touch controls
-
-- **Swipe up from bottom left:** app launcher.
-- **Swipe up from bottom center:** windows and workspaces.
-- **Swipe up from bottom right:** keyboard.
-- **Swipe down on an open launcher/overview:** close it; the launcher must be at the top of its scroll area.
-- **Swipe down from the top bar:** notification shade; swipe up to close.
-- **Launcher → Settings:** theme, wallpaper, font, clipboard history and DND.
-- **Shade clipboard button (⧉):** local clipboard history; desktop sync is not on.
-- **Heads-up toast:** tap to open the shade; swipe up to dismiss the banner only. Do Not Disturb silences toasts.
-- **Tap an app preview:** focus that window on its workspace.
-- **Tap a workspace:** preview its windows; tap it again to enter it.
-- **Drag an app preview to a workspace:** move the window there.
-- **Swipe down on the handle above the keyboard:** hide it.
-- **Volume keys:** change media volume, or call volume during a call. Tap the
-  chevron on the volume panel to show media, ring & notification, call and
-  alarm volumes side by side; tap an icon to mute that group.
-
-## Still to do
-
-The [remaining hardware handoff](docs/hardware-plan-20260922.md) records the
-current baseline, source references, implementation order and physical tests
-for audio, Bluetooth, sensors, cameras, power and the other unfinished devices.
-
-- Complete both speakers, application audio, volume controls, and the second and third microphones.
-- Reach deeper idle/suspend states and measure repeatable battery life.
-- Implement reliable shutdown; current power-off attempts can reboot instead.
-- Bring up Bluetooth, haptics, sensors, GPS and cameras.
-- Integrate modem data, SMS and voice. Modem/QMI groundwork exists, but there is
-  no tested cellular service, calling or texting yet. See the
-  [cellular investigation and implementation plan](docs/cellular-plan-20260922.md)
-  for the verified baseline, SIM recommendation and staged implementation gates.
-- Move the desktop into a standard user account with sudo. The current bring-up
-  session runs as root; Chromium uses a separate restricted account.
-- Extend touch window management, notification handling, keyboard prediction,
-  preferences and desktop/phone integration.
-- Investigate USB-C docking/DisplayPort and higher-power charging.
-
-There is no measured Android-versus-Linux battery-life comparison yet. Working
-suspend does not establish that the SoC reaches its deepest sleep states.
-
-## Project layout
+## Layout
 
 ```text
-overlay/mobile/          reusable Quickshell UI, gestures, themes and helpers
-devices/oneplus7pro/     guacamole adapters, device-tree overlays and kernel work
-scripts/                build, transfer, guarded flashing and diagnostic tools
-tests/                  gesture, backend and hardware-policy checks
-docs/                   results, architecture, limitations and experiment history
+overlay/mobile/          shared Quickshell UI, gestures, themes, settings and helpers
+tests/                   shared shell tests (Python backends, QML touch components)
+docs/                    project-wide architecture, roadmap, shared-OS plan, publishing
+plans/                   the status tracker (static HTML, opens from disk)
+devices/<device>/        one bring-up workspace per phone:
+  README.md                what works on that phone and how to connect
+  adapter/                 files installed into that phone's root: session setup,
+                           scale, power, audio and sensor glue
+  kernel/                  kernel patches, device-tree overlays, configurations
+  scripts/                 host-side build, transfer, guarded boot/flash, diagnostics
+  tests/                   hardware-policy checks
+  docs/                    status, dated bring-up notes, recovery instructions
+  out/  .work/             ignored local build output, firmware and kernel trees
 ```
 
-The current bootstrap uses a small initramfs that starts Arch in a chroot.
-Desktop session and device helpers account for that environment; standard
-systemd service assumptions do not all apply yet.
+Shared shell, input and service policy belongs in `overlay/mobile/`; anything tied
+to one phone's hardware belongs in its device directory. See the
+[mobile architecture](docs/mobile-architecture.md) and the
+[shared OS plan](docs/shared-os-20260925.md), whose `os/`, `packages/` and
+`sources.lock` parts are not built yet.
 
-Start with [current status](docs/status.md), [next-session notes](docs/next-session.md),
-the [mobile architecture](docs/mobile-architecture.md), and the
-[roadmap](docs/mobile-roadmap.md). Older experiment notes describe historical
-states and are not installation instructions for an arbitrary phone.
+## Working on a device
 
-### Local device configuration
+Run a device's tools from its directory, or by path; each script finds its own
+device workspace, and `out/` and `.work/` stay per device:
 
-Personal backups, firmware blobs, raw logs, SSH keys and device identifiers are
-not distribution assets. Build/test output belongs in ignored `out/` and `.work/`.
+```sh
+cd devices/pixel7pro
+python scripts/boot-pixel-shell.py
+```
 
-Flash helpers require an explicit target identity and retain their image/hash
-and slot checks. Set `PHONE_SERIAL` locally, or store the target serial on one
-line in ignored `out/device.serial`. USB SSH uses a separately provisioned,
-pinned host key; override the client identity with `PHONE_SSH_IDENTITY` if needed.
+Handset serials, firmware, backups and raw logs are local configuration, never
+checked in. Set `PHONE_SERIAL`, or put the serial on one line in the ignored
+`devices/<device>/out/device.serial`. Flash helpers keep their image, hash and
+slot checks. Device docs describe historical states as well as the current one;
+they are not installation instructions for an arbitrary phone.
+
+Shared shell tests need no phone:
+
+```sh
+for t in tests/test_*.py; do python3 "$t"; done
+tests/run_touch_qml.sh
+```
 
 ## Foundations and references
 
 - [Omarchy](https://omarchy.org/) — desktop conventions, themes and applications.
 - [Arch Linux ARM](https://archlinuxarm.org/) — AArch64 userspace and packages.
-- [postmarketOS SM8150 kernel](https://pkgs.postmarketos.org/package/master/postmarketos/aarch64/linux-postmarketos-qcom-sm8150)
-  and [SM8150 mainline work](https://gitlab.com/sm8150-mainline/linux).
-- [Robin Snyders' OnePlus 7T Pro bring-up](https://github.com/Sr-0w/hotdog-linux-bringup)
-  — related-device research and driver work, including the TFA9874 foundation.
-  Guacamole wiring, firmware and hardware revisions are checked separately.
 - [Omarchy CM5](https://github.com/TensorFleet/omarchy-cm5) — related handheld work.
+- Per-device kernel and bring-up references are listed in each device README.
 
 Upstream licenses and attribution remain with the corresponding source files.
 Proprietary firmware and device-specific calibration/backups are not included.
+Publication rules are in [docs/publishing.md](docs/publishing.md).

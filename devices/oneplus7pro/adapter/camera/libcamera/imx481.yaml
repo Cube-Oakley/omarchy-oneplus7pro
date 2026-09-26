@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: CC0-1.0
+# Sony IMX481 (OnePlus 7 Pro rear ultra-wide) for libcamera's software ISP.
+# Base: the OnePlus 7T Pro bring-up's imx481.yaml (CC0-1.0), with our contrast
+# and saturation defaults (patch 0014) and, as for the telephoto, an identity
+# colour matrix until a calibration: it leaves the colours as the image
+# processor gives them without one, applies the saturation default, and gives
+# Omarchy Camera's multi-frame stills the matrix they need. Unlike the 7T Pro's,
+# it focuses: the module's AK7374 actuator is powered here
+# (docs/camera-ultrawide-20260924.md).
+%YAML 1.1
+---
+version: 1
+algorithms:
+  - BlackLevel:
+      blackLevel: 4096
+  - Awb:
+  - Ccm:
+      ccms:
+        - ct: 5000
+          ccm: [ 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0 ]
+  - Adjust:
+      contrast: 1.2
+      saturation: 1.1
+  - Agc:
+  - Af:
+...

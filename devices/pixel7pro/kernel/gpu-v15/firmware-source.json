@@ -1,0 +1,21 @@
+{
+  "base": "https://kernel.googlesource.com/pub/scm/linux/kernel/git/firmware/linux-firmware/+/930ef9046e3848df688d98b7d5e68154b031dc66/",
+  "commit": "930ef9046e3848df688d98b7d5e68154b031dc66",
+  "files": [
+    {
+      "path": "arm/mali/arch10.8/mali_csffw.bin",
+      "size": 282624,
+      "sha256": "a27847ea11f8efb3136340c3ba8aab413ae25145eeb4a7f64ff5edd829a2405b"
+    },
+    {
+      "path": "LICENCE.mali_csffw",
+      "size": 9690,
+      "sha256": "ebedc86d1767186a66dcb59ce8dcb97c5fd9ac10de2adaacad226714e4712f6d"
+    },
+    {
+      "path": "WHENCE",
+      "size": 334785,
+      "sha256": "e5bf81835b60ccfa9dc1cf7a8c3b9e6d04e3eaa070d9a771280b28a1840d0736"
+    }
+  ]
+}

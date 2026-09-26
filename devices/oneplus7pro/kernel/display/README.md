@@ -49,5 +49,5 @@ linked into a new kernel. Do not run the existing CPU/touch image builders
 assuming they use this isolated directory; those builders still use the
 verified CPU tree.
 
-See [the investigation record](../../../../docs/native-display-work-20260917.md)
+See [the investigation record](../../docs/native-display-work-20260917.md)
 for hardware evidence, open questions, and the next test design.

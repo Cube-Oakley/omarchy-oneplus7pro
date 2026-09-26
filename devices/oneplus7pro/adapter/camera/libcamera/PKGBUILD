@@ -1,0 +1,73 @@
+# libcamera with the OnePlus 7 Pro camera patches, replacing Arch's libcamera,
+# libcamera-ipa and libcamera-tools. Patches 0001-0010 are the OnePlus 7T Pro
+# bring-up's (Robin Snyders, hotdog-linux-bringup); 0011-0021 are ours.
+# imx586.yaml starts from theirs, with a borrowed colour matrix (see its header);
+# s5k3m5.yaml (the telephoto) and imx481.yaml (the ultra-wide) start from theirs,
+# with an identity colour matrix.
+# Build on the phone with scripts/phone-libcamera-package.sh.
+# Rollback: pacman -U the cached libcamera{,-ipa,-tools}-0.7.2-4 packages.
+pkgname=libcamera-guacamole
+pkgver=0.7.2
+pkgrel=13
+pkgdesc='Linux camera framework, with the OnePlus 7 Pro camera helpers, autofocus and fixes'
+arch=(aarch64)
+url='https://libcamera.org/'
+license=('LGPL-2.1-or-later' 'GPL-2.0-or-later')
+depends=(gcc-libs glibc gnutls libevent libglvnd libjpeg-turbo libtiff libyaml systemd-libs)
+makedepends=(meson ninja python-jinja python-ply python-yaml)
+provides=("libcamera=$pkgver" "libcamera-ipa=$pkgver" "libcamera-tools=$pkgver"
+          'libcamera.so=0.7-64' 'libcamera-base.so=0.7-64')
+conflicts=(libcamera libcamera-ipa libcamera-tools)
+# Stripping after install would invalidate the IPA module signatures, and
+# unsigned IPA modules run out of process.
+options=(!strip !debug)
+source=("https://gitlab.freedesktop.org/camera/libcamera/-/archive/v$pkgver/libcamera-v$pkgver.tar.gz"
+        0001-libcamera-simple-Enable-softISP-for-the-Pinephone.patch
+        0002-libcamera-simple-Skip-hwISP-formats-if-swISP-is-acti.patch
+        0003-libcamera-add-Samsung-S5K3M5-sensor-data.patch
+        0004-libcamera-add-Sony-IMX586-sensor-data.patch
+        0005-libcamera-software-isp-add-contrast-autofocus.patch
+        0006-libcamera-add-Sony-IMX481-sensor-data.patch
+        0007-libcamera-add-Sony-IMX471-sensor-data.patch
+        0008-libcamera-software-isp-responsive-3a-and-af-windows.patch
+        0009-libcamera-software-isp-preserve-requested-agc-state.patch
+        0010-libcamera-software-isp-tighten-automatic-controls.patch
+        0011-libcamera-dma-buf-allocator-fall-back-to-the-system-heap.patch
+        0012-libcamera-software-isp-gather-GPU-statistics-over-the-visible-input.patch
+        0013-libcamera-software-isp-let-the-lens-settle-before-autofocus-samples.patch
+        0014-libcamera-software-isp-take-contrast-and-saturation-defaults-from-tuning.patch
+        0015-libcamera-software-isp-keep-exposure-and-white-balance-across-configurations.patch
+        0016-libcamera-software-isp-fit-the-autofocus-peak-between-fine-samples.patch
+        0017-libcamera-software-isp-keep-focus-across-configurations.patch
+        0018-libcamera-software-isp-keep-highlights-with-exposure-headroom-and-digital-gain.patch
+        0019-libcamera-software-isp-keep-highlights-clipped-in-every-channel-white.patch
+        0020-libcamera-software-isp-steadier-continuous-autofocus.patch
+        0021-libcamera-software-isp-start-autofocus-scans-on-settled-exposure.patch
+        imx586.yaml
+        s5k3m5.yaml
+        imx481.yaml)
+sha512sums=('b317cdc96f61682ee0bf26dfb7c4d6441db9a9c5b93ab53528121a8cd44862b3d59cbaa3881bb0837e3e381564c184c7b742124aef4267eea754c6083de353c1'
+            SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP SKIP)
+
+prepare() {
+  cd libcamera-v$pkgver
+  local patch
+  for patch in "$srcdir"/00*.patch; do
+    patch -p1 -s --no-backup-if-mismatch < "$patch"
+  done
+}
+
+build() {
+  arch-meson libcamera-v$pkgver build \
+    -Dpipelines=simple,uvcvideo -Dipas=simple \
+    -Dcam=enabled -Dcam-output-kms=disabled -Dcam-output-sdl2=disabled \
+    -Dqcam=disabled -Dgstreamer=disabled -Dpycamera=disabled \
+    -Ddocumentation=disabled -Dlc-compliance=disabled -Dtracing=disabled \
+    -Dv4l2=false -Dtest=false -Dwerror=false
+  meson compile -C build -j "${BUILD_JOBS:-$(nproc)}"
+}
+
+package() {
+  meson install -C build --destdir "$pkgdir"
+  install -Dm644 -t "$pkgdir/usr/share/libcamera/ipa/simple" imx586.yaml s5k3m5.yaml imx481.yaml
+}

@@ -1,0 +1,92 @@
+diff --git i/drivers/clk/samsung/clk-acpm.c w/drivers/clk/samsung/clk-acpm.c
+index 7680bc8c5..dad5a6328 100644
+--- i/drivers/clk/samsung/clk-acpm.c
++++ w/drivers/clk/samsung/clk-acpm.c
+@@ -40,6 +40,7 @@ struct acpm_clk_driver_data {
+ 		.name		= cname,		\
+ 	}
+ 
++/* GS101 and GS201 share this firmware DVFS clock ID ordering. */
+ static const struct acpm_clk_variant gs101_acpm_clks[] = {
+ 	ACPM_CLK("mif"),
+ 	ACPM_CLK("int"),
+@@ -101,6 +102,8 @@ static int acpm_clk_register(struct device *dev, struct acpm_clk *aclk,
+ 
+ static int acpm_clk_probe(struct platform_device *pdev)
+ {
++	const struct acpm_clk_driver_data *data =
++		(const void *)platform_get_device_id(pdev)->driver_data;
+ 	struct acpm_handle *acpm_handle;
+ 	struct clk_hw_onecell_data *clk_data;
+ 	struct clk_hw **hws;
+@@ -114,8 +117,8 @@ static int acpm_clk_probe(struct platform_device *pdev)
+ 		return dev_err_probe(dev, PTR_ERR(acpm_handle),
+ 				     "Failed to get acpm handle\n");
+ 
+-	count = acpm_clk_gs101.nr_clks;
+-	mbox_chan_id = acpm_clk_gs101.mbox_chan_id;
++	count = data->nr_clks;
++	mbox_chan_id = data->mbox_chan_id;
+ 
+ 	clk_data = devm_kzalloc(dev, struct_size(clk_data, hws, count),
+ 				GFP_KERNEL);
+@@ -143,7 +146,7 @@ static int acpm_clk_probe(struct platform_device *pdev)
+ 		hws[i] = &aclk->hw;
+ 
+ 		err = acpm_clk_register(dev, aclk,
+-					acpm_clk_gs101.clks[i].name);
++					data->clks[i].name);
+ 		if (err)
+ 			return dev_err_probe(dev, err,
+ 					     "Failed to register clock\n");
+@@ -154,7 +157,8 @@ static int acpm_clk_probe(struct platform_device *pdev)
+ }
+ 
+ static const struct platform_device_id acpm_clk_id[] = {
+-	{ .name = "gs101-acpm-clk" },
++	{ "gs101-acpm-clk", (kernel_ulong_t)&acpm_clk_gs101 },
++	{ "gs201-acpm-clk", (kernel_ulong_t)&acpm_clk_gs101 },
+ 	{ }
+ };
+ MODULE_DEVICE_TABLE(platform, acpm_clk_id);
+diff --git i/drivers/firmware/samsung/exynos-acpm.c w/drivers/firmware/samsung/exynos-acpm.c
+index 942a2e9f0..0d5c40477 100644
+--- i/drivers/firmware/samsung/exynos-acpm.c
++++ w/drivers/firmware/samsung/exynos-acpm.c
+@@ -881,11 +881,21 @@ static const struct acpm_match_data acpm_gs101 = {
+ 	.acpm_clk_dev_name = "gs101-acpm-clk",
+ };
+ 
++/* GS201 uses the same AP channel descriptors and initdata offset as GS101. */
++static const struct acpm_match_data acpm_gs201 = {
++	.initdata_base = ACPM_GS101_INITDATA_BASE,
++	.acpm_clk_dev_name = "gs201-acpm-clk",
++};
++
+ static const struct of_device_id acpm_match[] = {
+ 	{
+ 		.compatible = "google,gs101-acpm-ipc",
+ 		.data = &acpm_gs101,
+ 	},
++	{
++		.compatible = "google,gs201-acpm-ipc",
++		.data = &acpm_gs201,
++	},
+ 	{},
+ };
+ MODULE_DEVICE_TABLE(of, acpm_match);
+diff --git i/drivers/mailbox/exynos-mailbox.c w/drivers/mailbox/exynos-mailbox.c
+index ff75c1c76..99c282837 100644
+--- i/drivers/mailbox/exynos-mailbox.c
++++ w/drivers/mailbox/exynos-mailbox.c
+@@ -132,6 +132,10 @@ static const struct of_device_id exynos_mbox_match[] = {
+ 		.compatible = "google,gs101-mbox",
+ 		.data = &exynos_gs101_mbox_data
+ 	},
++	{
++		.compatible = "google,gs201-mbox",
++		.data = &exynos_gs101_mbox_data
++	},
+ 	{
+ 		.compatible = "samsung,exynos850-mbox",
+ 		.data = &exynos850_mbox_data

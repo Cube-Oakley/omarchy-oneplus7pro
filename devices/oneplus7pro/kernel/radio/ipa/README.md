@@ -1,6 +1,6 @@
 # IPA v4.1 for guacamole (SM8150) — prepared, not deployed
 
-Cellular plan phase 3 ([cellular plan](../../../../../docs/cellular-plan-20260922.md)).
+Cellular plan phase 3 ([cellular plan](../../../docs/cellular-plan-20260922.md)).
 Nothing here has run on the phone: no flash, no module load, no firmware copy.
 
 ## Contents

@@ -22,10 +22,35 @@ id_rsa
 hotdog.env
 pmbootstrap.cfg
 
-# Phone screenshots / chat media dropped in the project root during bring-up.
-# Local scratch only; overlay/mobile/themes/** backgrounds stay tracked.
+*.zip
+*.tar
+*.tar.gz
+*.cpio
+*.cpio.gz
+*.cpio.lz4
+
+# Phone screenshots / chat media dropped in the project or a device workspace
+# during bring-up. Local scratch only; overlay/mobile/themes/** backgrounds stay
+# tracked.
 /IMG_*.jpg
 /IMG_*.jpeg
 /IMG_*.png
 /screenshot*.png
 /signal-*.jpg
+/devices/*/IMG_*.jpg
+/devices/*/IMG_*.jpeg
+/devices/*/IMG_*.png
+/devices/*/screenshot*.png
+/devices/*/signal-*.jpg
+
+# Pixel 7 Pro local inputs: factory images, the mainline kernel tree (pinned in
+# kernel/kernel-base.txt), ramdisk tools built from their .c sources, and the
+# Android property dump, which carries handset identifiers.
+/devices/pixel7pro/parachute/
+/devices/pixel7pro/mainline/linux/
+/devices/pixel7pro/ramdisk/init.nopie
+/devices/pixel7pro/ramdisk/pid1-banner
+/devices/pixel7pro/ramdisk/pid1-idle
+/devices/pixel7pro/ramdisk/pid1-sleep-reboot
+/devices/pixel7pro/ramdisk/rebootbl
+/devices/pixel7pro/docs/getprop.txt

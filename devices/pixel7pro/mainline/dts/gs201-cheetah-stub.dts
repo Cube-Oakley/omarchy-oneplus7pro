@@ -1,0 +1,138 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Minimal cheetah / GS201 DT for a first mainline PID 1.
+ * Forked from Linaro's gs101 approach: do NOT use the vendor blob.
+ * No clocks, no power domains, no TCPC, no I2C.
+ * USB is omitted until /init is proven (dwc3 without clocks defer-hangs).
+ */
+/dts-v1/;
+
+/ {
+	compatible = "google,gs201-cheetah", "google,gs201";
+	model = "Pixel 7 Pro (stub)";
+	#address-cells = <2>;
+	#size-cells = <1>;
+	interrupt-parent = <&gic>;
+
+	/* ABL crashes if bootargs is missing. Memory is filled in by ABL. */
+	chosen {
+		bootargs = "";
+		stdout-path = "/uart@10A00000";
+	};
+
+	aliases {
+		serial0 = &serial_0;
+	};
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu0: cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0x0000>;
+			enable-method = "psci";
+		};
+		cpu1: cpu@100 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0x0100>;
+			enable-method = "psci";
+		};
+		cpu2: cpu@200 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0x0200>;
+			enable-method = "psci";
+		};
+		cpu3: cpu@300 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0x0300>;
+			enable-method = "psci";
+		};
+		cpu4: cpu@400 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0x0400>;
+			enable-method = "psci";
+		};
+		cpu5: cpu@500 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0x0500>;
+			enable-method = "psci";
+		};
+		cpu6: cpu@600 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0x0600>;
+			enable-method = "psci";
+		};
+		cpu7: cpu@700 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			reg = <0x0700>;
+			enable-method = "psci";
+		};
+	};
+
+	psci {
+		compatible = "arm,psci-1.0";
+		method = "smc";
+	};
+
+	timer {
+		compatible = "arm,armv8-timer";
+		interrupts = <1 13 0xff08>,
+			     <1 14 0xff08>,
+			     <1 11 0xff08>,
+			     <1 10 0xff08>;
+		clock-frequency = <24576000>;
+	};
+
+	gic: interrupt-controller@10400000 {
+		compatible = "arm,gic-v3";
+		#interrupt-cells = <3>;
+		interrupt-controller;
+		reg = <0x0 0x10400000 0x10000>,
+		      <0x0 0x10440000 0x100000>;
+		interrupts = <1 9 4>;
+	};
+
+	/* ABL expects an ect node. */
+	ect {
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <1>;
+		ranges;
+
+		ect_binary@90000000 {
+			compatible = "exynos,ect_rmem";
+			reg = <0x0 0x90000000 0x3a000>;
+		};
+
+		abl@f8800000 {
+			reg = <0x0 0xf8800000 0x2000000>;
+			no-map;
+		};
+
+		ramoops_mem: ramoops@fd3ff000 {
+			compatible = "ramoops";
+			reg = <0x0 0xfd3ff000 0x400000>;
+			console-size = <0x200000>;
+			pmsg-size = <0x200000>;
+		};
+	};
+
+	/* Earlycon uses this MMIO even if the uart driver never binds. */
+	serial_0: uart@10A00000 {
+		compatible = "samsung,exynos4210-uart";
+		reg = <0x0 0x10a00000 0x100>;
+		interrupts = <0 673 4>;
+		status = "okay";
+	};
+};

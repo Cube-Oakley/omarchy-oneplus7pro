@@ -1,0 +1,67 @@
+libcamera: software_isp: start autofocus scans on settled exposure
+
+The sharpness statistic grows with exposure: squared green differences over a
+green sum that includes the black level, so in a dim scene it goes roughly
+with the square of the exposure. Patch 0008 starts a scan after the first
+valid exposure sample. On the OnePlus 7 Pro's ultra-wide, starting from its
+default gain in a dim room, the coarse scan ran while exposure was still
+rising: the sample at position 510 read 289416, the fine scan's at the same
+position 1233191, and the coarse scan preferred a later, less sharp position.
+A scan now waits for exposure to hold for three frames, or at most 20 frames.
+
+---
+--- a/src/ipa/simple/ipa_context.h
+--- a/src/ipa/simple/ipa_context.h
++++ b/src/ipa/simple/ipa_context.h
+@@ -90,6 +90,7 @@
+ 		uint64_t smoothedSharpness;
+ 		unsigned int settleSamples;
+ 		unsigned int lowSharpnessSamples;
++		unsigned int pendingSamples;
+ 		int32_t metering;
+ 		Rectangle window;
+ 		bool windowValid;
+--- a/src/ipa/simple/algorithms/af.cpp
++++ b/src/ipa/simple/algorithms/af.cpp
+@@ -23,6 +23,14 @@
+ namespace ipa::soft::algorithms {
+ 
+ static constexpr unsigned int kAeValidSamples = 1;
++/*
++ * The sharpness statistic grows with exposure (squared edges over a green sum
++ * that includes the black level), so a scan run while exposure still changes
++ * favours the positions it samples last. A scan waits for exposure to hold
++ * for a few frames, but no longer than about two thirds of a second.
++ */
++static constexpr unsigned int kAeStableSamples = 3;
++static constexpr unsigned int kScanDelayMaxSamples = 20;
+ static constexpr unsigned int kContinuousMonitorDelaySamples = 15;
+ /*
+  * Continuous focus follows the sharpness smoothed over about eight frames, and
+@@ -89,6 +97,7 @@
+ 	af.windowValid = false;
+ 	af.scanning = false;
+ 	af.pendingScan = true;
++	af.pendingSamples = 0;
+ 
+ 	LOG(IPASoftAf, Info)
+ 		<< "Focus range " << context.configuration.focus.min << "-"
+@@ -106,6 +115,7 @@
+ 
+ 	auto &af = context.activeState.af;
+ 	af.pendingScan = false;
++	af.pendingSamples = 0;
+ 	af.scanning = true;
+ 	af.fineScan = false;
+ 	af.state = controls::AfStateScanning;
+@@ -372,7 +382,9 @@
+ 
+ 	if (context.configuration.focus.available && stats->valid) {
+ 		if (af.pendingScan &&
+-		    context.activeState.agc.validSamples >= kAeValidSamples)
++		    context.activeState.agc.validSamples >= kAeValidSamples &&
++		    (context.activeState.agc.stableSamples >= kAeStableSamples ||
++		     ++af.pendingSamples >= kScanDelayMaxSamples))
+ 			startScan(context);
+ 
+ 		const uint64_t sharpness = windowSharpness(context, stats);

@@ -6,7 +6,7 @@ ROOT=$(cd "$(dirname "$0")/../../../../.." && pwd)
 KERNEL="$ROOT/.work/linux-sm8150-mmcx-sleep"
 WORK="$ROOT/.work/ipa-module"
 OUT="$ROOT/out/cellular/ipa"
-SRC="$ROOT/devices/oneplus7pro/kernel/radio/ipa"
+SRC="$ROOT/kernel/radio/ipa"
 RADIO_SYMVERS="$ROOT/.work/native5-radio-modules/remoteproc/Module.symvers"
 rm -rf "$WORK"
 mkdir -p "$WORK/drivers/net/ethernet/qualcomm" "$WORK/Documentation/devicetree/bindings/net" "$OUT"

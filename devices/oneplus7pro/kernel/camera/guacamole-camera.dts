@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 /*
- * Camera control interface CCI0, the camera subsystem, the PM8009 digital
- * rails and the main rear camera (Sony IMX586), applied at runtime.
+ * Camera control interfaces CCI0 and CCI1, the camera subsystem, the PM8009
+ * digital rails and the rear cameras, applied at runtime.
  *
  * Guacamole's stock (18821) camera tree is identical to the OnePlus 7T Pro's
  * (19801) once phandles are resolved, so this follows the 7T Pro's working
@@ -26,6 +26,18 @@
  * GPIO35 VAF switch, as on the 7T Pro (hotdog r181). One slot per boot: the
  * camera subsystem completes only once every sensor on its graph has bound,
  * so a slot that fails would take the other down with it.
+ *
+ * Ultra-wide (-DCAMERA_WIDE): a Sony IMX481 on the second camera control
+ * interface, CCI1 (0xac4b000), master 1 at 0x1a, CSIPHY3 as four D-PHY lanes
+ * at 654.075 MHz, MCLK3 at 19.2 MHz, reset GPIO23, VANA from BOB gated by
+ * PM8150L GPIO2, VDIG PM8009 LDO4 at 1.056 V, VIO PM8150L LDO1, as in our
+ * stock tree's cam-sensor@3 and the 7T Pro's (hotdog r181: 0100). Stock gives
+ * it a 270 degree roll where the other cameras have 90, but with this driver
+ * a frame comes out upright after the same quarter turn as the others, so
+ * rotation is 90, as on the 7T Pro. Its focus actuator is an AK7374 at 0x0c
+ * on the same master (both OxygenOS ultra-wide modules name imx481_ak7374;
+ * it answered only with its VAF rail on), powered from BOB through the PM8150L
+ * GPIO4 switch as stock's actuator_rear_2; the 7T Pro left it unpowered.
  *
  * Needs camcc bound first (with the RPMh hold: docs/camera-20260922.md).
  * PM8009 LDO1/3/4 are new children of a bound regulator device; the loader
@@ -136,6 +148,50 @@
 		bias-disable;
 	};
 #endif
+#ifdef CAMERA_WIDE
+	/* CCI1's two masters. */
+	cci2_default: cci2-default-state {
+		pins = "gpio31", "gpio32";
+		function = "cci_i2c";
+		drive-strength = <2>;
+		bias-pull-up;
+	};
+
+	cci2_sleep: cci2-sleep-state {
+		pins = "gpio31", "gpio32";
+		function = "cci_i2c";
+		drive-strength = <2>;
+		bias-pull-down;
+	};
+
+	cci3_default: cci3-default-state {
+		pins = "gpio33", "gpio34";
+		function = "cci_i2c";
+		drive-strength = <2>;
+		bias-pull-up;
+	};
+
+	cci3_sleep: cci3-sleep-state {
+		pins = "gpio33", "gpio34";
+		function = "cci_i2c";
+		drive-strength = <2>;
+		bias-pull-down;
+	};
+
+	cam_mclk3_default: cam-mclk3-default-state {
+		pins = "gpio16";
+		function = "cam_mclk";
+		drive-strength = <2>;
+		bias-disable;
+	};
+
+	cam3_reset_default: cam3-reset-default-state {
+		pins = "gpio23";
+		function = "gpio";
+		drive-strength = <2>;
+		bias-disable;
+	};
+#endif
 };
 
 &{/} {
@@ -179,12 +235,47 @@
 		pinctrl-0 = <&cam1_vaf_default>;
 	};
 #endif
+#ifdef CAMERA_WIDE
+	/* The ultra-wide's autofocus rail: BOB through the PM8150L GPIO4 switch. */
+	vreg_cam3_vaf: regulator-cam3-vaf {
+		compatible = "regulator-fixed";
+		regulator-name = "cam3_vaf";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&pm8150l_gpios 4 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		vin-supply = <&vreg_bob>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&cam3_vaf_default>;
+	};
+#endif
 };
 
 #ifdef CAMERA_MAIN
 &pm8150l_gpios {
 	cam0_custom2_default: cam0-custom2-default-state {
 		pins = "gpio1";
+		function = "normal";
+		power-source = <0>;
+		output-low;
+		input-disable;
+	};
+};
+#endif
+#ifdef CAMERA_WIDE
+&pm8150l_gpios {
+	/* The ultra-wide's VANA gate, as stock (cam_sensor_rear_2_ana_active). */
+	cam3_vana_default: cam3-vana-default-state {
+		pins = "gpio2";
+		function = "normal";
+		power-source = <0>;
+		output-low;
+		input-disable;
+	};
+
+	/* Its VAF switch, as stock (cam_sensor_rear_2_af_active). */
+	cam3_vaf_default: cam3-vaf-default-state {
+		pins = "gpio4";
 		function = "normal";
 		power-source = <0>;
 		output-low;
@@ -355,6 +446,86 @@
 		};
 	};
 
+#ifdef CAMERA_WIDE
+	cci1: cci@ac4b000 {
+		compatible = "qcom,sm8150-cci", "qcom,sdm845-cci";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		reg = <0 0x0ac4b000 0 0x1000>;
+		interrupts = <GIC_SPI 271 IRQ_TYPE_EDGE_RISING>;
+		power-domains = <&camcc TITAN_TOP_GDSC>;
+
+		clocks = <&camcc CAM_CC_CAMNOC_AXI_CLK>,
+			 <&camcc CAM_CC_CORE_AHB_CLK>,
+			 <&camcc CAM_CC_SLOW_AHB_CLK_SRC>,
+			 <&camcc CAM_CC_CPAS_AHB_CLK>,
+			 <&camcc CAM_CC_CCI_1_CLK>,
+			 <&camcc CAM_CC_CCI_1_CLK_SRC>;
+		clock-names = "camnoc_axi", "soc_ahb", "slow_ahb_src", "cpas_ahb", "cci", "cci_src";
+		assigned-clocks = <&camcc CAM_CC_CAMNOC_AXI_CLK>, <&camcc CAM_CC_CCI_1_CLK>;
+		assigned-clock-rates = <80000000>, <37500000>;
+
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&cci2_default &cci3_default>;
+		pinctrl-1 = <&cci2_sleep &cci3_sleep>;
+
+		cci1_i2c0: i2c-bus@0 {
+			reg = <0>;
+			clock-frequency = <1000000>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
+		cci1_i2c1: i2c-bus@1 {
+			reg = <1>;
+			clock-frequency = <1000000>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			imx481_vcm: lens@c {
+				compatible = "asahi-kasei,ak7374";
+				reg = <0x0c>;
+				vdd-supply = <&vreg_cam3_vaf>;
+				vio-supply = <&vreg_l1c_1p8>;
+			};
+
+			/* Rear ultra-wide. */
+			camera@1a {
+				compatible = "sony,imx481";
+				reg = <0x1a>;
+				orientation = <1>;
+				rotation = <90>;
+
+				clocks = <&camcc CAM_CC_MCLK3_CLK>;
+				assigned-clocks = <&camcc CAM_CC_MCLK3_CLK>;
+				assigned-clock-rates = <19200000>;
+
+				/* The driver brings up VANA, VDIG, then VIO. */
+				vio-supply = <&vreg_l1c_1p8>;
+				vana-supply = <&vreg_bob>;
+				vdig-supply = <&vreg_l4f_1p05>;
+
+				reset-gpios = <&tlmm 23 GPIO_ACTIVE_LOW>;
+				vana-enable-gpios = <&pm8150l_gpios 2 GPIO_ACTIVE_HIGH>;
+				lens-focus = <&imx481_vcm>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&cam_mclk3_default>, <&cam3_reset_default>,
+					    <&cam3_vana_default>;
+
+				port {
+					imx481_ep: endpoint {
+						bus-type = <MEDIA_BUS_TYPE_CSI2_DPHY>;
+						data-lanes = <0 1 2 3>;
+						link-frequencies = /bits/ 64 <654075000>;
+						remote-endpoint = <&csiphy3_ep>;
+					};
+				};
+			};
+		};
+	};
+#endif
+
 	camss: camss@acb3000 {
 		compatible = "qcom,sm8150-camss";
 		reg = <0 0x0acb3000 0 0x1000>, <0 0x0acba000 0 0x1000>,
@@ -442,6 +613,17 @@
 					bus-type = <MEDIA_BUS_TYPE_CSI2_CPHY>;
 					data-lanes = <0 1 2>;
 					remote-endpoint = <&imx586_ep>;
+				};
+			};
+#endif
+#ifdef CAMERA_WIDE
+			port@3 {
+				reg = <3>;
+
+				csiphy3_ep: endpoint {
+					bus-type = <MEDIA_BUS_TYPE_CSI2_DPHY>;
+					data-lanes = <0 1 2 3>;
+					remote-endpoint = <&imx481_ep>;
 				};
 			};
 #endif
