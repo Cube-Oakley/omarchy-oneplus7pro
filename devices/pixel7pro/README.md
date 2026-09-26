@@ -28,7 +28,7 @@ Recovery uses the bootloader and saved host images. See the
 | Wayland | Hyprland on Mali-G710 MC7, shared mobile shell and clean fullscreen animation at 119.6–120.2 fps; older software-rendered fallback preserved. |
 | CPU/thermal | Three bounded cpufreq policies, schedutil, seven thermal zones and cooling tests. |
 | Power key/display sleep | S2MPG12 press/release, panel off/on and clean shared CRT transitions confirmed; CPU stays awake. |
-| Internal storage | All UFS logical units discovered; boot hashes match and ext4 write/remount/readback passes. The installed Arch desktop runs from userdata. |
+| Internal storage | All UFS logical units discovered; boot hashes match and ext4 write/remount/readback passes. The installed Arch desktop runs from userdata; proof files survive reset and recovery RAM boot. |
 | Physical touch | S3908 GPIO SPI input reached Hyprland; user confirmed response, but it is slow. |
 | USB | DWC3 peripheral using inherited PHY state; concurrent USB2 CDC-ACM and CDC-ECM Ethernet. |
 | Shell | Native root BusyBox shell, job control, RAM files, shell restart after exit, command exit-status reporting. |

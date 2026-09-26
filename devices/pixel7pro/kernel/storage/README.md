@@ -27,7 +27,8 @@ With these settings, Linux enumerates all four logical units and their GPT
 partitions. Full reads of `boot_a` and `init_boot_a` match the independently saved
 stock/Magisk reference SHA256 values. Ext4 on userdata also passes a 16 MiB write/remount/readback test. The Arch root
 was installed through a checked host-built sparse image. Image G mounts it and
-passes GPU shader readback; autonomous boot validation is in progress. Cold
+passes GPU shader readback. Saved files survive reset and another recovery RAM
+boot; autonomous boot remains under diagnosis. Cold
 library reads take minutes at the current PWM gear 1 speed.
 
 The inherited link returns invalid `0xff` to the first initialization queries.

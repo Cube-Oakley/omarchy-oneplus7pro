@@ -12,12 +12,16 @@ image G mounts it and passes GPU shader readback. The shared desktop runs from
 storage at 120 Hz after first-run font discovery and a desktop restart. Clock
 setup now precedes Hyprland; cold reads at PWM gear 1 remain slow. The guarded
 boot_a write and direct SHA256 readback passed. The following orderly restart
-has not restored USB; the user sees console text. Autonomous startup and file
-persistence across that restart are not yet verified.
+did not restore USB; the photo shows early kernel initialization. Recovery via
+fastboot and a traced RAM boot worked. Both proof files survived, establishing
+filesystem persistence across reset. Autonomous startup remains unverified.
 
-**Current RAM test:** v19 G persistent-bootstrap candidate, SHA256
-`eefa70189bf032f68d821bf9a1695229b15f0a20d2b0ffcbfbc0a4d35d80d42a`,
-no automatic reboot timeout. USB serial remains the recovery interface.
+**Current diagnostic:** unchanged v19 G kernel with `initcall_debug`, SHA256
+`d9e3a47f946674129b702644b4f5a262f72667c4940fd202617bc4be39e69a2e`.
+The tracing wrapper works in RAM. Its boot_a header was then installed with
+matching 4 KiB direct readback; the next normal boot also has not returned USB.
+A new console photo is needed to identify the last traced initialization step.
+There is no automatic reboot timeout. USB serial works on the RAM recovery path.
 Local SSH: `out/checkpoints/20260925-persistence-power/arch-session-f/ssh`.
 Android recovery appeared after a native restart; recovery ADB successfully
 returned it to the bootloader. Do not select Factory reset: userdata is Linux.
@@ -171,10 +175,11 @@ than assuming that ttyACM0 is always its port.
 
 ## Next work
 
-1. Diagnose the console stop after the first orderly restart of the installed
-   G boot image. Both root and boot_a are written; direct boot-image readback
-   passes. Obtain the last visible console lines before physical recovery.
-2. Validate persistence across independent boots and improve UFS performance.
+1. Diagnose the traced normal-boot stop using the new console output and the
+   successful RAM-boot trace. The original G boot image also matched a full
+   fastboot fetch after the failed restart; image corruption was not observed.
+2. Establish autonomous boot and improve UFS performance. File persistence
+   across reset and a subsequent RAM recovery boot is already verified.
 3. Extend charging and suspend/resume after persistent boot.
    Screen blanking does not establish CPU suspend or deep idle.
 4. Replace temporary GPIO SPI touch with standard SPI/IRQ input. CPU scaling,

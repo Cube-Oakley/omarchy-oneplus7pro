@@ -30,7 +30,7 @@ OnePlus hardware control adapters here.
 | CPU/thermal | Bounded cpufreq, schedutil and seven thermal zones verified |
 | Battery/charging | Not brought up |
 | Wi-Fi, Bluetooth, cellular, audio, camera | Not brought up |
-| Persistent storage/native install | UFS read/write checks pass; installed Arch desktop validated; boot_a written/readback verified; first normal restart under diagnosis |
+| Persistent storage/native install | UFS read/write checks pass; installed Arch desktop validated; saved files survive reset/recovery RAM boot; boot_a verified, normal startup under diagnosis |
 | Wired external display | Not a requirement for this device |
 
 See [the working checkpoint](../docs/hyprland-mobile-20260925.md),

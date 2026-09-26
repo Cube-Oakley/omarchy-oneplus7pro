@@ -279,3 +279,30 @@ A diagnostic wrapper preserves the exact G kernel/build ID and adds only
 It has been built locally, not booted or flashed. The next steps are physical
 return to fastboot, recovery of available bootloader logs, and a traced boot.
 The photo remains local; it is not a published artifact.
+
+## Traced RAM boot and persistent-file verification
+
+After the user returned the device to fastboot, a full `boot_a` fetch matched
+G's SHA256 exactly. Bootloader `klog` was saved locally; it contains watchdog
+and AVB records but no mainline console trace, so it does not locate the hang.
+
+The G tracing wrapper boots successfully from RAM: USB recovery returns, UFS
+enumerates and the installed root mounts. Both the image's original proof file
+and the file created before the failed normal restart are intact. This proves
+filesystem persistence across reset and another kernel boot; it does not yet
+prove autonomous boot. The GPU shader test passes again.
+
+`enable-pixel-boot-trace.py` verifies the host images differ only by appending
+`initcall_debug` to the Android v4 command-line field, checks the running kernel
+build ID and boot partition geometry, and compares the installed header. Its
+default is read-only. With `--write-header`, it writes only the first 4 KiB and
+checks a direct readback; kernel bytes and userdata are untouched. This requires
+prior full-image verification, supplied here by the fastboot fetch above.
+
+The traced header is now installed and its 4 KiB readback passes. Expected full
+boot-image SHA256 is the tracing wrapper hash above; a complete post-change
+fetch remains a separate check. A second orderly normal restart is in progress.
+USB did not return within the 45-second observation window. The next diagnostic
+input is the newly traced console; no driver change is justified by the old photo
+alone. Negative preflight checks also reject an unchanged command line or bad
+host-image checksum before attempting any device access.

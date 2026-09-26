@@ -18,7 +18,8 @@ CPU awake; interrupt wake and full suspend are separate future milestones.
 The Arch root is now installed on ext4 userdata and runs the shared desktop.
 The native boot image is installed with direct checksum readback. The first
 normal restart has not restored USB and is under diagnosis; autonomous boot
-and cross-boot persistence still need validation.
+still needs validation. Recovery RAM boot verified that both saved test files
+survive reset. Startup tracing now works in RAM and is enabled for normal boot.
 Storage still uses PWM gear 1: cold startup is slow, so full GS201 UFS support
 is a priority alongside charging, suspend and standard SPI touch.
 The priorities below continue to guide the OnePlus and shared software.

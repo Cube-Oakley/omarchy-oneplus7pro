@@ -34,11 +34,11 @@ HW.pixel7pro = {
           ref: "devices/pixel7pro/docs/device.md" },
         { n: "UFS storage (256 GB)", s: "partial", cap: "storage",
           note: "Linux enumerated all four UFS logical units and boot-image hashes match stock references. "
-              + "Userdata is ext4; write/remount/readback passes and the installed Arch desktop runs. PWM gear 1 makes cold startup slow.",
+              + "Userdata is ext4; write/remount/readback passes, the installed desktop runs, and saved files survive reset plus a recovery RAM boot. PWM gear 1 makes cold startup slow.",
           ref: "devices/pixel7pro/docs/persistence-power-20260925.md" },
         { n: "Boot chain (unlocked bootloader, fastboot RAM boot)", s: "partial", cap: "boot",
           note: "Mainline Linux boots natively with an embedded initramfs through a hash-checked fastboot boot, "
-              + "with a USB recovery shell and no automatic timeout. The exact RAM-tested kernel is installed in boot_a with direct checksum readback. USB did not return after the first normal restart; autonomous boot is unverified.",
+              + "with a USB recovery shell and no automatic timeout. The exact RAM-tested kernel is installed in boot_a with direct checksum readback. USB does not return on normal boot; the same kernel boots from RAM. Initcall tracing is enabled for diagnosis; autonomous boot remains unverified.",
           ref: "devices/pixel7pro/docs/native-shell-20260925.md" },
         { n: "Bootloader and saved-image recovery", s: "ok", cap: "recovery",
           note: "Power + Volume Down reaches the verified bootloader; saved host images provide recovery. "

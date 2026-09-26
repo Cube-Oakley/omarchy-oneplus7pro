@@ -156,3 +156,8 @@ Scan the lines the sync adds (`git diff public main`, excluding the Pages files)
   Published the subsequent restart stop honestly: console visible, USB absent,
   autonomous boot and cross-boot persistence still pending diagnosis. No new
   private data or binary artifacts are included.
+
+- September 26, tracing checkpoint: full boot_a fetch matches G after reset;
+  traced RAM boot succeeds and saved files persist. Published the guarded
+  header-only tracing helper and this evidence. Traced normal boot still lacks
+  USB, so autonomous boot remains unresolved. Device photos and logs stay local.
