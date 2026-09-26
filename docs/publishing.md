@@ -69,6 +69,13 @@ public repository root: a root `index.html` redirects to `plans/`, and a root
 the public branch may name or embed the private host — no LAN addresses, no
 internal hostnames, no forge/gitea references.
 
+GitHub redirects a renamed repository's web and git URLs but not its Pages site.
+The `Cube-Oakley/Cube-Oakley.github.io` user site therefore serves the old
+`/omarchy-oneplus7pro/` paths and redirects them here, mapping files that moved
+into `devices/oneplus7pro/`. It is temporary: delete it once the old links no
+longer matter. Never create a repository named `omarchy-oneplus7pro` while old
+clone URLs may still be in use; that stops GitHub's rename redirect.
+
 ## Checks before each public sync
 
 Scan the lines the sync adds (`git diff public main`, excluding the Pages files):
@@ -121,3 +128,11 @@ Scan the lines the sync adds (`git diff public main`, excluding the Pages files)
   switch and the steadier autofocus (libcamera-guacamole 0.7.2-10) after the
   same checks; the only address added is the upstream S5K3M5 driver author's,
   already public in linux-next. No camera frames or photos are included.
+- September 25, evening: the repository was renamed from `omarchy-oneplus7pro`
+  to `omarchy-mobile`, and `public` synced to development `main`: the device
+  workspace layout, the imported Pixel 7 Pro bring-up and the multi-device plan
+  pages, after the checks above. The only addresses added are the Pixel USB
+  link's 10.77.7.1/10.77.7.2 and its locally administered gadget MACs; the only
+  email is the maintainer line of the upstream GS101 ACPM binding, already
+  public in mainline. Neither handset's serial and no home path is included.
+  The old Pages paths redirect from the user site.
