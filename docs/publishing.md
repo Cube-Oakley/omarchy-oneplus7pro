@@ -151,3 +151,8 @@ Scan the lines the sync adds (`git diff public main`, excluding the Pages files)
   source contains no handset identifiers, home paths or credentials; only the
   documented USB link addresses remain. Root archives, font caches, images,
   screenshots and raw device logs stay local.
+
+- September 26, follow-up: boot_a write and direct SHA256 readback passed.
+  Published the subsequent restart stop honestly: console visible, USB absent,
+  autonomous boot and cross-boot persistence still pending diagnosis. No new
+  private data or binary artifacts are included.

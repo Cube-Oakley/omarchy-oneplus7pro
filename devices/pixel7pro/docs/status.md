@@ -11,7 +11,9 @@ The complete Arch filesystem was installed through a checked sparse image;
 image G mounts it and passes GPU shader readback. The shared desktop runs from
 storage at 120 Hz after first-run font discovery and a desktop restart. Clock
 setup now precedes Hyprland; cold reads at PWM gear 1 remain slow. The guarded
-boot_a installation is in progress; autonomous startup is not yet verified.
+boot_a write and direct SHA256 readback passed. The following orderly restart
+has not restored USB; the user sees console text. Autonomous startup and file
+persistence across that restart are not yet verified.
 
 **Current RAM test:** v19 G persistent-bootstrap candidate, SHA256
 `eefa70189bf032f68d821bf9a1695229b15f0a20d2b0ffcbfbc0a4d35d80d42a`,
@@ -169,9 +171,9 @@ than assuming that ttyACM0 is always its port.
 
 ## Next work
 
-1. Complete desktop startup validation from storage and install the
-   verified native boot image. Power-key events and clean shared CRT screen
-   off/on are already confirmed.
+1. Diagnose the console stop after the first orderly restart of the installed
+   G boot image. Both root and boot_a are written; direct boot-image readback
+   passes. Obtain the last visible console lines before physical recovery.
 2. Validate persistence across independent boots and improve UFS performance.
 3. Extend charging and suspend/resume after persistent boot.
    Screen blanking does not establish CPU suspend or deep idle.

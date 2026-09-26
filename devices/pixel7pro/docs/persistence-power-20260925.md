@@ -255,3 +255,13 @@ The guarded boot installer is now checking the original boot_a before writing
 the RAM-tested G image. A new file created in the installed root will be checked
 after independent normal boots. Boot-slot installation and autonomous startup
 are not considered complete until those checks pass.
+
+The boot_a preflight passed, including the original stock-image hash and the
+running G kernel build ID. The 64 MiB G image was written in 119.7 seconds, then
+read back using direct I/O with SHA256 exactly matching the artifact above.
+No other partition was written. The user confirms seeing and interacting with
+Hyprland from the installed root before the restart, with noticeable slowness.
+
+An orderly restart was requested through recovery PID1. USB did not return
+within the initial observation window; the user sees console text. This is
+under diagnosis and does not yet establish autonomous boot or clean reboot.

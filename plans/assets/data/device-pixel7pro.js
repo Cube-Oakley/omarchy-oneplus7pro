@@ -6,7 +6,7 @@
 HW.pixel7pro = {
   blurb: "Everything physically present in the Pixel 7 Pro, plus the platform pieces the phone depends on "
        + "(boot chain, firmware interfaces, power management, storage). Every result so far comes from "
-       + "mainline Linux. Arch is installed on ext4 userdata and runs the shared desktop; native boot-slot installation is in progress.",
+       + "mainline Linux. Arch is installed on ext4 userdata and runs the shared desktop; boot_a is installed and checksum-verified. The first normal restart is under diagnosis.",
 
   sections: [
     {
@@ -38,7 +38,7 @@ HW.pixel7pro = {
           ref: "devices/pixel7pro/docs/persistence-power-20260925.md" },
         { n: "Boot chain (unlocked bootloader, fastboot RAM boot)", s: "partial", cap: "boot",
           note: "Mainline Linux boots natively with an embedded initramfs through a hash-checked fastboot boot, "
-              + "with a USB recovery shell and no automatic timeout. The exact RAM-tested kernel is under guarded boot-slot installation.",
+              + "with a USB recovery shell and no automatic timeout. The exact RAM-tested kernel is installed in boot_a with direct checksum readback. USB did not return after the first normal restart; autonomous boot is unverified.",
           ref: "devices/pixel7pro/docs/native-shell-20260925.md" },
         { n: "Bootloader and saved-image recovery", s: "ok", cap: "recovery",
           note: "Power + Volume Down reaches the verified bootloader; saved host images provide recovery. "

@@ -31,7 +31,7 @@ DEVICES = [
     stage: "Early bring-up",
     summary: "Mainline Linux boots from RAM over fastboot and runs the shared mobile shell under Hyprland "
            + "on the Mali GPU at 120 Hz, with confirmed CRT power-button screen off/on. The Arch root "
-           + "is installed on internal storage; autonomous boot validation is in progress. Full suspend is unfinished.",
+           + "is installed on internal storage; boot_a is checksum-verified, but the first normal restart is under diagnosis. Full suspend is unfinished.",
     meta: ["mainline 7.3-rc2 · RAM boot", "updated 2026-09-26"],
     readme: "devices/pixel7pro/README.md",
     status: "devices/pixel7pro/docs/status.md"
