@@ -22,6 +22,7 @@ ap.add_argument('--display-timing', action='store_true', help='build v16 display
 ap.add_argument('--direct-scanout', action='store_true', help='build v17 native DMA scanout, implies --display-timing')
 ap.add_argument('--panel120', action='store_true', help='build v19 guarded 60/120 Hz panel modes and DPMS, implies --direct-scanout')
 ap.add_argument('--persistent-root', action='store_true', help='include UFS/input modules and mount an already installed Pixel root; requires --seconds 0')
+ap.add_argument('--initcall-debug', action='store_true', help='trace kernel initialization in this diagnostic image')
 a = ap.parse_args()
 if a.persistent_root:
     if a.seconds != 0:
@@ -61,6 +62,23 @@ for enabled, stem in ((a.acpm, 'acpm'), (a.gpu, 'gpu')):
                   for i in range(0, len(overlay), 12)) + '\n};\n')
 out = a.output.resolve()
 out.mkdir(parents=True, exist_ok=False)
+# Normal ABL boot may omit the Android boot header's command line, even though
+# fastboot boot honors it. Persistent images must carry their early parameters
+# in CONFIG_CMDLINE_FORCE: runtime bootconfig is too late for keep_bootcon/CMA.
+cmdline = ('keep_bootcon loglevel=7 printk.time=1 fw_devlink=off clk_ignore_unused '
+           'pd_ignore_unused panic=45 rdinit=/ourinit pixel_usb=1 '
+           f'pixel_test_seconds={a.seconds}')
+if a.usb_network:
+    cmdline += ' g_cdc.dev_addr=02:70:07:00:00:01 g_cdc.host_addr=02:70:07:00:00:02'
+if a.drm:
+    cmdline += ' pixel_drm=1'
+if a.direct_scanout:
+    cmdline += ' cma=128M@0-4G'
+if a.panel120:
+    cmdline += ' pixel_scanout.panel120=1'
+if a.initcall_debug:
+    cmdline += ' initcall_debug'
+(out / 'cmdline.txt').write_text(cmdline + '\n')
 root = out / 'root'
 for d in ('bin', 'etc', 'dev', 'proc', 'sys', 'tmp', 'run', 'root', 'usr'):
     (root / d).mkdir(parents=True, exist_ok=True)
@@ -108,6 +126,7 @@ shutil.copy2(ROOT / 'kernel/native-bringup-v9.config', kernel / '.config')
 subprocess.run([str(kernel / 'scripts/config'), '--file', str(kernel / '.config'),
                 '--set-str', 'INITRAMFS_SOURCE', str(root),
                 '--set-str', 'BOOT_CONFIG_EMBED_FILE', str(ROOT / 'mainline/bootconfig'),
+                *(['--set-str', 'CMDLINE', cmdline, '--enable', 'CMDLINE_FORCE'] if a.persistent_root else []),
                 '--set-str', 'LOCALVERSION', '-pixel-panel19' if a.panel120 else '-pixel-scanout17' if a.direct_scanout else ('-pixel-display16' if a.display_timing else ('-pixel-gpu15' if a.gpu else ('-pixel-power14' if a.acpm else ('-pixel-drm11' if a.drm else ('-pixel-net10' if a.usb_network else '-pixel-shell9'))))),
                 *(['--enable', 'EXYNOS_ACPM_PROTOCOL', '--enable', 'EXYNOS_MBOX',
                    '--enable', 'EXYNOS_ACPM_CLK', '--enable', 'GS201_ACPM_THERMAL',
@@ -184,18 +203,6 @@ if a.gpu:
     shutil.copy2(ROOT / 'mainline/pixel-gpu-overlay.dts', out / 'pixel-gpu-overlay.dts')
 (out / 'kernel-tracked.patch').write_bytes(subprocess.check_output(['git', '-C', str(kernel), 'diff']))
 (out / 'kernel-base.txt').write_bytes(subprocess.check_output(['git', '-C', str(kernel), 'rev-parse', 'HEAD']))
-cmdline = ('keep_bootcon loglevel=7 printk.time=1 fw_devlink=off clk_ignore_unused '
-           'pd_ignore_unused panic=45 rdinit=/ourinit pixel_usb=1 '
-           f'pixel_test_seconds={a.seconds}')
-if a.usb_network:
-    cmdline += ' g_cdc.dev_addr=02:70:07:00:00:01 g_cdc.host_addr=02:70:07:00:00:02'
-if a.drm:
-    cmdline += ' pixel_drm=1'
-if a.direct_scanout:
-    cmdline += ' cma=128M@0-4G'
-if a.panel120:
-    cmdline += ' pixel_scanout.panel120=1'
-(out / 'cmdline.txt').write_text(cmdline + '\n')
 subprocess.run(['python', str(ROOT / 'scripts/pack-pixel-ram-boot.py'), '--kernel', str(out / 'Image'),
                 '--output', str(out / 'boot-pixel-shell.img'), '--cmdline', cmdline], check=True)
 with (out / 'SHA256SUMS').open('w') as sums:

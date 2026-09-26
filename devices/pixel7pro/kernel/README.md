@@ -8,7 +8,9 @@ under installation validation. The Arch root is installed on ext4 userdata and
 the shared desktop runs from it. [Reboot target selection](reboot/README.md) is
 experimental: its bootloader-mode test entered Android recovery, where ADB
 successfully restored fastboot. Full CPU suspend remains unimplemented. Earlier
-checkpoints below are preserved for reproduction.
+checkpoints below are preserved for reproduction. Persistent builds now embed
+their required command line before early parsing; image H tests whether normal
+ABL boot was omitting the boot-header arguments. H is not hardware-validated yet.
 
 `kernel-base.txt` records the exact upstream commit. `native-bringup-v9.patch`
 contains all local source changes relative to it, including the preexisting

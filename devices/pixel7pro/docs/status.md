@@ -20,7 +20,10 @@ filesystem persistence across reset. Autonomous startup remains unverified.
 `d9e3a47f946674129b702644b4f5a262f72667c4940fd202617bc4be39e69a2e`.
 The tracing wrapper works in RAM. Its boot_a header was then installed with
 matching 4 KiB direct readback; the next normal boot also has not returned USB.
-A new console photo is needed to identify the last traced initialization step.
+The new photo contains no tracing lines, suggesting normal boot omits the
+header command line. Missing keep_bootcon may explain the stale console.
+Image H embeds the required parameters with CONFIG_CMDLINE_FORCE; it is built
+and locally checked, awaiting fastboot recovery and RAM validation.
 There is no automatic reboot timeout. USB serial works on the RAM recovery path.
 Local SSH: `out/checkpoints/20260925-persistence-power/arch-session-f/ssh`.
 Android recovery appeared after a native restart; recovery ADB successfully

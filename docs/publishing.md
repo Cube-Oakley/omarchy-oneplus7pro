@@ -161,3 +161,8 @@ Scan the lines the sync adds (`git diff public main`, excluding the Pages files)
   traced RAM boot succeeds and saved files persist. Published the guarded
   header-only tracing helper and this evidence. Traced normal boot still lacks
   USB, so autonomous boot remains unresolved. Device photos and logs stay local.
+
+- September 26, command-line candidate: the new normal-boot photo has no tracing
+  output. Published the candidate that embeds persistent-boot parameters before
+  early parsing, explicitly marked not hardware-validated. No photo or image
+  artifact is included.

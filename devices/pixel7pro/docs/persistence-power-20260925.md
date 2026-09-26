@@ -306,3 +306,29 @@ USB did not return within the 45-second observation window. The next diagnostic
 input is the newly traced console; no driver change is justified by the old photo
 alone. Negative preflight checks also reject an unchanged command line or bad
 host-image checksum before attempting any device access.
+
+## Normal-boot command-line hypothesis
+
+The next photo still contains ordinary boot messages, with no `initcall_debug`
+lines. The same tracing wrapper produced detailed initialization logs when
+RAM-booted. This suggests normal ABL boot omits the boot-header command line;
+the complete post-restart tracing image still needs to be fetched to exclude
+an unexpected change to that header.
+
+Missing arguments would also remove `pixel_usb=1`, `pixel_drm=1`, the low-address
+CMA reservation and `keep_bootcon`. Therefore, the stale early console is not
+proof of a kernel hang at serial initialization: normal console handoff could
+stop refreshing it while the kernel continues without the development drivers.
+
+Persistent builds now use the same generated parameters for the boot header and
+`CONFIG_CMDLINE` with `CONFIG_CMDLINE_FORCE=y`. This applies them before early
+parameter parsing; merely adding them to runtime bootconfig would be too late
+for `keep_bootcon` and CMA on this ARM64 kernel. The embedded bootconfig still
+selects `/ourinit`. The builder also accepts `--initcall-debug` for diagnostics.
+
+Image H was built with `--persistent-root --seconds 0 --initcall-debug`.
+SHA256: `ca77148f5fe6433a6625d8ca55a3b72e03bd13cc30ee11b5618de38b840742a3`.
+GNU build ID: `550740cd009bccdb3958cae5b27927a1fc6bc7ba`.
+Its final config was checked against the generated command line. It is a local,
+untested candidate; the user is returning the phone to fastboot for readback
+and RAM validation before any kernel replacement.
